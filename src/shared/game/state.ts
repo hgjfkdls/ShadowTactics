@@ -7,7 +7,12 @@ export type Unit = {
     id: UnitId;
     owner: PlayerId;
     position: HexCoord;
+    attack: number;
+    hp: number;
+    difficulty: number;
+    range: number;
     movement: number;
+    class: 'archer' | 'infantry' | 'lancer' | 'cavalry' | 'general';
 };
 
 export type GameState = {

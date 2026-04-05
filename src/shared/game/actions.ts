@@ -8,5 +8,10 @@ export type GameAction =
         to: HexCoord;
     }
     | {
+        type: 'ATTACK_UNIT';
+        unitId: UnitId;
+        targetId: UnitId;
+    }
+    | {
         type: 'END_TURN';
     };
