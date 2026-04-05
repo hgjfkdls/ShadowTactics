@@ -16,7 +16,7 @@
 			"*.jsx": "${capture}.js",
 			"*.tsx": "${capture}.ts",
 			"tsconfig.json": "tsconfig.*.json",
-			"package.json": "prisma.config.ts, svgo.config.js, nodemon.json, .env, .gitignore, tsconfig.json, package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock, postcss.config.mjs, next-env.d.ts, eslint.config.mjs, next.config.ts, *.yml, DockerFile"
+			"package.json": "vite-env.d.ts, vite.config.ts, tailwind.config.js, postcss.config.js, prisma.config.ts, svgo.config.js, nodemon.json, .env, .gitignore, tsconfig.json, package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock, postcss.config.mjs, next-env.d.ts, eslint.config.mjs, next.config.ts, *.yml, DockerFile"
 		}
 	}
 }
