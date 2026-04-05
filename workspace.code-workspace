@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"editor.fontSize": 13,
+		"editor.fontFamily": "JetBrains Mono, monospace",
+		"editor.tabSize": 4,
+		"editor.detectIndentation": false,
+		"explorer.fileNesting.enabled": true,
+		"explorer.fileNesting.patterns": {
+			"*.ts": "${capture}.js",
+			"*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.d.ts",
+			"*.jsx": "${capture}.js",
+			"*.tsx": "${capture}.ts",
+			"tsconfig.json": "tsconfig.*.json",
+			"package.json": "prisma.config.ts, svgo.config.js, nodemon.json, .env, .gitignore, tsconfig.json, package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock, postcss.config.mjs, next-env.d.ts, eslint.config.mjs, next.config.ts, *.yml, DockerFile"
+		}
+	}
+}
