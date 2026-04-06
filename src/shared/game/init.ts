@@ -1,3 +1,10 @@
+/**
+ * File        : C:\Users\Alvaro\Documents\proyectos\ShadowTactics\src\shared\game\init.ts
+ * Autor       : Alvaro Cabedo
+ * Fecha       : 2026-04-05
+ * Descripcion : 
+ */
+
 import { GameState } from './state';
 
 export function createInitialGameState(): GameState {
@@ -5,6 +12,14 @@ export function createInitialGameState(): GameState {
         turn: 1,
         activePlayer: 'p1',
         map: { radius: 4 },
+        graveyard: {},
+        rngSeed: 123456,
+        turnPhase: 'ACTION',
+
+        players: {
+            p1: { actionPoints: 5, carryOver: 0 },
+            p2: { actionPoints: 5, carryOver: 0 }
+        },
 
         units: {
             // PLAYER 1 (lado izquierdo)
@@ -16,7 +31,7 @@ export function createInitialGameState(): GameState {
                 hp: 8,
                 difficulty: 6,
                 range: 4,
-                movement: 1,
+                movementCost: 2,
                 class: 'archer'
             },
             u2: {
@@ -27,7 +42,7 @@ export function createInitialGameState(): GameState {
                 hp: 10,
                 difficulty: 5,
                 range: 1,
-                movement: 1,
+                movementCost: 1,
                 class: 'infantry'
             },
             u3: {
@@ -38,7 +53,7 @@ export function createInitialGameState(): GameState {
                 hp: 12,
                 difficulty: 5,
                 range: 1,
-                movement: 2,
+                movementCost: 1,
                 class: 'cavalry'
             },
 
@@ -51,7 +66,7 @@ export function createInitialGameState(): GameState {
                 hp: 8,
                 difficulty: 6,
                 range: 4,
-                movement: 1,
+                movementCost: 2,
                 class: 'archer'
             },
             u5: {
@@ -62,7 +77,7 @@ export function createInitialGameState(): GameState {
                 hp: 10,
                 difficulty: 5,
                 range: 1,
-                movement: 1,
+                movementCost: 1,
                 class: 'infantry'
             },
             u6: {
@@ -73,7 +88,7 @@ export function createInitialGameState(): GameState {
                 hp: 12,
                 difficulty: 5,
                 range: 1,
-                movement: 2,
+                movementCost: 1,
                 class: 'cavalry'
             }
         }
