@@ -6,7 +6,7 @@ type Props = {
 };
 
 export function DebugEntry({ event }: Props) {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(true);
 
     return (
         <div className="border-b border-zinc-700" onClick={() => setOpen(o => !o)}>

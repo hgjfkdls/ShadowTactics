@@ -1,7 +1,6 @@
-import { applyAction, GameAction, GameState } from '@shared';
-import { createInitialGameState } from '@shared/game/init';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { getRoom, removeRoomIfEmpty } from './rooms';
 
 const httpServer = createServer();
 
@@ -11,22 +10,60 @@ const io = new Server(httpServer, {
     }
 });
 
-let gameState = createInitialGameState();
-
 io.on('connection', socket => {
     console.log('Cliente conectado:', socket.id);
 
-    socket.emit('STATE', gameState);
+    socket.on('JOIN_GAME', ({ gameId }) => {
+        const room = getRoom(gameId);
+        socket.join(gameId);
 
-    socket.on('ACTION', (action: GameAction) => {
-        console.log('ACTION:', socket.id, action);
-        gameState = applyAction(gameState, action);
-        gameState = applyAction(gameState, { type: 'END_TURN' });
-        socket.emit('STATE', gameState);
+        const joinResult = room.join(socket.id);
+
+        if (joinResult.role === 'player') {
+            socket.emit('ROLE', {
+                role: 'player',
+                playerId: joinResult.playerId,
+            });
+        } else {
+            socket.emit('ROLE', {
+                role: 'spectator',
+            });
+        }
+
+        socket.emit('STATE', room.getCurrentState());
+        console.log(room.debugInfo());
+    });
+
+    socket.on('ACTION', ({ gameId, action, playerId }) => {
+        const room = getRoom(gameId);
+
+        if (!room.isPlayer(socket.id, playerId)) return;
+
+        const newState = room.handleAction(action, playerId);
+
+        io.to(gameId).emit('STATE', newState);
+    });
+
+    socket.on('LEAVE_GAME', ({ gameId }) => {
+        const room = getRoom(gameId);
+        socket.leave(gameId);
+        room.leave(socket.id);
+        removeRoomIfEmpty(gameId);
+
+        console.log(`Socket ${socket.id} left game ${gameId}`);
+        socket.emit('LEFT_GAME');
     });
 
     socket.on('disconnect', () => {
         console.log('Cliente desconectado:', socket.id);
+
+        for (const gameId of socket.rooms) {
+            if (gameId === socket.id) continue;
+            const room = getRoom(gameId);
+            room.leave(socket.id);
+            removeRoomIfEmpty(gameId);
+        }
+
     });
 });
 
