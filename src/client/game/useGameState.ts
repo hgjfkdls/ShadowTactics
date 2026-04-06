@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { socket } from '../net/socket';
 import type { GameState, GameAction } from '@shared';
+import { debugStore } from '../debug/DebugStore';
 
 export function useGameState() {
     const [state, setState] = useState<GameState | null>(null);
@@ -16,6 +17,11 @@ export function useGameState() {
         }
 
         function onState(newState: GameState) {
+            debugStore.add({
+                type: 'STATE_RECEIVED',
+                state: newState,
+                time: Date.now(),
+            });
             setState(newState);
         }
 

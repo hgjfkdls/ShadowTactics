@@ -1,6 +1,7 @@
 import { useGameState } from './game/useGameState';
-import { DebugPanel } from './game/DebugPanel';
+import { DebugPanel } from './debug/DebugPanel';
 import { HexBoard } from './game/board/HexBoard';
+import { sendAction } from './net/socket';
 
 export function App() {
     const { state, connected } = useGameState();
@@ -13,11 +14,11 @@ export function App() {
             </header>
             <div className="grid grid-cols-[260px_1fr] overflow-hidden">
                 <aside className="border-r border-zinc-700 p-2 overflow-auto">
-                    <DebugPanel state={state} connected={connected} />
+                    <DebugPanel />
                 </aside>
                 <main className="relative overflow-hidden">
                     {state && (
-                        <HexBoard radius={state.map.radius} />
+                        <HexBoard state={state} sendAction={sendAction} />
                     )}
                 </main>
             </div>

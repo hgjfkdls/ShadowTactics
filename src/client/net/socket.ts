@@ -1,3 +1,5 @@
+import { debugStore } from '@client/debug/DebugStore';
+import { GameAction } from '@shared';
 import { io } from 'socket.io-client';
 
 export const socket = io('http://localhost:3000',
@@ -7,5 +9,18 @@ export const socket = io('http://localhost:3000',
 );
 
 socket.on('connect', () => {
-    console.log('Conectado al server con id:', socket.id);
+    debugStore.add({
+        type: 'SOCKET_CONNECT',
+        time: Date.now(),
+    });
 });
+
+export function sendAction(action: GameAction) {
+    debugStore.add({
+        type: 'ACTION_SENT',
+        action,
+        time: Date.now(),
+    });
+
+    socket.emit('ACTION', action);
+}

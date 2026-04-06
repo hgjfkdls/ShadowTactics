@@ -1,8 +1,6 @@
 import { GameState } from './state';
-import { GameAction } from './actions';
-import { hexDistance } from '../hex';
 
-function createInitialGameState(): GameState {
+export function createInitialGameState(): GameState {
     return {
         turn: 1,
         activePlayer: 'p1',
