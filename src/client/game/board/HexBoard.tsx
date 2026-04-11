@@ -5,13 +5,15 @@ import { useBoardInteraction } from './useBoardInteraction';
 import { useViewport } from './useViewport';
 import { getMoveRange } from './movementRange';
 import type { GameAction, GameState, HexCoord } from '@shared';
+import { PlayerRole } from '@server/GameRoom';
 
 type Props = {
     state: GameState;
+    role: PlayerRole | null;
     sendAction: (action: any) => void;
 };
 
-export function HexBoard({ state, sendAction }: Props) {
+export function HexBoard({ state, role, sendAction }: Props) {
     const hexes = generateHexMap(state.map);
     const {
         hoveredHex,
@@ -24,8 +26,8 @@ export function HexBoard({ state, sendAction }: Props) {
 
     const { scale, x, y, zoom, pan } = useViewport();
 
-    const myPlayerId = 'p1';
-    const isMyTurn = state.activePlayer === myPlayerId || true;
+    const myPlayerId = role ? (role.role === "player" ? role.playerId : '') : '';
+    const isMyTurn = state.activePlayer === myPlayerId;
 
     const moveRange = selectedUnitId
         ? getMoveRange(state, selectedUnitId)
@@ -42,6 +44,7 @@ export function HexBoard({ state, sendAction }: Props) {
         if (selectedUnitId && isReachable(hex)) {
             const action: GameAction = {
                 type: 'MOVE_UNIT',
+                playerId: myPlayerId,
                 unitId: selectedUnitId,
                 to: hex,
             };

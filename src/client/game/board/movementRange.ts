@@ -8,7 +8,7 @@ export function getMoveRange(
     const unit = state.units[unitId];
     if (!unit) return [];
 
-    return hexRange(unit.position, unit.movement).filter(hex =>
+    return hexRange(unit.position, unit.movementCost).filter(hex =>
         isInsideMap(hex, state.map)
     );
 }

@@ -1,5 +1,4 @@
 import { HexCoord } from './coord';
-import { hexDistance } from './distance';
 
 export function hexRange(
     center: HexCoord,

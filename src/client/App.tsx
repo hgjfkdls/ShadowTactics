@@ -42,6 +42,7 @@ export function App() {
                         {state ? (
                             <HexBoard
                                 state={state}
+                                role={role}
                                 sendAction={sendAction}
                             />
                         ) : (
@@ -53,7 +54,7 @@ export function App() {
                             <button
                                 className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
                                 disabled={state.activePlayer !== role.playerId}
-                                onClick={() => sendAction({ type: 'END_TURN' })}
+                                onClick={() => sendAction({ type: 'END_TURN', playerId: role.playerId })}
                             >
                                 End Turn
                             </button>
