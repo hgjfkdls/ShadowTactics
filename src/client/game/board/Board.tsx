@@ -11,14 +11,12 @@ type Props = {
     state: GameState;
     role: PlayerRole | null;
     sendAction: (action: any) => void;
-    onChangeUnitSelected?: (selectedUnitId: string | null) => void;
 };
 
-export function Board({ state, role, sendAction, onChangeUnitSelected }: Props) {
+export function Board({ state, role, sendAction }: Props) {
     const hexes = generateHexMap(state.map);
     const {
         hoveredHex,
-        selectedHex,
         selectedUnitId,
         setHoveredHex,
         setSelectedHex,
@@ -80,14 +78,7 @@ export function Board({ state, role, sendAction, onChangeUnitSelected }: Props) 
                     />
                 ))}
 
-                <UnitsLayer
-                    state={state}
-                    selectedUnitId={selectedUnitId}
-                    onSelectUnit={unitId => {
-                        setSelectedUnitId(unitId);
-                        onChangeUnitSelected?.(unitId);
-                    }}
-                />
+                <UnitsLayer />
 
             </g>
         </svg>
