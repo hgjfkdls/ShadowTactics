@@ -24,19 +24,66 @@ export type Unit = {
 };
 
 export type GameState = {
+    // Flujo global
     turn: number;
     activePlayer: PlayerId;
+
+    gamePhase: 'PREPARATION' | 'GAME';
+
+    // Subfases
+    preparationPhase:
+        | 'IDENTITY_SELECTION'
+        | 'ROLL'
+        | 'DEPLOYMENT'
+        | 'DONE';
+
     turnPhase: 'DRAW' | 'MAIN' | 'COUNTER' | 'ACTION';
-    
+
+    // Mapa
     map: HexMap;
+    centerHex: HexCoord;
+
+    // Unidades
     units: Record<UnitId, Unit>;
     graveyard: Record<UnitId, Unit>;
 
+    // RNG
     rngSeed: number;
+
+    // Jugadores
     players: Record<PlayerId, PlayerResources>;
+
+    // Dados de fase de preparación
+    diceRolls: Record<PlayerId, number | undefined>;
+
+    // Orden de despliegue
+    deploymentOrder?: PlayerId[];
+    currentDeployingPlayer?: PlayerId;
 };
 
 export type PlayerResources = {
     actionPoints: number;
     carryOver: number;
+
+    // Cartas
+    cardsInHand?: CardId[];
+
+    // IDENTIDAD
+    identityCards?: CardId[];      // 3 cartas iniciales
+    selectedIdentity?: CardId;     // elegida (oculta)
+    revealedIdentity?: boolean;     // visible al rival
+
+    // DESPLIEGUE
+    unitsToDeploy?: UnitId[];      // pool inicial
+    deployedUnits?: UnitId[];      // ya colocadas
 };
+
+export type Card = {
+    id: CardId;
+    type: 'BUFF' | 'DEBUFF' | 'COUNTER' | 'IDENTITY';
+    activation: 'THIS_TURN' | 'NEXT_TURN' | 'INSTANT';
+    name: string;
+    description: string;
+    duration: number;
+    effect: (state: GameState, playerId: PlayerId) => GameState;
+}

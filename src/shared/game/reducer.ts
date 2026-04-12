@@ -1,22 +1,28 @@
 /**
  * File        : C:\Users\Alvaro\Documents\proyectos\ShadowTactics\src\shared\game\reducer.ts
  * Autor       : Alvaro Cabedo
- * Fecha       : 2026-04-05
+ * Fecha       : 2026-04-07
  * Descripcion : 
  */
 
 import { GameState } from './state';
-import { GameAction } from './actions';
-import { hexDistance } from '../hex';
-import { rollDice } from './utils';
 import { PlayerId } from './state';
+import { UnitId } from './state';
 import { Unit } from './state';
+import { GameAction } from './actions';
+import { rollDice } from './utils';
+import { hexDistance } from '../hex';
 import { HexCoord } from '../hex';
 
 export function applyAction(
     state: GameState,
     action: GameAction
 ): GameState {
+
+    if (state.gamePhase === 'PREPARATION') {
+        return handlePreparation(state, action);
+    }
+
     switch (action.type) {
         case 'MOVE_UNIT': {
             const playerId = action.playerId;
@@ -88,7 +94,7 @@ export function applyAction(
             const { roll, seed: newSeed } = rollDice(state.rngSeed, 12);
 
             const canCounter = distance <= target.range;
-            
+
             // FALLO
             if (roll < unit.difficulty) {
                 return pipeState(
@@ -135,8 +141,230 @@ export function applyAction(
 
             return applyTurnStart(newState, nextPlayer);
         }
+        default: {
+            return state;
+        }
     }
 }
+
+
+function handlePreparation(
+    state: GameState,
+    action: GameAction
+): GameState {
+
+    switch (state.preparationPhase) {
+
+        case 'IDENTITY_SELECTION':
+            return handleIdentitySelection(state, action);
+
+        case 'ROLL':
+            return handleRoll(state, action);
+
+        case 'DEPLOYMENT':
+            return handleDeployment(state, action);
+
+        default:
+            return state;
+    }
+}
+
+function handleIdentitySelection(
+    state: GameState,
+    action: GameAction
+): GameState {
+
+    if (action.type !== 'SELECT_IDENTITY') return state;
+
+    const playerId = action.playerId;
+    const player = state.players[playerId];
+
+    if (!player) return state;
+
+    // Ya seleccionó antes
+    if (player.selectedIdentity) return state;
+
+    // Validar que la carta pertenece al jugador
+    if (!player.identityCards?.includes(action.cardId)) return state;
+
+    // Aplicar selección
+    let newState: GameState = {
+        ...state,
+        players: {
+            ...state.players,
+            [playerId]: {
+                ...player,
+                selectedIdentity: action.cardId
+            }
+        }
+    };
+
+    // Verificar si ambos jugadores ya seleccionaron
+    const allSelected = Object.values(newState.players)
+        .every(p => p.selectedIdentity);
+
+    if (!allSelected) return newState;
+
+    // REVEAL AUTOMÁTICO + AVANCE DE FASE
+    const revealedPlayers = Object.fromEntries(
+        Object.entries(newState.players).map(([id, p]) => [
+            id,
+            {
+                ...p,
+                revealedIdentity: true
+            }
+        ])
+    );
+
+    return {
+        ...newState,
+        players: revealedPlayers,
+        preparationPhase: 'ROLL'
+    };
+}
+
+function handleRoll(
+    state: GameState,
+    action: GameAction
+): GameState {
+
+    if (action.type !== 'ROLL_DICE') return state;
+
+    const playerId = action.playerId;
+
+    // Ya tiró antes
+    if (state.diceRolls[playerId] !== undefined) return state;
+
+    // Tirada de dado
+    const { roll, seed: newSeed } = rollDice(state.rngSeed, 12);
+
+    const newState: GameState = {
+        ...state,
+        rngSeed: newSeed,
+        diceRolls: {
+            ...state.diceRolls,
+            [playerId]: roll
+        }
+    };
+
+    const p1Roll = newState.diceRolls['p1'];
+    const p2Roll = newState.diceRolls['p2'];
+
+    // Aún no han tirado ambos
+    if (p1Roll === undefined || p2Roll === undefined) {
+        return newState;
+    }
+
+    // EMPATE → repetir tirada
+    if (p1Roll === p2Roll) {
+        return {
+            ...newState,
+            diceRolls: {
+                p1: undefined,
+                p2: undefined
+            }
+        };
+    }
+
+    // Resolver iniciativa
+    let deploymentOrder: PlayerId[];
+    let activePlayer: PlayerId;
+
+    if (p1Roll < p2Roll) {
+        deploymentOrder = ['p1', 'p2'];
+        activePlayer = 'p2';
+    } else {
+        deploymentOrder = ['p2', 'p1'];
+        activePlayer = 'p1';
+    }
+
+    return {
+        ...newState,
+        deploymentOrder,
+        currentDeployingPlayer: deploymentOrder[0],
+        activePlayer,
+        preparationPhase: 'DEPLOYMENT'
+    };
+}
+
+function handleDeployment(
+    state: GameState,
+    action: GameAction
+): GameState {
+
+    if (action.type !== 'DEPLOY_UNIT') return state;
+
+    const playerId = action.playerId;
+
+    // Turno correcto
+    if (playerId !== state.currentDeployingPlayer) return state;
+
+    const player = state.players[playerId];
+    if (!player) return state;
+
+    // Validar unidad disponible
+    if (!player.unitsToDeploy?.includes(action.unitId)) return state;
+
+    // Crear unidad
+    const unit = createUnit(
+        action.unitId,
+        playerId,
+        action.position,
+        action.class
+    );
+
+    // Nuevo estado
+    let newState: GameState = {
+        ...state,
+        units: {
+            ...state.units,
+            [unit.id]: unit
+        },
+        players: {
+            ...state.players,
+            [playerId]: {
+                ...player,
+                unitsToDeploy: player.unitsToDeploy.filter(id => id !== unit.id),
+                deployedUnits: [...(player.deployedUnits || []), unit.id]
+            }
+        }
+    };
+
+    // Cambio de jugador (temporal, luego lo mejoramos con bloques de 3)
+    const nextPlayer =
+        state.deploymentOrder?.find(p => p !== playerId) ?? playerId;
+
+    newState.currentDeployingPlayer = nextPlayer;
+
+    return newState;
+}
+
+function createUnit(
+    unitId: UnitId,
+    playerId: PlayerId,
+    position: HexCoord,
+    unitClass: Unit['class']
+): Unit {
+
+    const baseStats = {
+        archer: { attack: 3, hp: 8, difficulty: 6, range: 4, movementCost: 2 },
+        infantry: { attack: 3, hp: 12, difficulty: 7, range: 1, movementCost: 1 },
+        cavalry: { attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1 },
+        lancer: { attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1 },
+        general: { attack: 5, hp: 15, difficulty: 7, range: 1, movementCost: 1 }
+    };
+
+    const stats = baseStats[unitClass];
+
+    return {
+        id: unitId,
+        owner: playerId,
+        position,
+        class: unitClass,
+        ...stats
+    };
+}
+
 
 //STATE
 function pipeState(state: GameState, ...fns: Array<(s: GameState) => GameState>): GameState {
