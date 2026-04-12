@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useGameState } from './game/useGameState';
 import { DebugPanel } from './debug/DebugPanel';
-import { HexBoard } from './game/board/HexBoard';
+import { Board } from './game/board/Board';
+import { GamePanel } from './game/panel/GamePanel';
+import { useGame } from './game/GameStateContext';
 
 export function App() {
     const {
@@ -12,13 +13,14 @@ export function App() {
         leaveGame,
         sendAction,
         connected,
-    } = useGameState();
+    } = useGame();
 
     const [gameIdInput, setGameIdInput] = useState('');
 
     return (
+
         <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
-            <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
+            <header className="border-b px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
                 {gameId && <>
                     <div className="font-normal text-sm text-zinc-300">
@@ -35,12 +37,12 @@ export function App() {
             </header>
             {gameId ? (
                 <div className="grid grid-cols-[320px_1fr] overflow-hidden h-full">
-                    <aside className="border-r border-zinc-700 p-2 overflow-auto">
+                    <aside className="border-r p-2 overflow-auto">
                         <DebugPanel />
                     </aside>
                     <main className="relative overflow-hidden">
                         {state ? (
-                            <HexBoard
+                            <Board
                                 state={state}
                                 role={role}
                                 sendAction={sendAction}
@@ -50,7 +52,7 @@ export function App() {
                                 Waiting for game state…
                             </div>
                         )}
-                        {role?.role === 'player' && state && (
+                        {role?.role === 'player' && state && (<>
                             <button
                                 className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
                                 disabled={state.activePlayer !== role.playerId}
@@ -58,7 +60,8 @@ export function App() {
                             >
                                 End Turn
                             </button>
-                        )}
+                            <GamePanel />
+                        </>)}
                     </main>
                 </div>
             ) : (

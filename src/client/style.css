@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-
 @layer base {
 
     /* width */
@@ -46,4 +45,10 @@
         background: var(--color-gray-600);
     }
 
+}
+
+@layer base {
+    * {
+        @apply border-zinc-700;
+    }
 }

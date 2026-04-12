@@ -6,10 +6,8 @@ import { PlayerRole } from '@server/GameRoom';
 
 export function useGameState() {
     const [connected, setConnected] = useState(false);
-
     const [gameId, setGameId] = useState<string | null>(null);
     const [role, setRole] = useState<PlayerRole | null>(null);
-
     const [state, setState] = useState<GameState | null>(null);
 
     useEffect(() => {

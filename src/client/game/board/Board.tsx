@@ -1,19 +1,20 @@
 import { generateHexMap } from '@shared';
 import { HexTile } from './HexTile';
 import { UnitsLayer } from './UnitsLayer';
-import { useBoardInteraction } from './useBoardInteraction';
 import { useViewport } from './useViewport';
 import { getMoveRange } from './movementRange';
 import type { GameAction, GameState, HexCoord } from '@shared';
 import { PlayerRole } from '@server/GameRoom';
+import { useBoard } from './BoadrInteractionContext';
 
 type Props = {
     state: GameState;
     role: PlayerRole | null;
     sendAction: (action: any) => void;
+    onChangeUnitSelected?: (selectedUnitId: string | null) => void;
 };
 
-export function HexBoard({ state, role, sendAction }: Props) {
+export function Board({ state, role, sendAction, onChangeUnitSelected }: Props) {
     const hexes = generateHexMap(state.map);
     const {
         hoveredHex,
@@ -22,7 +23,7 @@ export function HexBoard({ state, role, sendAction }: Props) {
         setHoveredHex,
         setSelectedHex,
         setSelectedUnitId,
-    } = useBoardInteraction();
+    } = useBoard();
 
     const { scale, x, y, zoom, pan } = useViewport();
 
@@ -83,8 +84,8 @@ export function HexBoard({ state, role, sendAction }: Props) {
                     state={state}
                     selectedUnitId={selectedUnitId}
                     onSelectUnit={unitId => {
-                        if (!isMyTurn) return;
                         setSelectedUnitId(unitId);
+                        onChangeUnitSelected?.(unitId);
                     }}
                 />
 
