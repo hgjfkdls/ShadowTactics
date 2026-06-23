@@ -6,7 +6,8 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "server": "nodemon --watch src --ext ts --exec \"tsx src/server/index.ts\""
+        "server": "nodemon --watch src --ext ts --exec \"tsx src/server/index.ts\"",
+        "test": "tsx src/test/main.ts"
     },
     "dependencies": {
         "react": "^18.2.0",

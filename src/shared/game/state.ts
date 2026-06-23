@@ -6,6 +6,9 @@
  */
 
 import { HexCoord, HexMap } from '../hex';
+import type { ModifierInstance } from './modifiers/types';
+
+export type { HexCoord, HexMap };
 
 export type PlayerId = string;
 export type UnitId = string;
@@ -21,6 +24,22 @@ export type Unit = {
     range: number;
     movementCost: number;
     class: 'archer' | 'infantry' | 'lancer' | 'cavalry' | 'general';
+    abilities?: string[];          // IDs de habilidades activas/pasivas
+    // Seguimiento de habilidades
+    timesDamagedThisTurn?: number;
+    lastTargetId?: UnitId;
+    movedThisTurn?: boolean;          // true si se movió en el turno actual
+    didMovePreviousTurn?: boolean;    // snapshot de movedThisTurn al final del turno anterior
+    attackedThisTurn?: boolean;
+    usedCarga?: boolean;
+    usedCabalgar?: boolean;
+    usedVentajaAlcance?: boolean;
+    usedDobleAtaque?: boolean;
+    usedDisparoRapido?: boolean;
+    usedFuegoCobertura?: boolean;
+    usedAvance?: boolean;
+    hasCargaBonus?: boolean;         // true si usó Cabalgar + Carga
+    hasMovementPenalty?: boolean;    // true si recibió Fuego de cobertura
 };
 
 export type GameState = {
@@ -28,7 +47,8 @@ export type GameState = {
     turn: number;
     activePlayer: PlayerId;
 
-    gamePhase: 'PREPARATION' | 'GAME';
+    gamePhase: 'PREPARATION' | 'GAME' | 'GAME_OVER';
+    winner?: PlayerId;
 
     // Subfases
     preparationPhase:
@@ -37,7 +57,7 @@ export type GameState = {
         | 'DEPLOYMENT'
         | 'DONE';
 
-    turnPhase: 'DRAW' | 'MAIN' | 'COUNTER' | 'ACTION';
+    turnPhase: 'DRAW' | 'MAIN' | 'COUNTER';
 
     // Mapa
     map: HexMap;
@@ -59,6 +79,26 @@ export type GameState = {
     // Orden de despliegue
     deploymentOrder?: PlayerId[];
     currentDeployingPlayer?: PlayerId;
+    deploymentStep: number;       // qué ronda del despliegue (0-11)
+    deploymentCount: number;      // unidades colocadas por el jugador actual en esta ronda
+
+    // Mazo de efecto
+    effectDeck: CardId[];
+    effectDiscard: CardId[];
+
+    // Mazo de identidad (15 cartas)
+    identityDeck: CardId[];
+
+    // Modificadores activos (efectos entre turnos)
+    activeModifiers: ModifierInstance[];
+    nextModifierId: number;
+
+    // Última carta jugada (para COUNTERs)
+    lastCardAction?: {
+        cardId: CardId;
+        playerId: PlayerId;
+        targetId?: UnitId;
+    };
 };
 
 export type PlayerResources = {

@@ -6,8 +6,17 @@
  */
 
 import { GameState } from './state';
+import { buildEffectDeck, buildIdentityDeck } from './actions/card';
 
 export function createInitialGameState(): GameState {
+    const { deck: effectDeck, seed: deckSeed } = buildEffectDeck(123456);
+    const { deck: identityDeck, seed: identitySeed } = buildIdentityDeck(deckSeed);
+
+    // Repartir 3 cartas de identidad a cada jugador del mazo barajado
+    const p1Identity = identityDeck.slice(0, 3);
+    const p2Identity = identityDeck.slice(3, 6);
+    const remainingDeck = identityDeck.slice(6);  // 9 cartas restantes
+
     return {
         // FLUJO
         turn: 1,
@@ -15,10 +24,10 @@ export function createInitialGameState(): GameState {
 
         gamePhase: 'PREPARATION',
         preparationPhase: 'IDENTITY_SELECTION',
-        turnPhase: 'DRAW', // aún no se usa realmente
+        turnPhase: 'DRAW',
 
         // MAPA
-        map: { radius: 4 },
+        map: { radius: 6 },
         centerHex: { q: 0, r: 0 },
 
         // UNIDADES
@@ -26,7 +35,7 @@ export function createInitialGameState(): GameState {
         graveyard: {},
 
         // RNG
-        rngSeed: 123456,
+        rngSeed: identitySeed,
 
         // JUGADORES
         players: {
@@ -36,14 +45,14 @@ export function createInitialGameState(): GameState {
 
                 cardsInHand: [],
 
-                // IDENTIDAD
-                identityCards: ['c1', 'c2', 'c3'],
+                // IDENTIDAD — 3 cartas del mazo barajado
+                identityCards: p1Identity,
                 selectedIdentity: undefined,
                 revealedIdentity: undefined,
 
                 // DESPLIEGUE
-                unitsToDeploy: ['u1', 'u2', 'u3'],
-                deployedUnits: []
+                unitsToDeploy: ['u1','u2','u3','u4','u5','u6','u7','u8','u9','u10','u11'],
+                deployedUnits: [],
             },
             p2: {
                 actionPoints: 0,
@@ -51,14 +60,14 @@ export function createInitialGameState(): GameState {
 
                 cardsInHand: [],
 
-                // IDENTIDAD
-                identityCards: ['c4', 'c5', 'c6'],
+                // IDENTIDAD — 3 cartas del mazo barajado
+                identityCards: p2Identity,
                 selectedIdentity: undefined,
                 revealedIdentity: undefined,
 
                 // DESPLIEGUE
-                unitsToDeploy: ['u4', 'u5', 'u6'],
-                deployedUnits: []
+                unitsToDeploy: ['u12','u13','u14','u15','u16','u17','u18','u19','u20','u21','u22'],
+                deployedUnits: [],
             }
         },
 
@@ -69,6 +78,17 @@ export function createInitialGameState(): GameState {
         },
 
         deploymentOrder: undefined,
-        currentDeployingPlayer: undefined
+        currentDeployingPlayer: undefined,
+        deploymentStep: 0,
+        deploymentCount: 0,
+
+        effectDeck,
+        effectDiscard: [],
+        identityDeck: remainingDeck,
+
+        activeModifiers: [],
+        nextModifierId: 1,
+        lastCardAction: undefined,
+
     };
 }

@@ -48,4 +48,31 @@ export type GameAction =
     | {
         type: 'END_TURN';
         playerId: PlayerId;
+    }
+
+    | {
+        type: 'USE_CARD';
+        playerId: PlayerId;
+        cardId: CardId;
+        targetId?: UnitId;
+    }
+
+    | {
+        type: 'USE_ABILITY';
+        playerId: PlayerId;
+        unitId: UnitId;
+        abilityId: string;
+        targetId?: UnitId;
+        to?: HexCoord;          // para Cabalgar (posición destino)
+    }
+
+    | {
+        type: 'PASS_COUNTER';
+        playerId: PlayerId;
+    }
+
+    | {
+        type: 'DISCARD_CARD';
+        playerId: PlayerId;
+        cardId: CardId;
     };

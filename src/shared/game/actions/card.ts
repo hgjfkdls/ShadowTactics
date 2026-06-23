@@ -1,0 +1,342 @@
+import type { GameState, CardId } from '../state';
+import type { GameAction } from '../action-types';
+import { nextRandom } from '../utils/rng';
+import { addModifier, removePlayerDebuffs } from '../modifiers/engine';
+
+// ── 15 cartas de identidad ──
+
+const IDENTITY_KEYS: string[] = [
+    'robin_hood',
+    'francotirador',
+    'dios_trueno',
+    'capitan_guardia',
+    'caballos_guerra',
+    'cazadores',
+    'punta_lanza',
+    'espartano',
+    'monje_shaolin',
+    'corazon_estratega',
+    'comandante_supremo',
+    'inspiracion_real',
+    'furia_tirano',
+    'samurai',
+    'escudo_comandante',
+];
+
+export function buildIdentityDeck(seed: number): { deck: CardId[]; seed: number } {
+    const cards: CardId[] = IDENTITY_KEYS.map(key => `${key}_1`);
+    const result = shuffleArray(cards, seed);
+    return { deck: result.shuffled, seed: result.seed };
+}
+
+type CardTemplate = {
+    name: string;
+    type: 'BUFF' | 'DEBUFF' | 'COUNTER';
+    description: string;
+};
+
+const CARD_TEMPLATES: Record<string, CardTemplate> = {
+    movilidad:         { name: 'Movilidad',         type: 'BUFF',    description: 'El siguiente movimiento de una unidad cuesta 0 PA.' },
+    ataque_extra:      { name: 'Ataque extra',       type: 'BUFF',    description: '+1 ataque con +2 dificultad sin coste de PA para el próximo ataque de una unidad.' },
+    precision:         { name: 'Precisión',          type: 'BUFF',    description: '-2 dificultad al siguiente ataque que realice una unidad.' },
+    flechas_fuego:     { name: 'Flechas de fuego',   type: 'BUFF',    description: 'El siguiente ataque del jugador inflige +1 de daño. Además, el objetivo recibe 1 de daño pasivo al inicio de los 2 siguientes turnos del jugador.' },
+    inspiracion_tropa: { name: 'Inspiración de tropa',type: 'BUFF',   description: '+1 PA al siguiente turno del jugador.' },
+    bajar_moral:       { name: 'Bajar la moral',     type: 'DEBUFF',  description: '-1 PA al oponente en su siguiente turno.' },
+    pantano:           { name: 'Pantano',            type: 'DEBUFF',  description: 'El primer movimiento del oponente cuesta el doble de PA en su siguiente turno.' },
+    mantenimiento:     { name: 'Mantenimiento de equipo', type: 'DEBUFF', description: 'El primer ataque del oponente hace -1 de daño en su siguiente turno.' },
+    confusion:         { name: 'Confusión en la retaguardia', type: 'DEBUFF', description: 'Una unidad enemiga elegida no puede mover ni atacar en su próximo turno.' },
+    miedo:             { name: 'Miedo',              type: 'DEBUFF',  description: 'El primer ataque del oponente cuesta +1 PA en su siguiente turno.' },
+    panacea:           { name: 'Panacea',            type: 'COUNTER', description: 'Elimina cualquier debuff activo sobre tus unidades.' },
+    ladron:            { name: 'Ladrón',             type: 'COUNTER', description: 'Júgala cuando el rival juegue una carta. Roba esa carta y su efecto se aplica a ti en tu turno.' },
+    espejo:            { name: 'Espejo',             type: 'COUNTER', description: 'Júgala cuando el rival juegue un debuff. El debuff se refleja y aplica al rival.' },
+};
+
+export function getCardName(cardId: CardId): string {
+    const parts = cardId.split('_');
+    const key = parts[0];
+    return CARD_TEMPLATES[key]?.name ?? cardId;
+}
+
+export function getCardType(cardId: CardId): 'BUFF' | 'DEBUFF' | 'COUNTER' | undefined {
+    const parts = cardId.split('_');
+    const key = parts[0];
+    return CARD_TEMPLATES[key]?.type;
+}
+
+export function getCardDescription(cardId: CardId): string {
+    const parts = cardId.split('_');
+    const key = parts[0];
+    return CARD_TEMPLATES[key]?.description ?? '';
+}
+
+function getKey(cardId: CardId): string {
+    // Encontrar el key de plantilla más largo que coincida con el inicio del cardId
+    const sorted = [...TEMPLATE_KEYS].sort((a, b) => b.length - a.length);
+    for (const key of sorted) {
+        if (cardId.startsWith(key + '_')) return key;
+    }
+    return cardId.split('_')[0];
+}
+
+const TEMPLATE_KEYS = Object.keys(CARD_TEMPLATES);
+
+export function buildEffectDeck(seed: number): { deck: CardId[]; seed: number } {
+    const cards: CardId[] = [];
+    for (const key of TEMPLATE_KEYS) {
+        for (let copy = 1; copy <= 4; copy++) {
+            cards.push(`${key}_${copy}`);
+        }
+    }
+    const result = shuffleArray(cards, seed);
+    return { deck: result.shuffled, seed: result.seed };
+}
+
+export function shuffleArray<T>(arr: T[], seed: number): { shuffled: T[]; seed: number } {
+    const shuffled = [...arr];
+    let s = seed;
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const { value, seed: newSeed } = nextRandom(s);
+        s = newSeed;
+        const j = value % (i + 1);
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return { shuffled, seed: s };
+}
+
+export function drawCard(state: GameState, playerId: string): GameState {
+    const deck = state.effectDeck;
+    if (deck.length === 0) return state;
+
+    const drawn = deck[0];
+    const rest = deck.slice(1);
+
+    const player = state.players[playerId];
+    const hand = [...(player.cardsInHand || []), drawn];
+
+    if (hand.length > 3) {
+        // Mano llena: la carta entra igual (pool de 4), el jugador debe descartar una
+        return {
+            ...state,
+            effectDeck: rest,
+            players: {
+                ...state.players,
+                [playerId]: {
+                    ...player,
+                    cardsInHand: hand
+                }
+            }
+        };
+    }
+
+    return {
+        ...state,
+        effectDeck: rest,
+        players: {
+            ...state.players,
+            [playerId]: {
+                ...player,
+                cardsInHand: hand
+            }
+        }
+    };
+}
+
+// ── Aplicar efecto de carta (crea ModifierInstances) ──
+
+function applyCardEffect(state: GameState, cardId: CardId, playerId: string, targetId?: string): GameState {
+    const key = getKey(cardId);
+    switch (key) {
+        case 'movilidad':
+            return addModifier(state, playerId, null, 'movementCost', 0, 'SET', 1, 1);
+        case 'ataque_extra':
+            return addModifier(addModifier(state, playerId, null, 'attack', 1, 'ADD', 0, 1), playerId, null, 'difficulty', 2, 'ADD', 0, 1);
+        case 'precision':
+            return addModifier(state, playerId, null, 'difficulty', -2, 'ADD', 0, 1);
+        case 'flechas_fuego': {
+            let s = addModifier(state, playerId, null, 'damage', 1, 'ADD', 0, 1);
+            s = addModifier(s, playerId, null, 'dotOnHit', 1, 'SET', 0, 1);
+            return s;
+        }
+        case 'inspiracion_tropa':
+            return addModifier(state, playerId, null, 'ap', 1, 'ADD', 1);
+        case 'bajar_moral': {
+            const other = playerId === 'p1' ? 'p2' : 'p1';
+            return addModifier(state, other, null, 'ap', -1, 'ADD', 1);
+        }
+        case 'pantano': {
+            const other = playerId === 'p1' ? 'p2' : 'p1';
+            return addModifier(state, other, null, 'movementCost', 2, 'MUL', 1, 1);
+        }
+        case 'mantenimiento': {
+            const other = playerId === 'p1' ? 'p2' : 'p1';
+            return addModifier(state, other, null, 'damage', -1, 'ADD', 1, 1);
+        }
+        case 'confusion': {
+            const other = playerId === 'p1' ? 'p2' : 'p1';
+            if (!targetId) return state;
+            return addModifier(state, other, targetId, 'blocked', 1, 'SET', 1);
+        }
+        case 'miedo': {
+            const other = playerId === 'p1' ? 'p2' : 'p1';
+            return addModifier(state, other, null, 'attackCost', 1, 'ADD', 1, 1);
+        }
+        default:
+            return state;
+    }
+}
+
+// ── Resolver carta pendiente (tras fase COUNTER) ──
+
+function resolvePending(state: GameState, discarded: CardId[]): GameState {
+    const pending = state.lastCardAction;
+    if (!pending) return { ...state, effectDiscard: [...state.effectDiscard, ...discarded], lastCardAction: undefined };
+
+    let s = applyCardEffect(state, pending.cardId, pending.playerId, pending.targetId);
+    s = { ...s, effectDiscard: [...s.effectDiscard, ...discarded, pending.cardId], lastCardAction: undefined };
+    return s;
+}
+
+// ── Handle principal ──
+
+export function handleCard(state: GameState, action: GameAction): GameState {
+    if (action.type !== 'USE_CARD') return state;
+    if (state.gamePhase !== 'GAME') return state;
+
+    const player = state.players[action.playerId];
+    if (!player) return state;
+
+    const hand = player.cardsInHand || [];
+    if (!hand.includes(action.cardId)) return state;
+
+    const key = getKey(action.cardId);
+    const template = CARD_TEMPLATES[key];
+    if (!template) return state;
+
+    // Durante COUNTER, el rival puede jugar cartas COUNTER (Ladrón, Espejo, Panacea)
+    // En cualquier otra fase, solo el jugador activo puede jugar cartas
+    if (state.turnPhase === 'COUNTER') {
+        if (template.type !== 'COUNTER') return state;
+        if (action.playerId === state.activePlayer) return state;
+    } else if (action.playerId !== state.activePlayer) {
+        return state;
+    }
+
+    // Remover carta de la mano
+    const newHand = hand.filter(id => id !== action.cardId);
+
+    // ── COUNTER cards ──
+
+    if (template.type === 'COUNTER') {
+        const pending = state.lastCardAction;
+        if (!pending || pending.playerId === action.playerId) return state;
+
+        const pendingKey = getKey(pending.cardId);
+        const pendingTemplate = CARD_TEMPLATES[pendingKey];
+
+        // Contra BUFF pendiente → solo Ladrón es válido
+        if (pendingTemplate?.type === 'BUFF' && key !== 'ladron') return state;
+
+        if (key === 'panacea') {
+            let s = { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
+            s = removePlayerDebuffs(s, action.playerId);
+            s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId] };
+            return { ...s, turnPhase: 'MAIN' };
+        }
+
+        if (key === 'ladron') {
+            const pending = state.lastCardAction;
+            if (!pending || pending.playerId === action.playerId) {
+                // No hay carta pendiente del rival → Ladrón no tiene efecto
+                return { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }, effectDiscard: [...state.effectDiscard, action.cardId], turnPhase: 'MAIN' };
+            }
+            // Robar la carta pendiente: va a la mano del jugador
+            const stolenHand = [...newHand, pending.cardId];
+            // La carta original se descarta sin efecto
+            return {
+                ...state,
+                lastCardAction: undefined,
+                turnPhase: 'MAIN',
+                players: {
+                    ...state.players,
+                    [action.playerId]: { ...player, cardsInHand: stolenHand },
+                },
+                effectDiscard: [...state.effectDiscard, action.cardId, pending.cardId],
+            };
+        }
+
+        if (key === 'espejo') {
+            const pending = state.lastCardAction;
+            if (!pending || pending.playerId === action.playerId) {
+                return { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }, effectDiscard: [...state.effectDiscard, action.cardId], turnPhase: 'MAIN' };
+            }
+            // Reflejar: el debuff se aplica al emisor original
+            // applyCardEffect(playerId) aplica el debuff al OPONENTE de playerId.
+            // Para reflejar al emisor (pending.playerId), pasamos el OPONENTE del emisor,
+            // así el debuff cae sobre el emisor original.
+            const emitter = pending.playerId;
+            const espejoUser = action.playerId;
+            // El debuff debe ir al emisor original. applyCardEffect con playerId=<oponente del emisor>
+            // aplica el efecto al emisor.
+            const reflectAs = emitter === 'p1' ? 'p2' : 'p1';
+            const reflectedCardId = pending.cardId;
+            let s = { ...state, lastCardAction: undefined, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
+            s = applyCardEffect(s, reflectedCardId, reflectAs, action.targetId);
+            s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId, reflectedCardId] };
+            return { ...s, turnPhase: 'MAIN' };
+        }
+
+        // Otros COUNTERs no implementados → descartar sin efecto
+        return { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }, effectDiscard: [...state.effectDiscard, action.cardId], turnPhase: 'MAIN' };
+    }
+
+    // ── BUFF / DEBUFF: ir a fase COUNTER si no es nuestro turno recién empezado ──
+    // Guardar como pendiente, entrar a COUNTER phase
+    return {
+        ...state,
+        lastCardAction: { cardId: action.cardId, playerId: action.playerId, targetId: action.targetId },
+        turnPhase: 'COUNTER',
+        players: {
+            ...state.players,
+            [action.playerId]: { ...player, cardsInHand: newHand }
+        }
+    };
+}
+
+// ── DISCARD_CARD (mano llena al robar) ──
+
+export function handleDiscard(state: GameState, action: GameAction): GameState {
+    if (action.type !== 'DISCARD_CARD') return state;
+    if (state.turnPhase !== 'DRAW') return state;
+    if (action.playerId !== state.activePlayer) return state;
+
+    const player = state.players[action.playerId];
+    if ((player.cardsInHand?.length ?? 0) <= 3) return state;
+    if (!player.cardsInHand?.includes(action.cardId)) return state;
+
+    const newHand = player.cardsInHand.filter(c => c !== action.cardId);
+    const turnPhase = newHand.length <= 3 ? 'MAIN' as const : 'DRAW' as const;
+
+    return {
+        ...state,
+        turnPhase,
+        effectDiscard: [...state.effectDiscard, action.cardId],
+        players: {
+            ...state.players,
+            [action.playerId]: { ...player, cardsInHand: newHand }
+        }
+    };
+}
+
+// ── PASS_COUNTER ──
+
+export function handlePassCounter(state: GameState, action: GameAction): GameState {
+    if (action.type !== 'PASS_COUNTER') return state;
+    if (state.turnPhase !== 'COUNTER') return state;
+    if (action.playerId === state.activePlayer) return state;
+
+    // Resolver la carta pendiente, volver a MAIN
+    return {
+        ...resolvePending(state, []),
+        turnPhase: 'MAIN'
+    };
+}
