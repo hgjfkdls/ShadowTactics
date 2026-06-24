@@ -80,4 +80,11 @@ export type GameAction =
     | {
         type: 'SIMULATE_PREPARATION';
         playerId: PlayerId;
+    }
+
+    // AVANCE (pasiva) — ocupar o rechazar posición del enemigo eliminado
+    | {
+        type: 'OCCUPY_POSITION';
+        playerId: PlayerId;
+        accept: boolean;
     };

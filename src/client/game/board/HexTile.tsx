@@ -32,11 +32,12 @@ export function HexTile({
             ? '#7f1d1d'
             : reachable
                 ? '#065f46'
-                : inRange
-                    ? '#4b5563'
-                    : hovered
-                        ? '#374151'
-                        : '#1f2937';
+                : hovered
+                    ? '#374151'
+                    : '#1f2937';
+
+    const stroke = attackable ? '#ef4444' : '#4b5563';
+    const strokeW = attackable ? 2.5 : 2;
 
 
     return (
@@ -44,8 +45,8 @@ export function HexTile({
             <polygon
                 points={points}
                 fill={fill}
-                stroke={attackable ? '#ef4444' : '#4b5563'}
-                strokeWidth={attackable ? 2.5 : 2}
+                stroke={stroke}
+                strokeWidth={strokeW}
                 onMouseEnter={() => onHover(hex)}
                 onMouseLeave={() => onHover(null)}
                 onClick={() => onClick(hex)}
@@ -62,7 +63,7 @@ export function HexTile({
             {inRange && !reachable && !attackable && (
                 <polygon
                     points={points}
-                    fill="rgba(156, 163, 175, 0.2)"
+                    fill="rgba(59, 130, 246, 0.12)"
                     pointerEvents="none"
                 />
             )}

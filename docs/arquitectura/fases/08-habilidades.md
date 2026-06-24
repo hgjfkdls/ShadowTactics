@@ -54,7 +54,7 @@ flowchart TD
 | `carga` | Caballería | 1 | Requiere Cabalgar previo, objetivo adyacente | Ataque con -1 dificultad y +1 daño |
 | `doble_ataque` | Caballería/Lancero | 1 | Mismo objetivo que ataque anterior, no usado con Ventaja alcance | Segundo ataque con -1 daño |
 | `ventaja_alcance` | Lancero | 1 | No haber atacado ni usado Doble ataque este turno | Ataque con rango +1 |
-| `avance` | Infantería | 1 | Dentro de rango, 1 vez/turno | Si mata, ocupa posición del enemigo |
+| `avance` | Infantería (pasiva) | — | Ataque básico elimina enemigo | Muestra diálogo para ocupar su posición |
 | `accion_evasiva` | Arquero | 1 | — | Sin implementar (stub) |
 
 ## Restricciones por flag
@@ -63,7 +63,7 @@ Las habilidades activas usan flags booleanos en `Unit` para evitar re-uso en el 
 
 ```
 usedCabalgar, usedCarga, usedDobleAtaque, usedDisparoRapido, usedVentajaAlcance
-usedFuegoCobertura, usedAvance, attackedThisTurn
+usedFuegoCobertura, attackedThisTurn
 ```
 
 Estos flags se resetean a `false` al inicio del turno del jugador en `resetUnitTracking()`.
@@ -83,6 +83,5 @@ Estos flags se resetean a `false` al inicio del turno del jugador en `resetUnitT
 - `handleCarga()`
 - `handleDobleAtaque()`
 - `handleVentajaAlcance()`
-- `handleAvance()`
 
 Datos de habilidades: `src/shared/game/data/abilities.ts`

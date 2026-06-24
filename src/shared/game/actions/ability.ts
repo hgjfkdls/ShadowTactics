@@ -18,7 +18,7 @@ function canAct(state: GameState, action: GameAction): boolean {
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== action.playerId) return false;
     if (unit.usedCarga) return false;
-    if (unit.attackedThisTurn && action.abilityId !== 'disparo_rapido' && action.abilityId !== 'doble_ataque') return false;
+    if (unit.attackedThisTurn && action.abilityId !== 'disparo_rapido' && action.abilityId !== 'doble_ataque' && action.abilityId !== 'fuego_cobertura' && action.abilityId !== 'accion_evasiva') return false;
     if (unit.movedThisTurn && (action.abilityId === 'cabalgar' || action.abilityId === 'carga')) return false;
     return true;
 }
@@ -45,7 +45,6 @@ export function handleAbility(state: GameState, action: GameAction): GameState {
         case 'cabalgar': result = handleCabalgar(state, unit, action); break;
         case 'carga': result = handleCarga(state, unit, action); break;
         case 'ventaja_alcance': result = handleVentajaAlcance(state, unit, action); break;
-        case 'avance': result = handleAvance(state, unit, action); break;
         default: return state;
     }
 
@@ -104,6 +103,8 @@ function handleFuegoCobertura(state: GameState, unit: Unit, action: GameAction):
     const dead = afterState.graveyard[target.id];
     if (dead) return afterState;
 
+    if (!result.hit) return afterState;
+
     return updateUnit(afterState, target.id, (u) => ({ ...u, fuegoCoberturaCharges: 2 }));
 }
 
@@ -148,17 +149,11 @@ function handleCabalgar(state: GameState, unit: Unit, action: GameAction): GameS
     if (dq !== 0 && dr !== 0 && dq !== -dr) return state;
 
     // No puede atravesar unidades
-    if (dq !== 0 && dr !== 0) {
-        const mid1 = { q: unit.position.q + dq, r: unit.position.r };
-        const mid2 = { q: unit.position.q, r: unit.position.r + dr };
-        if (isHexOccupied(state, mid1) || isHexOccupied(state, mid2)) return state;
-    } else {
-        const mid = { q: unit.position.q + dq / 2, r: unit.position.r + dr / 2 };
-        if (isHexOccupied(state, mid)) return state;
-    }
+    const mid = { q: unit.position.q + dq / 2, r: unit.position.r + dr / 2 };
+    if (isHexOccupied(state, mid)) return state;
 
     let s = consumeAP(state, unit.owner, 1);
-    s = updateUnit(s, unit.id, (u) => ({ ...u, position: action.to!, usedCabalgar: true }));
+    s = updateUnit(s, unit.id, (u) => ({ ...u, position: action.to!, usedCabalgar: true, cabalgarDir: { dq: dq / 2, dr: dr / 2 } }));
     return s;
 }
 
@@ -172,11 +167,12 @@ function handleCarga(state: GameState, unit: Unit, action: GameAction): GameStat
 
     const target = state.units[action.targetId];
     if (!target || target.owner === unit.owner) return state;
-    const distance = hexDistance(unit.position, target.position);
-    if (distance > 1) return state;
+    if (!unit.cabalgarDir) return state;
+    const expectedQ = unit.position.q + unit.cabalgarDir.dq;
+    const expectedR = unit.position.r + unit.cabalgarDir.dr;
+    if (target.position.q !== expectedQ || target.position.r !== expectedR) return state;
 
-    // Debe estar en la misma línea recta de Cabalgar
-    // (simplificado: la unidad ya está en posición tras cabalgar)
+    const distance = hexDistance(unit.position, target.position);
 
     let s = consumeAP(state, unit.owner, 1);
     s = applyAbilityFlag(s, unit.id, 'usedCarga', true);
@@ -237,35 +233,6 @@ function handleVentajaAlcance(state: GameState, unit: Unit, action: GameAction):
         bonusRange: 1,
     });
     return storeAttackResult(result, unit.id, target.id, unit.class, target.class);
-}
-
-// ── Avance ──
-
-function handleAvance(state: GameState, unit: Unit, action: GameAction): GameState {
-    if (!action.targetId) return state;
-    const target = state.units[action.targetId];
-    if (!target || target.owner === unit.owner) return state;
-    const distance = hexDistance(unit.position, target.position);
-    if (distance > unit.range) return state;
-    if (unit.usedAvance) return state;
-
-    let s = consumeAP(state, unit.owner, 1);
-    s = applyAbilityFlag(s, unit.id, 'usedAvance', true);
-
-    const result: AttackResult = resolveAttack({
-        state: s, unit, target,
-        from: unit.position, to: target.position, distance,
-    });
-
-    let afterState = storeAttackResult(result, unit.id, target.id, unit.class, target.class);
-
-    const dead = afterState.graveyard[target.id];
-    if (!dead) return afterState;
-
-    // Ocupar posición del enemigo eliminado
-    return updateUnit(afterState, unit.id, (u) => ({
-        ...u, position: target.position, movedThisTurn: false, didMovePreviousTurn: false,
-    }));
 }
 
 // ── Helpers ──

@@ -33,6 +33,7 @@ export type Unit = {
     attackedThisTurn?: boolean;
     usedCarga?: boolean;
     usedCabalgar?: boolean;
+    cabalgarDir?: { dq: number; dr: number };
     usedVentajaAlcance?: boolean;
     usedDobleAtaque?: boolean;
     usedDisparoRapido?: boolean;
@@ -100,6 +101,12 @@ export type GameState = {
         cardId: CardId;
         playerId: PlayerId;
         targetId?: UnitId;
+    };
+
+    // Ocupación pendiente tras Avance (pasiva)
+    pendingOccupation?: {
+        unitId: UnitId;
+        position: HexCoord;
     };
 
     // Último resultado de ataque (para mostrar dados al cliente)

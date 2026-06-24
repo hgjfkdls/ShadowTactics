@@ -1,8 +1,9 @@
-import type { GameState } from './state';
+import type { GameState, HexCoord } from './state';
 import type { GameAction } from './action-types';
 import { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
 import { handleMove, handleAttack, handleCard, handleAbility, handlePassCounter, handleDiscard } from './actions/index';
 import { simulatePreparation } from './phases/simulate';
+import { updateUnit } from './utils';
 
 export function applyAction(state: GameState, action: GameAction): GameState {
 
@@ -36,6 +37,15 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         case 'USE_ABILITY':  return handleAbility(state, action);
         case 'PASS_COUNTER': return handlePassCounter(state, action);
         case 'DISCARD_CARD': return handleDiscard(state, action);
+        case 'OCCUPY_POSITION': {
+            if (action.playerId !== state.activePlayer) return state;
+            if (!state.pendingOccupation) return state;
+            if (!action.accept) return { ...state, pendingOccupation: undefined };
+            const s = updateUnit(state, state.pendingOccupation.unitId, (u) => ({
+                ...u, position: state.pendingOccupation!.position, movedThisTurn: false, didMovePreviousTurn: false,
+            }));
+            return { ...s, pendingOccupation: undefined };
+        }
         default:             return state;
     }
 }

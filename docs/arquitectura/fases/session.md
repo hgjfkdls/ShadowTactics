@@ -433,7 +433,79 @@ Todas las aserciones pasan
 
 ---
 
+# Sesión de trabajo — 24 Jun 2026
+
+## Objetivo
+Refactorización de Avance a pasiva, correcciones en pasivas de infantería, indicadores visuales para habilidades pasivas en el hover.
+
+---
+
+## 1. Avance — de activa a pasiva
+
+### Cambio de diseño
+- **Antes**: Habilidad activa con coste 1 PA, atacaba al objetivo y ocupaba su posición si moría.
+- **Ahora**: Pasiva que se activa automáticamente cuando un ataque básico de infantería elimina a un enemigo. Aparece un diálogo preguntando si ocupar la posición.
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/shared/game/data/abilities.ts` | `avance` cambia de `type: 'active'` a `type: 'passive'`, sin coste ni `requiresTarget` |
+| `src/shared/game/state.ts` | Nuevo campo `pendingOccupation?: { unitId; position }` en `GameState` |
+| `src/shared/game/action-types.ts` | Nueva acción `OCCUPY_POSITION { playerId; accept: boolean }` |
+| `src/shared/game/actions/attack.ts` | Tras kill con `avance`, setea `pendingOccupation` |
+| `src/shared/game/actions/ability.ts` | Eliminado `case 'avance'` del switch y función `handleAvance` |
+| `src/shared/game/reducer.ts` | Nuevo case `OCCUPY_POSITION`: si `accept` mueve la unidad y limpia pending |
+| `src/shared/game/phases/turn.ts` | Eliminado `usedAvance` de `resetUnitTracking` |
+| `src/client/game/board/UnitsLayer.tsx` | Eliminado `avance` de habilidades activas y su condición disabled |
+| `src/client/game/layout/PendingOccupationPanel.tsx` | **Creado**: diálogo "¿Ocupar posición?" con botones Aceptar/Rechazar |
+| `src/client/game/board/HexBoard.tsx` | Integrado `PendingOccupationPanel` |
+| `src/test/game-abilities.test.ts` | Test actualizado: ataque básico → verificar pendingOccupation → aceptar → verificar posición |
+
+---
+
+## 2. Correcciones en pasivas de infantería
+
+### Resistencia + Línea defensiva — no acumulación
+- `resistencia.onDefense`: si la unidad también tiene `linea_defensiva` y cumple su condición (`didMovePreviousTurn === false`), Resistencia no aplica (solo Línea defensiva).
+- Ambos handlers ahora requieren `ctx.abilitySide === 'defender'` (antes se activaban desde el atacante, reduciendo erróneamente el daño de la propia infantería al atacar).
+
+### Resistencia — solo se consume en acierto
+- `onPostHit` de `resistencia` y `linea_defensiva`: ahora solo incrementan `timesDamagedThisTurn` si `hit === true`. Si falla, la pasiva sigue activa para el siguiente ataque.
+
+### Línea defensiva — condición `didMovePreviousTurn === false`
+- Los tests verifican que ambos funcionan correctamente tanto del lado del atacante como del defensor.
+
+---
+
+## 3. Indicadores visuales de pasivas (hover panel)
+
+### Convención de posiciones
+- **Esquina superior izquierda** (`-14, -14`): indicadores **defensivos** (escudo para Resistencia/ Línea defensiva)
+- **Esquina superior derecha** (`14, -14`): indicadores **del atacante** (diana para Blanco fácil, diana azul para Presión)
+
+### Indicadores implementados
+| Indicador | ¿Cuándo se muestra? |
+|-----------|-------------------|
+| 🔵 Escudo (mitad azul/celeste) | Enemigo infantry con Resistencia (no consumida) o Línea defensiva (no se movió), cuando el jugador ataca o selecciona habilidad ofensiva |
+| 🎯 Diana amarilla | Enemigo con Blanco fácil activo (atacante arquero, defensor no se movió) |
+| 🎯 Diana azul | Enemigo con Presión activa (infantería seleccionada con Presión, mismo target que turno anterior) |
+
+### Tooltip de pasivas
+Sección "⚡ Pasivas que afectan" en el hover panel con las habilidades relevantes:
+- `Blanco fácil (-1 dificultad)`
+- `Presión (+1 daño)`
+- `Línea defensiva (-1 daño)` — solo si aplica (no se movió)
+- `Resistencia (-1 daño)` — solo si no consumida (no ha recibido daño este turno)
+
+---
+
 ## Pendientes para próxima sesión
+
+- Implementar cartas de efecto (BUFF/DEBUFF/COUNTER) desde la UI
+- Sistema de fin de turno y contador de rondas
+- Condición de victoria (muerte del general) y pantalla de Game Over
+- Balance general de stats y costos
 
 - Implementar habilidades de infantería y lancero (restantes)
 - Implementar cartas de efecto (BUFF/DEBUFF/COUNTER) desde la UI

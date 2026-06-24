@@ -121,14 +121,13 @@ function makeState(): GameState {
         to: { q: 4, r: 0 }
     });
 
-    // u3 está en (4,0) — ocupado. Usamos u4 en (3,1) como target
-    // Después de cabalgar, u2 está en (4,0). Distancia a u4 (3,1) = 1 ✓
+    // Cabalgar fue hacia este (4,0) desde (2,0). Carga proyecta 1 hex más: (5,0)
     const general = afterCabalgar.units['u4'];
     const afterCabalgarMoved: GameState = {
         ...afterCabalgar,
         units: {
             ...afterCabalgar.units,
-            u4: { ...general, position: { q: 4, r: 1 } }
+            u4: { ...general, position: { q: 5, r: 0 } }
         }
     };
     // Poner dificultad baja y HP bajo para impacto garantizado
@@ -192,36 +191,49 @@ function makeState(): GameState {
         'Ventaja de alcance — rechazado si distancia > rango+1');
 }
 
-// ── Avance ──
+// ── Avance (pasiva) ──
 
 {
     const state = makeState();
-    const withInfantry: GameState = {
+    const setup: GameState = {
         ...state,
         units: {
             ...state.units,
-            u5: { id: 'u5', owner: 'p1', position: { q: 2, r: 1 }, attack: 3, hp: 12, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
-            uTarget: { id: 'uTarget', owner: 'p2', position: { q: 3, r: 1 }, attack: 3, hp: 1, difficulty: 2, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
+            u5: { id: 'u5', owner: 'p1', position: { q: 2, r: 1 }, attack: 3, hp: 12, difficulty: 2, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
+            uTarget: { id: 'uTarget', owner: 'p2', position: { q: 3, r: 1 }, attack: 3, hp: 1, difficulty: 2, range: 1, movementCost: 1, class: 'infantry', abilities: [] },
         }
     };
 
-    // Poner dificultad baja para garantizar impacto
-    withInfantry.units['u5'] = { ...withInfantry.units['u5'], difficulty: 2 };
-
-    const result = applyAction(withInfantry, {
-        type: 'USE_ABILITY',
+    // Ataque básico elimina al enemigo → pendingOccupation se setea
+    const afterAttack = applyAction(setup, {
+        type: 'ATTACK_UNIT',
         playerId: 'p1',
         unitId: 'u5',
-        abilityId: 'avance',
         targetId: 'uTarget'
     });
 
-    assert(result.graveyard['uTarget'] !== undefined,
+    assert(afterAttack.graveyard['uTarget'] !== undefined,
         'Avance — enemigo eliminado');
-    assertEqual(result.units['u5'].position.q, 3,
-        'Avance — infantería ocupa posición del enemigo');
-    assertEqual(result.units['u5'].position.r, 1,
-        'Avance — infantería ocupa posición del enemigo');
+    assert(afterAttack.pendingOccupation?.unitId === 'u5',
+        'Avance — pendingOccupation.unitId es u5');
+    assertEqual(afterAttack.pendingOccupation!.position.q, 3,
+        'Avance — pendingOccupation en q=3');
+    assertEqual(afterAttack.pendingOccupation!.position.r, 1,
+        'Avance — pendingOccupation en r=1');
+
+    // Aceptar ocupación
+    const afterOccupy = applyAction(afterAttack, {
+        type: 'OCCUPY_POSITION',
+        playerId: 'p1',
+        accept: true,
+    });
+
+    assert(afterOccupy.pendingOccupation === undefined,
+        'Avance — pendingOccupation limpiado');
+    assertEqual(afterOccupy.units['u5'].position.q, 3,
+        'Avance — u5 se movió a q=3');
+    assertEqual(afterOccupy.units['u5'].position.r, 1,
+        'Avance — u5 se movió a r=1');
 }
 
 // ── Fuego de cobertura ──

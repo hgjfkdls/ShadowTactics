@@ -60,7 +60,6 @@ function resetUnitTracking(unit: Unit): Unit {
         usedDisparoRapido: false,
         usedFuegoCobertura: false,
         usedAccionEvasiva: false,
-        usedAvance: false,
         hasCargaBonus: false,
     };
 }

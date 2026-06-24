@@ -6,6 +6,7 @@ import { useBoardInteraction } from './useBoardInteraction';
 import { useViewport } from './useViewport';
 import { getMoveRange } from './movementRange';
 import { AttackResultPanel } from '../layout/AttackResultPanel';
+import { PendingOccupationPanel } from '../layout/PendingOccupationPanel';
 import type { GameAction, GameState, HexCoord, UnitId } from '@shared';
 import { isHexOccupied, isWithinBounds, countPlayerClasses } from '@shared/game/utils';
 import { ABILITIES } from '@shared/game/data/abilities';
@@ -246,6 +247,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 </g>
             </svg>
             <AttackResultPanel lastAttackResult={state.lastAttackResult} />
+            <PendingOccupationPanel pendingOccupation={state.pendingOccupation} playerId={myPlayerId} sendAction={sendAction} />
         </>
     );
 }
@@ -291,7 +293,14 @@ function getAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, 
         case 'doble_ataque':
         case 'fuego_cobertura':
         case 'avance': range = unit.range; break;
-        case 'carga': range = 1; break;
+        case 'carga': {
+            if (!unit.cabalgarDir) return [];
+            const projQ = unit.position.q + unit.cabalgarDir.dq;
+            const projR = unit.position.r + unit.cabalgarDir.dr;
+            return Object.values(state.units)
+                .filter(u => u.owner !== playerId && u.position.q === projQ && u.position.r === projR)
+                .map(u => u.position);
+        }
         case 'ventaja_alcance': range = unit.range + 1; break;
         default: return [];
     }
@@ -324,17 +333,9 @@ function getAbilityMoveTargets(state: GameState, unitId: UnitId, abilityId: stri
             const dr = h.r - unit.position.r;
             // Solo los 6 ejes hexagonales: (2,0), (0,2), (-2,2), (-2,0), (0,-2), (2,-2)
             if (dq !== 0 && dr !== 0 && dq !== -dr) return false;
-            // Check intermediate hex is not occupied
-            if (dq !== 0 && dr !== 0) {
-                // Diagonal: both possible intermediate hexes must be free
-                const mid1 = { q: unit.position.q + dq, r: unit.position.r };
-                const mid2 = { q: unit.position.q, r: unit.position.r + dr };
-                if (isHexOccupied(state, mid1) || isHexOccupied(state, mid2)) return false;
-            } else {
-                // Straight axis: single midpoint
-                const mid = { q: unit.position.q + dq / 2, r: unit.position.r + dr / 2 };
-                if (isHexOccupied(state, mid)) return false;
-            }
+            // No puede atravesar unidades
+            const mid = { q: unit.position.q + dq / 2, r: unit.position.r + dr / 2 };
+            if (isHexOccupied(state, mid)) return false;
             return true;
         });
     }
@@ -356,7 +357,12 @@ function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pending
         const abilityId = pendingAbility!.abilityId;
         switch (abilityId) {
             case 'disparo_rapido': range = 2; break;
-            case 'carga': range = 1; break;
+        case 'carga': {
+            if (!unit.cabalgarDir) return [];
+            const projQ = unit.position.q + unit.cabalgarDir.dq;
+            const projR = unit.position.r + unit.cabalgarDir.dr;
+            return isWithinBounds({ q: projQ, r: projR }, state.map.radius) ? [{ q: projQ, r: projR }] : [];
+        }
             case 'doble_ataque':
             case 'fuego_cobertura':
             case 'avance': range = unit.range; break;

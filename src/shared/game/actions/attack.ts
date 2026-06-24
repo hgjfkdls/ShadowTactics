@@ -73,5 +73,10 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         },
     };
 
+    // Avance (pasiva): si el ataque eliminó al enemigo y el atacante tiene la habilidad
+    if (result.hit && s.graveyard[action.targetId] && (unit.abilities ?? []).includes('avance')) {
+        s = { ...s, pendingOccupation: { unitId: action.unitId, position: target.position } };
+    }
+
     return s;
 }

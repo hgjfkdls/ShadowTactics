@@ -59,8 +59,31 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const attackingUnit = attackingUnitId ? state.units[attackingUnitId] : null;
                 const isAttackTarget = attackingUnit !== null && unit.owner !== playerId && hexDistance(attackingUnit.position, unit.position) <= attackingUnit.range;
 
-                const attackAbilities = new Set(['disparo_rapido', 'fuego_cobertura', 'carga', 'doble_ataque', 'ventaja_alcance', 'avance']);
                 const pendingAttacker = pendingAbilityId && pendingAbilityUnitId ? state.units[pendingAbilityUnitId] : null;
+                const hasBlancoFacil = (attackingUnit?.abilities ?? []).includes('blanco_facil')
+                    || (pendingAbilityId && pendingAttacker && ['disparo_rapido', 'fuego_cobertura'].includes(pendingAbilityId) && (pendingAttacker.abilities ?? []).includes('blanco_facil'));
+                const isBlancoFacilTarget = hasBlancoFacil && unit.owner !== playerId && !unit.didMovePreviousTurn;
+
+                const unitAbilities = unit.abilities ?? [];
+                const hasActiveShield = unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false
+                    || unitAbilities.includes('resistencia') && !unit.timesDamagedThisTurn;
+                const isAttacking = attackingUnitId !== null || (pendingAbilityId !== null && ['disparo_rapido', 'fuego_cobertura'].includes(pendingAbilityId));
+                const showShield = isAttacking && unit.owner !== playerId && unit.class === 'infantry' && hasActiveShield;
+
+                const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
+                const showSword = selectedUnit && selectedUnit.owner === playerId && selectedUnit.class === 'infantry'
+                    && (selectedUnit.abilities ?? []).includes('presion')
+                    && unit.owner !== playerId && selectedUnit.lastTargetId === unit.id;
+
+                const passiveLabels: string[] = [];
+                if (isBlancoFacilTarget) passiveLabels.push('Blanco fácil (-1 dificultad)');
+                if (showSword) passiveLabels.push('Presión (+1 daño)');
+                if (showShield) {
+                    if (unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false) passiveLabels.push('Línea defensiva (-1 daño)');
+                    else if (unitAbilities.includes('resistencia') && !unit.timesDamagedThisTurn) passiveLabels.push('Resistencia (-1 daño)');
+                }
+
+                const attackAbilities = new Set(['disparo_rapido', 'fuego_cobertura', 'carga', 'doble_ataque', 'ventaja_alcance']);
                 const isAbilityTarget = pendingAttacker && unit.owner !== playerId && isEnemyInAbilityRange(pendingAttacker.position, unit.position, pendingAbilityId ?? '', pendingAttacker);
 
                 const attackInfo = (attackingUnit && isAttackTarget) || (isAbilityTarget && pendingAttacker) ? {
@@ -124,19 +147,49 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             {unit.hp}/{maxHp}
                         </text>
 
+                        {isBlancoFacilTarget && (
+                            <g transform="translate(14, -14)">
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" pointerEvents="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} pointerEvents="none" />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} pointerEvents="none" />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" pointerEvents="none" />
+                            </g>
+                        )}
+
+                        {showShield && (
+                            <g transform="translate(-14, -14)" pointerEvents="none">
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
+                            </g>
+                        )}
+
+                        {showSword && (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <circle cx="0" cy="0" r={5} stroke="#60a5fa" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#60a5fa" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#60a5fa" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#60a5fa" />
+                            </g>
+                        )}
+
                         {(buffs.length > 0 || debuffs.length > 0) && (
                             <g transform="translate(0, 20)">
                                 {buffs.length > 0 && (
                                     <circle cx={-4} cy={0} r={3} fill="#22c55e" stroke="#1f2937" strokeWidth={1} />
                                 )}
-                                {debuffs.length > 0 && (
-                                    <circle cx={4} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
-                                )}
+                                {(unit.fuegoCoberturaCharges ?? 0) > 0
+                                    ? Array.from({ length: unit.fuegoCoberturaCharges! }, (_, i) => (
+                                        <circle key={i} cx={4 + i * 8} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
+                                    ))
+                                    : debuffs.length > 0 && (
+                                        <circle cx={4} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
+                                    )
+                                }
                             </g>
                         )}
 
                         {hovered && (
-                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} sendAction={sendAction} playerId={playerId} canAct={canAct} onSelectUnit={onSelectUnit} onRequestMove={onRequestMove} onRequestAttack={onRequestAttack} onRequestAbilityTarget={onRequestAbilityTarget} hasAdjacentEnemy={hasAdjacentEnemy} attackInfo={attackInfo} closeTooltip={() => setHoveredUnitId(null)} />
+                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} sendAction={sendAction} playerId={playerId} canAct={canAct} onSelectUnit={onSelectUnit} onRequestMove={onRequestMove} onRequestAttack={onRequestAttack} onRequestAbilityTarget={onRequestAbilityTarget} hasAdjacentEnemy={hasAdjacentEnemy} attackInfo={attackInfo} closeTooltip={() => setHoveredUnitId(null)} passiveLabels={passiveLabels} />
                         )}
                     </g>
                 );
@@ -145,7 +198,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
     );
 }
 
-function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct, onSelectUnit, onRequestMove, onRequestAttack, onRequestAbilityTarget, hasAdjacentEnemy, attackInfo, closeTooltip }: { unit: Unit; maxHp: number; buffs: string[]; debuffs: string[]; sendAction?: (action: GameAction) => void; playerId?: string; canAct?: boolean; onSelectUnit?: (unitId: UnitId) => void; onRequestMove?: (unitId: UnitId) => void; onRequestAttack?: (unitId: UnitId) => void; onRequestAbilityTarget?: (abilityId: string, unitId: UnitId) => void; hasAdjacentEnemy?: boolean; attackInfo: { distance: number; difficulty: number } | null; closeTooltip?: () => void }) {
+function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct, onSelectUnit, onRequestMove, onRequestAttack, onRequestAbilityTarget, hasAdjacentEnemy, attackInfo, closeTooltip, passiveLabels }: { unit: Unit; maxHp: number; buffs: string[]; debuffs: string[]; sendAction?: (action: GameAction) => void; playerId?: string; canAct?: boolean; onSelectUnit?: (unitId: UnitId) => void; onRequestMove?: (unitId: UnitId) => void; onRequestAttack?: (unitId: UnitId) => void; onRequestAbilityTarget?: (abilityId: string, unitId: UnitId) => void; hasAdjacentEnemy?: boolean; attackInfo: { distance: number; difficulty: number } | null; closeTooltip?: () => void; passiveLabels?: string[] }) {
     const lineH = 16;
     const padX = 12;
     const padY = 10;
@@ -159,10 +212,12 @@ function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct
         .map(id => ({ id, def: ABILITIES[id] }))
         .filter(a => a.def?.type === 'active');
 
+    const pLen = passiveLabels?.length ?? 0;
     let rows = 2;
     if (attackInfo) rows += 1;
     if (buffs.length > 0) rows += 2 + buffs.length;
     if (debuffs.length > 0) rows += 2 + debuffs.length;
+    if (pLen > 0) rows += 1 + pLen;
     rows += 1 + 2 + activeAbilities.length; // actions header + 2 basic + N abilities
 
     const tipW = 150;
@@ -173,7 +228,9 @@ function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct
     const buffStartRow = buffHeaderRow + 1;
     const debuffHeaderRow = buffs.length > 0 ? buffStartRow + buffs.length : (attackInfo ? 4 : 3);
     const debuffStartRow = debuffHeaderRow + 1;
-    const actionsRow = debuffs.length > 0 ? debuffStartRow + debuffs.length : debuffHeaderRow;
+    const passiveHeaderRow = debuffs.length > 0 ? debuffStartRow + debuffs.length : debuffHeaderRow;
+    const passiveStartRow = passiveHeaderRow + 1;
+    const actionsRow = pLen > 0 ? passiveStartRow + pLen : passiveHeaderRow;
 
     return (
         <g>
@@ -228,6 +285,19 @@ function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct
                 </>
             )}
 
+            {pLen > 0 && (
+                <>
+                    <text x={colX} y={firstY + lineH * passiveHeaderRow} fontSize={8} fill="#60a5fa" fontWeight="bold" pointerEvents="none">
+                        ⚡ Pasivas que afectan
+                    </text>
+                    {passiveLabels!.map((l, i) => (
+                        <text key={l} x={colX + 6} y={firstY + lineH * (passiveStartRow + i)} fontSize={8} fill="#93c5fd" pointerEvents="none">
+                            {l}
+                        </text>
+                    ))}
+                </>
+            )}
+
             {(() => {
                 const basicActions = [
                     {
@@ -247,8 +317,8 @@ function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct
                         cost: a.def!.cost ?? 0,
                         disabled:
                             (a.id === 'accion_evasiva' && (!!unit.movedThisTurn || !hasAdjacentEnemy)) ||
-                            (a.id === 'disparo_rapido' && (!unit.attackedThisTurn || !!unit.usedDisparoRapido)) ||
-                            (a.id === 'doble_ataque' && (!unit.attackedThisTurn || !!unit.usedDobleAtaque)) ||
+                            (a.id === 'disparo_rapido' && (!!unit.usedCarga || !unit.attackedThisTurn || !!unit.usedDisparoRapido)) ||
+                            (a.id === 'doble_ataque' && (!!unit.usedCarga || !unit.attackedThisTurn || !!unit.usedDobleAtaque)) ||
                             (a.id === 'cabalgar' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
                             (a.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)),
                         def: a.def,
@@ -364,7 +434,10 @@ function isEnemyInAbilityRange(from: { q: number; r: number }, to: { q: number; 
     const d = hexDistance(from, to);
     switch (abilityId) {
         case 'disparo_rapido': return d <= 2;
-        case 'carga': return d <= 1;
+        case 'carga': {
+            if (!unit.cabalgarDir) return false;
+            return to.q === from.q + unit.cabalgarDir.dq && to.r === from.r + unit.cabalgarDir.dr;
+        }
         case 'fuego_cobertura':
         case 'doble_ataque':
         case 'avance': return d <= unit.range;

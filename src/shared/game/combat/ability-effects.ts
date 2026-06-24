@@ -17,6 +17,7 @@ export type AbilityContext = {
     distance: number;
     roll: number;
     ctx: Partial<AttackInput>;
+    abilitySide: 'attacker' | 'defender';
 };
 
 type AbilityHandler = {
@@ -30,7 +31,8 @@ type AbilityHandler = {
 const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     blanco_facil: {
         onDifficulty: (ctx, r) => {
-            if (ctx.defender.didMovePreviousTurn === false) r.difficulty -= 1;
+            if (ctx.abilitySide !== 'attacker') return;
+            if (!ctx.defender.didMovePreviousTurn) r.difficulty -= 1;
         },
     },
     anti_caballeria: {
@@ -59,9 +61,14 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     resistencia: {
         onDefense: (ctx, r) => {
             if (r.ignoresPassives) return;
-            if ((ctx.defender.timesDamagedThisTurn ?? 0) === 0) r.damage -= 1;
+            if (ctx.abilitySide !== 'defender') return;
+            if ((ctx.defender.timesDamagedThisTurn ?? 0) !== 0) return;
+            // Si también tiene Línea defensiva y cumple su condición, no se acumulan
+            if ((ctx.defender.abilities ?? []).includes('linea_defensiva') && ctx.defender.didMovePreviousTurn === false) return;
+            r.damage -= 1;
         },
-        onPostHit: (ctx, s, _hit) => {
+        onPostHit: (ctx, s, hit) => {
+            if (!hit) return s;
             return updateUnit(s, ctx.defender.id, (u) => ({
                 ...u, timesDamagedThisTurn: (u.timesDamagedThisTurn ?? 0) + 1
             }));
@@ -70,9 +77,11 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     linea_defensiva: {
         onDefense: (ctx, r) => {
             if (r.ignoresPassives) return;
+            if (ctx.abilitySide !== 'defender') return;
             if (ctx.defender.didMovePreviousTurn === false) r.damage -= 1;
         },
-        onPostHit: (ctx, s, _hit) => {
+        onPostHit: (ctx, s, hit) => {
+            if (!hit) return s;
             return updateUnit(s, ctx.defender.id, (u) => ({
                 ...u, timesDamagedThisTurn: (u.timesDamagedThisTurn ?? 0) + 1
             }));
@@ -99,10 +108,10 @@ export function getUnitModifiers(state: GameState, playerId: string): { difficul
 
 export function applyDifficultyAbilities(ctx: AbilityContext, result: CombatResult): void {
     for (const ability of ctx.attacker.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDifficulty?.(ctx, result);
+        ABILITY_EFFECTS[ability]?.onDifficulty?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
     for (const ability of ctx.defender.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDifficulty?.(ctx, result);
+        ABILITY_EFFECTS[ability]?.onDifficulty?.({ ...ctx, abilitySide: 'defender' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner);
     result.difficulty += mods.difficulty;
@@ -110,7 +119,7 @@ export function applyDifficultyAbilities(ctx: AbilityContext, result: CombatResu
 
 export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult): void {
     for (const ability of ctx.attacker.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDamage?.(ctx, result);
+        ABILITY_EFFECTS[ability]?.onDamage?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner);
     result.damage += mods.damage;
@@ -118,19 +127,18 @@ export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult):
 
 export function applyCostAbilities(ctx: AbilityContext, result: CombatResult): void {
     for (const ability of ctx.attacker.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onCost?.(ctx, result);
+        ABILITY_EFFECTS[ability]?.onCost?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner);
     result.attackCost += mods.attackCost;
 }
 
 export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult): void {
-    // Atacante puede tener habilidades que afecten la defensa (ej: romper_filas)
     for (const ability of ctx.attacker.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDefense?.(ctx, result);
+        ABILITY_EFFECTS[ability]?.onDefense?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
     for (const ability of ctx.defender.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDefense?.(ctx, result);
+        ABILITY_EFFECTS[ability]?.onDefense?.({ ...ctx, abilitySide: 'defender' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.defender.owner);
     result.damage += mods.damage;
@@ -139,10 +147,10 @@ export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult)
 export function applyPostHitAbilities(ctx: AbilityContext, state: GameState, hit: boolean): GameState {
     let s = state;
     for (const ability of ctx.attacker.abilities ?? []) {
-        s = ABILITY_EFFECTS[ability]?.onPostHit?.(ctx, s, hit) ?? s;
+        s = ABILITY_EFFECTS[ability]?.onPostHit?.({ ...ctx, abilitySide: 'attacker' }, s, hit) ?? s;
     }
     for (const ability of ctx.defender.abilities ?? []) {
-        s = ABILITY_EFFECTS[ability]?.onPostHit?.(ctx, s, hit) ?? s;
+        s = ABILITY_EFFECTS[ability]?.onPostHit?.({ ...ctx, abilitySide: 'defender' }, s, hit) ?? s;
     }
     return s;
 }

@@ -86,9 +86,8 @@ export const ABILITIES: Record<string, UnitAbility> = {
         description: 'Si ataca al mismo objetivo que el turno anterior, +1 daño',
     },
     avance: {
-        id: 'avance', name: 'Avance', type: 'active', cost: 1,
-        description: 'Si elimina a un enemigo, ocupa su posición sin romper Línea defensiva',
-        requiresTarget: true,
+        id: 'avance', name: 'Avance', type: 'passive',
+        description: 'Al eliminar un enemigo con ataque básico, permite ocupar su posición',
     },
 };
 
