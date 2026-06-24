@@ -139,7 +139,7 @@ Sin framework de testing. Se ejecuta con `tsx src/test/test.ts`.
 
 | Funcionalidad | Docs | Código |
 |--------------|------|--------|
-| Tablero hexagonal (axial) | Radio 6 | Radio 6 |
+| Tablero hexagonal (axial) | Radio 5 | Radio 5 |
 | Despliegue | 11 unidades c/u | 3 unidades c/u |
 | Selección de identidad | ✔ | ✔ (solo flujo, sin efectos) |
 | Tirada de dados | ✔ | ✔ (2d6) |

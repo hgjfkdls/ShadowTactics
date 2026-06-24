@@ -9,7 +9,7 @@ assertEqual(state.gamePhase, 'PREPARATION', 'createInitialGameState — fase es 
 assertEqual(state.preparationPhase, 'IDENTITY_SELECTION', 'createInitialGameState — subfase es IDENTITY_SELECTION');
 assertEqual(state.turn, 1, 'createInitialGameState — turno inicial es 1');
 assert(state.activePlayer === 'p1' || state.activePlayer === 'p2', 'createInitialGameState — jugador activo definido');
-assertEqual(state.map.radius, 6, 'createInitialGameState — mapa radio 6');
+assertEqual(state.map.radius, 5, 'createInitialGameState — mapa radio 5');
 assertEqual(state.centerHex.q, 0, 'createInitialGameState — centro Q=0');
 assertEqual(state.centerHex.r, 0, 'createInitialGameState — centro R=0');
 assert(state.rngSeed !== undefined, 'createInitialGameState — semilla RNG definida');
@@ -25,11 +25,11 @@ assertEqual(p1.carryOver, 0, 'createInitialGameState — p1 carryOver inicial 0'
 assertEqual(p1.identityCards?.length, 3, 'createInitialGameState — p1 tiene 3 cartas de identidad');
 assert(p1.selectedIdentity === undefined, 'createInitialGameState — p1 sin identidad seleccionada');
 assert(p1.revealedIdentity === undefined, 'createInitialGameState — p1 sin identidad revelada');
-assertEqual(p1.unitsToDeploy?.length, 11, 'createInitialGameState — p1 tiene 11 unidades para desplegar');
+assertEqual(p1.unitsToDeploy?.length, 13, 'createInitialGameState — p1 tiene 13 unidades (3 por clase + general)');
 assertEqual(p1.deployedUnits?.length, 0, 'createInitialGameState — p1 sin unidades desplegadas');
 
 assertEqual(p2.identityCards?.length, 3, 'createInitialGameState — p2 tiene 3 cartas de identidad');
-assertEqual(p2.unitsToDeploy?.length, 11, 'createInitialGameState — p2 tiene 11 unidades para desplegar');
+assertEqual(p2.unitsToDeploy?.length, 13, 'createInitialGameState — p2 tiene 13 unidades (3 por clase + general)');
 
 // Dice rolls
 assert(state.diceRolls.p1 === undefined, 'createInitialGameState — dados p1 sin tirar');

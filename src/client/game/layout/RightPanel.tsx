@@ -1,0 +1,389 @@
+import { useState } from 'react';
+import type { GameState, GameAction, Unit, ModifierInstance } from '@shared';
+import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
+import { ABILITIES } from '@shared/game/data/abilities';
+import { getCardName, getCardType, getCardDescription } from '@shared/game/actions/card';
+
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
+
+type Props = {
+    state: GameState;
+    playerId: string;
+    selectedInfo: SelectedInfo;
+    sendAction?: (action: GameAction) => void;
+    children?: React.ReactNode;
+};
+
+const CLASS_DISPLAY: Record<string, string> = {
+    archer: 'Arquero', infantry: 'Infantería', cavalry: 'Caballería', lancer: 'Lancero', general: 'General',
+};
+
+const CLASS_COLORS: Record<string, string> = {
+    archer: 'text-amber-400', infantry: 'text-blue-400', cavalry: 'text-violet-400', lancer: 'text-red-400', general: 'text-yellow-300',
+};
+
+export function RightPanel({ state, playerId, selectedInfo, sendAction, children }: Props) {
+    function renderContent() {
+        if (selectedInfo?.type === 'identity') {
+            return <IdentityDetail state={state} targetPlayerId={selectedInfo.playerId} myPlayerId={playerId} />;
+        }
+        if (selectedInfo?.type === 'unit') {
+            return <UnitDetail state={state} unitId={selectedInfo.unitId} myPlayerId={playerId} />;
+        }
+        if (selectedInfo?.type === 'card') {
+            return <CardDetail cardId={selectedInfo.cardId} playerId={playerId} state={state} sendAction={sendAction} />;
+        }
+        if (selectedInfo?.type === 'effect') {
+            return <EffectDetail stat={selectedInfo.stat} label={selectedInfo.label} description={selectedInfo.description} />;
+        }
+        return null;
+    }
+
+    return (
+        <aside className="h-full border-l border-zinc-700 flex flex-col overflow-hidden bg-zinc-900/80">
+            <div className="border-b border-zinc-700 p-3">
+                <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">
+                    {selectedInfo ? 'Información' : 'Detalles'}
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                {renderContent()}
+                {children}
+                {!selectedInfo && !children && (
+                    <div className="flex items-center justify-center h-full text-xs text-zinc-600">
+                        Selecciona una identidad o unidad para ver detalles
+                    </div>
+                )}
+            </div>
+        </aside>
+    );
+}
+
+function IdentityDetail({ state, targetPlayerId, myPlayerId }: { state: GameState; targetPlayerId: string; myPlayerId: string }) {
+    const identityCardId = state.players[targetPlayerId]?.selectedIdentity;
+    if (!identityCardId) return <div className="text-xs text-zinc-500">Sin identidad seleccionada</div>;
+
+    const key = getIdentityKey(identityCardId);
+    const info = IDENTITY_INFO[key];
+    if (!info) return <div className="text-xs text-zinc-500">Identidad desconocida</div>;
+
+    const isMine = targetPlayerId === myPlayerId;
+    const unitCount = Object.values(state.units).filter(u => u.owner === targetPlayerId).length;
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-start gap-3">
+                <div className="text-3xl">🛡️</div>
+                <div>
+                    <div className="text-lg font-bold">{info.name}</div>
+                    <div className={`text-sm font-semibold ${CLASS_COLORS[identityCardId.includes('robin') || identityCardId.includes('franco') ? 'archer' : 'infantry']}`}>
+                        {info.className}
+                    </div>
+                    <div className={`text-xs font-semibold mt-1 ${isMine ? 'text-blue-400' : 'text-red-400'}`}>
+                        {isMine ? 'ALIADO' : 'ENEMIGO'}
+                    </div>
+                </div>
+            </div>
+
+            <div className="text-xs text-zinc-400">
+                Unidades: <span className="text-zinc-200 font-semibold">{unitCount}</span>
+            </div>
+
+            <div className="space-y-1">
+                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Descripción</div>
+                <div className="text-xs text-zinc-300 bg-zinc-800/50 rounded-lg p-3 leading-relaxed whitespace-pre-line">
+                    {info.desc}
+                </div>
+            </div>
+
+            <div className="space-y-1">
+                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Información completa</div>
+                <div className="text-xs text-zinc-300 bg-zinc-800/50 rounded-lg p-3 leading-relaxed whitespace-pre-line">
+                    {info.descVerbose}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function CardDetail({ cardId, playerId, state, sendAction }: { cardId: string; playerId: string; state: GameState; sendAction?: (action: GameAction) => void }) {
+    const ctype = getCardType(cardId);
+    const isMyTurn = state.activePlayer === playerId && state.turnPhase !== 'COUNTER';
+    const isCounterWindow = state.turnPhase === 'COUNTER' && state.activePlayer !== playerId;
+    const canPlay = isMyTurn || (isCounterWindow && ctype === 'COUNTER');
+
+    const TYPE_LABELS: Record<string, string> = {
+        BUFF: 'Mejora',
+        DEBUFF: 'Debilidad',
+        COUNTER: 'Contra',
+    };
+
+    const TYPE_COLORS: Record<string, string> = {
+        BUFF: 'text-emerald-400 border-emerald-700',
+        DEBUFF: 'text-red-400 border-red-700',
+        COUNTER: 'text-violet-400 border-violet-700',
+    };
+
+    const TYPE_BG: Record<string, string> = {
+        BUFF: 'bg-emerald-900/20',
+        DEBUFF: 'bg-red-900/20',
+        COUNTER: 'bg-violet-900/20',
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-start gap-3">
+                <div className="text-3xl">🃏</div>
+                <div>
+                    <div className="text-lg font-bold">{getCardName(cardId)}</div>
+                    <div className={['text-xs font-semibold', ctype ? TYPE_COLORS[ctype]?.split(' ')[0] : 'text-zinc-400'].join(' ')}>
+                        {ctype ? TYPE_LABELS[ctype] ?? ctype : '?'}
+                    </div>
+                </div>
+            </div>
+
+            <div className={['rounded-lg border p-3 text-xs text-zinc-300 leading-relaxed', ctype ? TYPE_BG[ctype] ?? '' : 'bg-zinc-800/30 border-zinc-700'].join(' ')}>
+                {getCardDescription(cardId) || 'Sin descripción'}
+            </div>
+
+            {canPlay && sendAction && (
+                <button
+                    onClick={() => sendAction({ type: 'USE_CARD', playerId, cardId })}
+                    className="w-full text-xs font-semibold py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition cursor-pointer text-white"
+                >
+                    {isCounterWindow ? 'Contrarrestar' : 'Usar carta'}
+                </button>
+            )}
+        </div>
+    );
+}
+
+function EffectDetail({ stat, label, description }: { stat: string; label: string; description: string }) {
+    const isDebuff = ['movementCost', 'difficulty', 'attackCost', 'blocked', 'passiveDamage', 'movementPenalty'].includes(stat);
+    return (
+        <div className="space-y-4">
+            <div className="flex items-start gap-3">
+                <div className="text-3xl">{isDebuff ? '🔴' : '🟢'}</div>
+                <div>
+                    <div className="text-lg font-bold">{label}</div>
+                    <div className={`text-xs font-semibold mt-1 ${isDebuff ? 'text-red-400' : 'text-green-400'}`}>
+                        {isDebuff ? 'EFECTO NEGATIVO' : 'EFECTO POSITIVO'}
+                    </div>
+                </div>
+            </div>
+            <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3 text-xs text-zinc-300 leading-relaxed">
+                {description}
+            </div>
+        </div>
+    );
+}
+
+function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: string; myPlayerId: string }) {
+    const [expandedAbility, setExpandedAbility] = useState<string | null>(null);
+
+    // Try live unit, then graveyard, then pool (undeployed)
+    const liveUnit = state.units[unitId];
+    const deadUnit = !liveUnit ? Object.values(state.graveyard).find(u => u.id === unitId) : undefined;
+    const poolEntry = (!liveUnit && !deadUnit)
+        ? findPoolEntry(state, unitId)
+        : undefined;
+
+    if (!liveUnit && !deadUnit && !poolEntry) {
+        return <div className="text-xs text-zinc-500">Unidad no encontrada</div>;
+    }
+
+    const unit = liveUnit ?? deadUnit;
+    const isMine = unit ? unit.owner === myPlayerId : (poolEntry?.owner ?? '') === myPlayerId;
+    const isAlive = !!liveUnit;
+    const unitClass = unit?.class ?? poolEntry!.unitClass;
+    const maxHp = getMaxHp(unitClass);
+    const currentHp = unit?.hp ?? maxHp;
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-start gap-3">
+                <div className="text-3xl">{poolEntry ? '📦' : isAlive ? '⚔️' : '💀'}</div>
+                <div>
+                    <div className={`text-lg font-bold ${CLASS_COLORS[unitClass]}`}>
+                        {CLASS_DISPLAY[unitClass] ?? unitClass}
+                    </div>
+                    <div className={`text-xs font-semibold mt-1 ${isMine ? 'text-blue-400' : 'text-red-400'}`}>
+                        {isMine ? 'ALIADA' : 'ENEMIGA'}
+                        {poolEntry ? ' (Sin desplegar)' : !isAlive ? ' (Eliminada)' : ''}
+                    </div>
+                </div>
+            </div>
+
+            {/* Unit stats */}
+            <div className="grid grid-cols-2 gap-2">
+                <StatBox label="HP" value={`${currentHp}/${maxHp}`} bar={poolEntry ? 100 : Math.round((currentHp / maxHp) * 100)} />
+                <StatBox label="Ataque" value={`${unit?.attack ?? 3}`} />
+                <StatBox label="Dificultad" value={`${unit?.difficulty ?? 6}`} />
+                <StatBox label="Rango" value={`${unit?.range ?? 1}`} />
+                <StatBox label="Movimiento" value={`${unit?.movementCost ?? 1}`} />
+            </div>
+
+            {/* Active effects */}
+            {liveUnit && (() => {
+                const { buffs, debuffs } = getUnitStatus(liveUnit, state.activeModifiers);
+                const all = [...buffs.map(s => ({ s, isDebuff: false })), ...debuffs.map(s => ({ s, isDebuff: true }))];
+                if (all.length === 0) return null;
+                return (
+                    <div className="space-y-1">
+                        <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Efectos activos</div>
+                        <div className="space-y-1">
+                            {all.map(({ s, isDebuff }) => (
+                                <div key={s} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs ${isDebuff ? 'border-red-800/60 bg-red-900/15' : 'border-green-800/60 bg-green-900/15'}`}>
+                                    <span>{isDebuff ? '🔴' : '🟢'}</span>
+                                    <span className={`font-semibold ${isDebuff ? 'text-red-300' : 'text-green-300'}`}>
+                                        {statusLabel(s)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {liveUnit && (
+                <div className="text-xs text-zinc-500">
+                    Posición: ({liveUnit.position.q}, {liveUnit.position.r})
+                    {liveUnit.movedThisTurn && <span className="ml-2 text-zinc-400">· Se movió</span>}
+                    {liveUnit.attackedThisTurn && <span className="ml-2 text-zinc-400">· Atacó</span>}
+                </div>
+            )}
+
+            {/* Abilities with clickable names */}
+            {(unit?.abilities && unit.abilities.length > 0) && (
+                <AbilityList abilities={unit.abilities} expandedAbility={expandedAbility} onToggle={setExpandedAbility} />
+            )}
+
+            {poolEntry && (
+                <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3 text-[10px] text-zinc-400">
+                    Unidad en pool de despliegue. Stats base de {CLASS_DISPLAY[unitClass]}.
+                </div>
+            )}
+        </div>
+    );
+}
+
+function AbilityList({ abilities, expandedAbility, onToggle }: { abilities: string[]; expandedAbility: string | null; onToggle: (id: string | null) => void }) {
+    return (
+        <div className="space-y-1">
+            <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Habilidades</div>
+            <div className="space-y-1">
+                {abilities.map(abId => {
+                    const ab = ABILITIES[abId];
+                    const isExpanded = expandedAbility === abId;
+                    return (
+                        <div key={abId}>
+                            <button
+                                onClick={() => onToggle(isExpanded ? null : abId)}
+                                className={[
+                                    'w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer',
+                                    isExpanded
+                                        ? 'border-blue-600 bg-blue-600/15'
+                                        : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-500',
+                                ].join(' ')}
+                            >
+                                <span className="text-[9px] text-zinc-500 font-mono">
+                                    {ab?.type === 'active' ? `⚡${ab.cost ?? '?'}PA` : '🔰'}
+                                </span>
+                                <span className="font-semibold text-zinc-200">{ab?.name ?? abId.replace(/_/g, ' ')}</span>
+                            </button>
+                            {isExpanded && ab && (
+                                <div className="ml-2 mt-1 border-l-2 border-blue-700/50 pl-3 py-1 space-y-1">
+                                    <div className="text-[11px] text-zinc-300 leading-relaxed">{ab.description}</div>
+                                    {ab.restrictions && (
+                                        <div className="text-[10px] text-amber-400/80 italic">{ab.restrictions}</div>
+                                    )}
+                                    <div className="text-[9px] text-zinc-500">{ab.type === 'active' ? 'Activa' : 'Pasiva'}{ab.cost !== undefined ? ` · Coste: ${ab.cost} PA` : ''}</div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function findPoolEntry(state: GameState, unitId: string): { owner: string; unitClass: string } | undefined {
+    for (const [pid, p] of Object.entries(state.players)) {
+        const entry = p.unitsToDeploy?.find(e => e.unitId === unitId);
+        if (entry) return { owner: pid, unitClass: entry.unitClass };
+    }
+    return undefined;
+}
+
+function StatBox({ label, value, bar }: { label: string; value: string; bar?: number }) {
+    return (
+        <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-2">
+            <div className="text-[10px] text-zinc-500 uppercase">{label}</div>
+            <div className="text-sm font-bold">{value}</div>
+            {bar !== undefined && (
+                <div className="w-full h-1 bg-zinc-700 rounded-full mt-1 overflow-hidden">
+                    <div
+                        className={`h-full rounded-full transition-all ${bar > 50 ? 'bg-green-500' : bar > 25 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.max(0, Math.min(100, bar))}%` }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
+function getMaxHp(cls: string): number {
+    switch (cls) {
+        case 'general': return 15;
+        case 'infantry': return 12;
+        case 'cavalry': return 10;
+        case 'archer': return 8;
+        case 'lancer': return 10;
+        default: return 10;
+    }
+}
+
+function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: string[]; debuffs: string[] } {
+    const buffs: string[] = [];
+    const debuffs: string[] = [];
+    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'blocked'];
+    const helpfulStats = ['attack', 'damage', 'ap', 'dotOnHit'];
+    const passiveStats = ['passiveDamage'];
+    for (const m of modifiers) {
+        if (m.remainingTurns < 0) continue;
+        if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
+        const isUnitSpecific = m.targetId === unit.id;
+        const isPlayerWide = !m.targetId && m.sourcePlayerId === unit.owner;
+        if (!isUnitSpecific && !isPlayerWide) continue;
+        const stat = m.stat;
+        if (stat === 'movementCost' && m.value === 0 && m.operator === 'SET') {
+            if (!buffs.includes(stat)) buffs.push(stat);
+            continue;
+        }
+        if (harmfulStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
+        else if (helpfulStats.includes(stat)) { if (!buffs.includes(stat)) buffs.push(stat); }
+        else if (passiveStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
+    }
+    if ((unit.fuegoCoberturaCharges ?? 0) > 0) {
+        if (!debuffs.includes('movementPenalty')) debuffs.push('movementPenalty');
+    }
+    return { buffs, debuffs };
+}
+
+function statusLabel(stat: string): string {
+    switch (stat) {
+        case 'movementCost': return 'Coste movimiento alterado';
+        case 'attack': return 'Ataque potenciado';
+        case 'difficulty': return 'Dificultad modificada';
+        case 'damage': return 'Daño alterado';
+        case 'attackCost': return 'Coste ataque aumentado';
+        case 'blocked': return 'Bloqueado';
+        case 'dotOnHit': return 'Daño pasivo preparado';
+        case 'ap': return 'PA modificados';
+        case 'passiveDamage': return 'Recibiendo daño pasivo';
+        case 'movementPenalty': return 'Penalización de movimiento (×2)';
+        default: return stat;
+    }
+}

@@ -34,14 +34,14 @@ const mapR3: HexMap = { radius: 3 };
 const hexes3 = generateHexMap(mapR3);
 assertEqual(hexes3.length, 37, 'generateHexMap — radio 3 genera 37 hex');
 
-const mapR6: HexMap = { radius: 6 };
-const hexes6 = generateHexMap(mapR6);
-assertEqual(hexes6.length, 127, 'generateHexMap — radio 6 genera 127 hex');
+const mapR5: HexMap = { radius: 5 };
+const hexes5 = generateHexMap(mapR5);
+assertEqual(hexes5.length, 91, 'generateHexMap — radio 5 genera 91 hex');
 
 // isInsideMap
-assert(isInsideMap({ q: 0, r: 0 }, mapR6), 'isInsideMap — centro dentro');
-assert(isInsideMap({ q: 6, r: 0 }, mapR6), 'isInsideMap — borde Q=6 dentro');
-assert(isInsideMap({ q: 0, r: -6 }, mapR6), 'isInsideMap — borde R=-6 dentro');
-assert(!isInsideMap({ q: 7, r: 0 }, mapR6), 'isInsideMap — Q=7 fuera');
-assert(!isInsideMap({ q: 0, r: -7 }, mapR6), 'isInsideMap — R=-7 fuera');
-assert(!isInsideMap({ q: 4, r: 4 }, mapR6), 'isInsideMap — (4,4) fuera porque S=-8');
+assert(isInsideMap({ q: 0, r: 0 }, mapR5), 'isInsideMap — centro dentro');
+assert(isInsideMap({ q: 5, r: 0 }, mapR5), 'isInsideMap — borde Q=5 dentro');
+assert(isInsideMap({ q: 0, r: -5 }, mapR5), 'isInsideMap — borde R=-5 dentro');
+assert(!isInsideMap({ q: 6, r: 0 }, mapR5), 'isInsideMap — Q=6 fuera');
+assert(!isInsideMap({ q: 0, r: -6 }, mapR5), 'isInsideMap — R=-6 fuera');
+assert(!isInsideMap({ q: 4, r: 4 }, mapR5), 'isInsideMap — (4,4) fuera porque S=-8');

@@ -28,11 +28,11 @@ El código está en **estado de andamiaje temprano**: el flujo base (fases, turn
 
 | Regla | Documento | Código | Estado |
 |-------|-----------|--------|--------|
-| Radio del mapa | 6 | `init.ts` → `radius: 6` | ✅ Correcto |
+| Radio del mapa | 5 | `init.ts` → `radius: 5` | ✅ Correcto |
 | Prioridad: 2 dados | "lanza los 2 dados" | `roll.ts` → `roll2d6()` | ✅ Correcto |
 | Máx 3 unidades por tipo | "Máximo 3 unidades del mismo tipo" | `deployment.ts` → `>= 3` | ✅ Correcto |
 | Máx PA totales | "máximo 8 PA totales" | `turn.ts` → `Math.min(..., 8)` | ✅ Correcto |
-| Despliegue: 11 unidades | 11 unidades cada uno | `init.ts` → 11 por jugador | ✅ Correcto |
+| Despliegue: 11 unidades | 11 unidades cada uno | `init.ts` → 13 en pool, se despliegan 11 | ✅ Correcto |
 | Patrón de despliegue | 1-2-2-2-...-2-1 | `deployment.ts` → `getTargetForStep()` | ✅ Correcto |
 | Robar carta al inicio | "roba 1 carta de efecto" | `turn.ts` → `drawCard()`, `card.ts` → 52 cartas (4×13) | ✅ Correcto |
 | Mano máxima 3 | "Si tiene más de 3, descarta 1" | `card.ts` → `hand.slice(1)` auto-descarta la más vieja | ✅ Correcto |
@@ -89,7 +89,7 @@ El código está en **estado de andamiaje temprano**: el flujo base (fases, turn
 
 | # | Problema | Archivo | Línea | Impacto |
 |---|----------|---------|-------|---------|
-| 1 | `isWithinBounds` usa max 5 por defecto, pero el mapa es radio 6 | `utils/helpers.ts` | 20 | Unidades no pueden moverse a hex con coordenada >5, aunque el mapa tenga radio 6 |
+| 1 | `isWithinBounds` usaba max 5 por defecto y el mapa era radio 6 (✔ resuelto: mapa ahora es radio 5) | `utils/helpers.ts` | 20 | ✅ Resuelto al cambiar mapa a radio 5 |
 | 2 | `movementRange.ts` (cliente) referencia `unit.movement` que no existe | `client/game/board/movementRange.ts` | - | El rango de movimiento siempre está vacío en el cliente |
 | 3 | `HexBoard.tsx` tiene `myPlayerId = 'p1'` hardcodeado | `client/game/board/HexBoard.tsx` | - | Ambos jugadores controlan las mismas unidades |
 | 4 | Dificultad de infantería era 7 en reducer original (corregido en stats.ts a 6) | `units/stats.ts` | 7 | Ya no aplica, pero ilustra que el reducer original no coincidía con docs |
@@ -123,9 +123,8 @@ El código está en **estado de andamiaje temprano**: el flujo base (fases, turn
 ## Resumen: lo que hay que priorizar
 
 ### Pendiente
-1. `isWithinBounds` debe usar `map.radius` en lugar de 5
-2. Sistema de cartas de efecto (13 cartas, efectos reales)
-3. Sistema de cartas de identidad (15 cartas, efectos reales) 
-4. Acción evasiva (requiere UI para detectar enemigos adyacentes)
-5. Referencia `unit.movement` inexistente en `client/game/board/movementRange.ts`
-6. `HexBoard.tsx` con `myPlayerId = 'p1'` hardcodeado
+1. Sistema de cartas de efecto (13 cartas, efectos reales)
+2. Sistema de cartas de identidad (15 cartas, efectos reales) 
+3. Acción evasiva (requiere UI para detectar enemigos adyacentes)
+4. Referencia `unit.movement` inexistente en `client/game/board/movementRange.ts`
+5. `HexBoard.tsx` con `myPlayerId = 'p1'` hardcodeado

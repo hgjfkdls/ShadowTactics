@@ -27,7 +27,6 @@ export type GameAction =
         playerId: PlayerId;
         unitId: UnitId;
         position: HexCoord;
-        class: 'archer' | 'infantry' | 'lancer' | 'cavalry' | 'general';
     }
 
     // GAMEPLAY
@@ -75,4 +74,10 @@ export type GameAction =
         type: 'DISCARD_CARD';
         playerId: PlayerId;
         cardId: CardId;
+    }
+
+    // TESTING — automatically completes preparation + deployment, jumps to GAME
+    | {
+        type: 'SIMULATE_PREPARATION';
+        playerId: PlayerId;
     };

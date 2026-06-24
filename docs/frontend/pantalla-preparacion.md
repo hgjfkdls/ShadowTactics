@@ -52,17 +52,18 @@ gamePhase === GAME_OVER             → HexBoard (congelado + overlay)
 
 ```typescript
 {gameId ? (
-    state?.gamePhase === 'PREPARATION'
+    role && state && state.gamePhase === 'PREPARATION'
         && state.preparationPhase !== 'DEPLOYMENT' ? (
-        <PreparationScreen state={state} sendAction={sendAction} role={role} />
+        <PreparationScreen
+            state={state}
+            sendAction={sendAction}
+            role={role}
+            bothPlayersReady={bothPlayersReady}
+        />
     ) : (
         <div className="grid grid-cols-[320px_1fr]">
             {state ? (
-                <HexBoard
-                    state={state}
-                    sendAction={sendAction}
-                    phase={state.gamePhase === 'PREPARATION' ? 'DEPLOYMENT' : 'GAME'}
-                />
+                <HexBoard state={state} sendAction={sendAction} />
             ) : (
                 <div>Waiting for game state…</div>
             )}
@@ -87,65 +88,78 @@ Cada jugador ve sus 3 cartas de identidad y elige 1.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Shadow Tactics                   [sala-123 · p1]  Leave    │
+│  Shadow Tactics                [sala-123 · p1]     Leave    │
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│              Selecciona tu identidad                        │
-│              ──────────────────────                         │
-│                                                             │
-│     ┌──────────┐    ┌──────────┐    ┌──────────┐           │
-│     │          │    │          │    │          │           │
-│     │ Robin    │    │ Francoti │    │ Dios     │           │
-│     │ Hood     │    │ rador    │    │ Trueno   │           │
-│     │          │    │          │    │          │           │
-│     │ Arquero  │    │ Arquero  │    │ Infanter │           │
-│     │          │    │          │    │          │           │
-│     └──────────┘    └──────────┘    └──────────┘           │
-│                                                             │
-│                     [ Confirmar selección ]                 │
-│                                                             │
-│              Esperando a que el oponente elija...           │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+│  Selecciona tu identidad                                    │
+├──────────────────────────────────────┬──────────────────────┤
+│                                      │  Detalles            │
+│                                      │  ┌────────────────┐  │
+│  [🛡️]  [🛡️]  [🛡️]                  │  │     🛡️         │  │
+│  Robin  Francoti  Dios               │  │  ilustración    │  │
+│  Hood   rador     Trueno             │  └────────────────┘  │
+│  Arquero Arquero  Infantería         │                       │
+│                                      │  Robin Hood          │
+│      [ Seleccionar carta ]           │  Arquero             │
+│                                      │                       │
+│  Haz clic en una carta...            │  +1 ataque a         │
+│                                      │  distancia...        │
+└──────────────────────────────────────┴──────────────────────┘
 ```
+
+### Estados de la pantalla
+
+| Estado | Visibilidad |
+|--------|-------------|
+| `bothPlayersReady === false` | Mensaje "Esperando jugadores..." — sin cartas |
+| Sin carta destacada | 3 cartas en estado **default**. Panel derecho muestra "Haz clic en una carta..." |
+| Carta destacada | Borde azul en la carta. Panel derecho muestra info + ilustración. Botón "Seleccionar carta" habilitado |
+| Carta confirmada | Borde verde + "✓ SELECCIONADA". Botón y clicks deshabilitados. Panel muestra la carta elegida |
+| Ambos confirmaron | "Ambos listos — continuando..." |
 
 ### Elementos
 
 | Elemento | Tipo | Comportamiento |
 |----------|------|---------------|
+| Indicador de espera | Texto | "Esperando a que el segundo jugador se conecte..." (solo si falta jugador) |
 | Título | Texto | "Selecciona tu identidad" |
 | 3 cartas de identidad | Grid horizontal | Muestra `identityCards[]` con nombre + clase |
-| Carta seleccionada | Highlight borde | Click → selecciona esa carta (solo 1) |
-| Botón "Confirmar selección" | `button` | Deshabilitado hasta elegir carta. Emite `SELECT_IDENTITY { cardId }` |
-| Estado del rival | Texto | "Esperando a que el oponente elija..." o "Oponente listo" |
-| Transición automática | — | Cuando ambos confirman → `revealedIdentity = true`, avanza a ROLL |
-
-### Estados de cada carta
-
-- **default** — opaca, click para seleccionar
-- **selected** — borde brillante, fondo ligeramente iluminado
-- **confirmed** — aparece check, se deshabilita el click
+| Carta destacada | Highlight borde azul | Click → destaca la carta y muestra info en panel derecho (no selecciona aún) |
+| Botón "Seleccionar carta" | `button` | Deshabilitado hasta destacar una carta. Emite `SELECT_IDENTITY { cardId }` |
+| Panel derecho (sidebar) | Aside 288px | Muestra ilustración, nombre, clase y descripción de la carta destacada o seleccionada |
+| Estado del rival | Texto | "Esperando a que el oponente elija..." o "Ambos listos" |
 
 ### Flujo
 
 ```
 1. Llega STATE con preparationPhase = 'IDENTITY_SELECTION'
-     y identityCards = [card1, card2, card3]
-2. Renderizar las 3 cartas
-3. Jugador clicka una → se marca como seleccionada
-4. Botón "Confirmar selección" se habilita
-5. Jugador confirma → sendAction({ type: 'SELECT_IDENTITY', cardId })
-6. Estado local: muestra "Esperando oponente..." + carta seleccionada
-7. Ambos jugadores confirmaron → preparationPhase cambia a 'ROLL'
+2. ¿Ambos jugadores conectados?
+     No  → "Esperando jugadores..." (sin cartas)
+     Sí  → Renderizar las 3 cartas
+3. Jugador clicka una carta → se DESTACA (borde azul)
+     → Panel derecho muestra: ilustración + nombre + clase + descripción
+4. Botón "Seleccionar carta" se habilita
+5. Jugador presiona botón → sendAction({ type: 'SELECT_IDENTITY', cardId })
+6. Carta se marca como confirmada (borde verde + check)
+7. "Esperando a que el oponente elija..."
+8. Ambos confirmaron → preparationPhase cambia a 'ROLL'
 ```
 
 ### Datos necesarios del estado
 
 ```typescript
-state.players[playerId].identityCards  // string[] — 3 card IDs
+state.players[playerId].identityCards     // string[] — 3 card IDs
 state.players[playerId].selectedIdentity  // string | undefined
 state.players[playerId].revealedIdentity  // boolean
 ```
+
+### Eventos de servidor
+
+| Evento | Cuándo | Payload |
+|--------|--------|---------|
+| `BOTH_PLAYERS_READY` | El segundo jugador se conecta a la sala | — |
+
+El cliente expone `bothPlayersReady` desde `useGameState()`.
+Mientras es `false`, la pantalla no muestra las cartas.
 
 ---
 

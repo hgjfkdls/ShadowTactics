@@ -8,8 +8,9 @@
 import { GameState } from './state';
 import { buildEffectDeck, buildIdentityDeck } from './actions/card';
 
-export function createInitialGameState(): GameState {
-    const { deck: effectDeck, seed: deckSeed } = buildEffectDeck(123456);
+export function createInitialGameState(seed?: number): GameState {
+    const s = seed ?? Date.now();
+    const { deck: effectDeck, seed: deckSeed } = buildEffectDeck(s);
     const { deck: identityDeck, seed: identitySeed } = buildIdentityDeck(deckSeed);
 
     // Repartir 3 cartas de identidad a cada jugador del mazo barajado
@@ -27,7 +28,7 @@ export function createInitialGameState(): GameState {
         turnPhase: 'DRAW',
 
         // MAPA
-        map: { radius: 6 },
+        map: { radius: 5 },
         centerHex: { q: 0, r: 0 },
 
         // UNIDADES
@@ -50,8 +51,22 @@ export function createInitialGameState(): GameState {
                 selectedIdentity: undefined,
                 revealedIdentity: undefined,
 
-                // DESPLIEGUE
-                unitsToDeploy: ['u1','u2','u3','u4','u5','u6','u7','u8','u9','u10','u11'],
+                // DESPLIEGUE — 13 unidades pre-claseadas (3 por clase + 1 general)
+                unitsToDeploy: [
+                    { unitId: 'u1',  unitClass: 'archer' },
+                    { unitId: 'u2',  unitClass: 'archer' },
+                    { unitId: 'u3',  unitClass: 'archer' },
+                    { unitId: 'u4',  unitClass: 'infantry' },
+                    { unitId: 'u5',  unitClass: 'infantry' },
+                    { unitId: 'u6',  unitClass: 'infantry' },
+                    { unitId: 'u7',  unitClass: 'cavalry' },
+                    { unitId: 'u8',  unitClass: 'cavalry' },
+                    { unitId: 'u9',  unitClass: 'cavalry' },
+                    { unitId: 'u10', unitClass: 'lancer' },
+                    { unitId: 'u11', unitClass: 'lancer' },
+                    { unitId: 'u12', unitClass: 'lancer' },
+                    { unitId: 'u13', unitClass: 'general' },
+                ],
                 deployedUnits: [],
             },
             p2: {
@@ -65,8 +80,22 @@ export function createInitialGameState(): GameState {
                 selectedIdentity: undefined,
                 revealedIdentity: undefined,
 
-                // DESPLIEGUE
-                unitsToDeploy: ['u12','u13','u14','u15','u16','u17','u18','u19','u20','u21','u22'],
+                // DESPLIEGUE — 13 unidades pre-claseadas (3 por clase + 1 general)
+                unitsToDeploy: [
+                    { unitId: 'u14', unitClass: 'archer' },
+                    { unitId: 'u15', unitClass: 'archer' },
+                    { unitId: 'u16', unitClass: 'archer' },
+                    { unitId: 'u17', unitClass: 'infantry' },
+                    { unitId: 'u18', unitClass: 'infantry' },
+                    { unitId: 'u19', unitClass: 'infantry' },
+                    { unitId: 'u20', unitClass: 'cavalry' },
+                    { unitId: 'u21', unitClass: 'cavalry' },
+                    { unitId: 'u22', unitClass: 'cavalry' },
+                    { unitId: 'u23', unitClass: 'lancer' },
+                    { unitId: 'u24', unitClass: 'lancer' },
+                    { unitId: 'u25', unitClass: 'lancer' },
+                    { unitId: 'u26', unitClass: 'general' },
+                ],
                 deployedUnits: [],
             }
         },

@@ -26,8 +26,9 @@ export function handleMove(state: GameState, action: GameAction): GameState {
 
     const ap = getPlayerAP(state, playerId);
     let cost = getMovementCost(unit, to);
-    if (unit.hasMovementPenalty) {
-        cost *= 2;
+    const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
+    if (hasSurcharge) {
+        cost += 1;
     }
     // Modificadores de cartas (SET, ADD, MUL sobre movementCost)
     const movementMods = state.activeModifiers.filter(
@@ -45,7 +46,8 @@ export function handleMove(state: GameState, action: GameAction): GameState {
         state,
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnitPos(s, unit.id, to),
-        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, didMovePreviousTurn: true }))
+        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, didMovePreviousTurn: true })),
+        (s) => hasSurcharge ? updateUnit(s, unit.id, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
     );
 
     // Consumir modificador de movementCost

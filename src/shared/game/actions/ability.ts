@@ -4,7 +4,9 @@ import { hexDistance } from '../../hex';
 import { updateUnit } from '../utils';
 import { consumeAP } from './helpers';
 import { resolveAttack } from '../combat';
+import type { AttackResult } from '../combat';
 import { ABILITIES } from '../data/abilities';
+import { isHexOccupied } from '../utils';
 
 function unitHasAbility(unit: Unit, abilityId: string): boolean {
     return unit.abilities?.includes(abilityId) ?? false;
@@ -15,7 +17,9 @@ function canAct(state: GameState, action: GameAction): boolean {
     if (action.playerId !== state.activePlayer) return false;
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== action.playerId) return false;
+    if (unit.usedCarga) return false;
     if (unit.attackedThisTurn && action.abilityId !== 'disparo_rapido' && action.abilityId !== 'doble_ataque') return false;
+    if (unit.movedThisTurn && (action.abilityId === 'cabalgar' || action.abilityId === 'carga')) return false;
     return true;
 }
 
@@ -26,21 +30,31 @@ export function handleAbility(state: GameState, action: GameAction): GameState {
     const unit = state.units[action.unitId];
     if (!unitHasAbility(unit, action.abilityId)) return state;
 
-    const cost = ABILITIES[action.abilityId]?.cost ?? 0;
+    let cost = ABILITIES[action.abilityId]?.cost ?? 0;
+    const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
+    if (hasSurcharge) cost += 1;
     const player = state.players[action.playerId];
     if (player.actionPoints < cost) return state;
 
+    let result: GameState;
     switch (action.abilityId) {
-        case 'disparo_rapido': return handleDisparoRapido(state, unit, action);
-        case 'fuego_cobertura': return handleFuegoCobertura(state, unit, action);
-        case 'accion_evasiva': return state;
-        case 'doble_ataque': return handleDobleAtaque(state, unit, action);
-        case 'cabalgar': return handleCabalgar(state, unit, action);
-        case 'carga': return handleCarga(state, unit, action);
-        case 'ventaja_alcance': return handleVentajaAlcance(state, unit, action);
-        case 'avance': return handleAvance(state, unit, action);
+        case 'disparo_rapido': result = handleDisparoRapido(state, unit, action); break;
+        case 'fuego_cobertura': result = handleFuegoCobertura(state, unit, action); break;
+        case 'accion_evasiva': result = handleAccionEvasiva(state, unit, action); break;
+        case 'doble_ataque': result = handleDobleAtaque(state, unit, action); break;
+        case 'cabalgar': result = handleCabalgar(state, unit, action); break;
+        case 'carga': result = handleCarga(state, unit, action); break;
+        case 'ventaja_alcance': result = handleVentajaAlcance(state, unit, action); break;
+        case 'avance': result = handleAvance(state, unit, action); break;
         default: return state;
     }
+
+    if (result !== state && hasSurcharge) {
+        result = consumeAP(result, action.playerId, 1);
+        result = updateUnit(result, action.unitId, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 }));
+    }
+
+    return result;
 }
 
 // ── Disparo rápido ──
@@ -58,12 +72,12 @@ function handleDisparoRapido(state: GameState, unit: Unit, action: GameAction): 
     let s = consumeAP(state, unit.owner, 1);
     s = applyAbilityFlag(s, unit.id, 'usedDisparoRapido', true);
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state: s, unit, target,
         from: unit.position, to: target.position, distance,
         extraDifficulty: 1,
     });
-    return afterAttack;
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class);
 }
 
 // ── Fuego de cobertura ──
@@ -80,15 +94,42 @@ function handleFuegoCobertura(state: GameState, unit: Unit, action: GameAction):
     let s = consumeAP(state, unit.owner, 2);
     s = applyAbilityFlag(s, unit.id, 'usedFuegoCobertura', true);
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state: s, unit, target,
         from: unit.position, to: target.position, distance,
     });
 
-    const dead = afterAttack.graveyard[target.id];
-    if (dead) return afterAttack;
+    let afterState = storeAttackResult(result, unit.id, target.id, unit.class, target.class);
 
-    return applyAbilityFlag(afterAttack, target.id, 'hasMovementPenalty', true);
+    const dead = afterState.graveyard[target.id];
+    if (dead) return afterState;
+
+    return updateUnit(afterState, target.id, (u) => ({ ...u, fuegoCoberturaCharges: 2 }));
+}
+
+// ── Acción evasiva ──
+
+function handleAccionEvasiva(state: GameState, unit: Unit, action: GameAction): GameState {
+    if (!action.to) return state;
+    if (unit.usedAccionEvasiva) return state;
+    if (unit.movedThisTurn) return state;
+
+    const distance = hexDistance(unit.position, action.to);
+    if (distance !== 1) return state;
+
+    const hasAdjacentEnemy = Object.values(state.units)
+        .filter(u => u.owner !== unit.owner)
+        .some(u => hexDistance(unit.position, u.position) === 1);
+    if (!hasAdjacentEnemy) return state;
+
+    let s = consumeAP(state, unit.owner, 1);
+    s = updateUnit(s, unit.id, (u) => ({
+        ...u,
+        position: action.to!,
+        movedThisTurn: true,
+        usedAccionEvasiva: true,
+    }));
+    return s;
 }
 
 // ── Cabalgar ──
@@ -96,15 +137,24 @@ function handleFuegoCobertura(state: GameState, unit: Unit, action: GameAction):
 function handleCabalgar(state: GameState, unit: Unit, action: GameAction): GameState {
     if (!action.to) return state;
     if (unit.usedCabalgar) return state;
+    if (unit.movedThisTurn) return state;
 
     const distance = hexDistance(unit.position, action.to);
     if (distance !== 2) return state;
 
-    // Línea recta: q o r iguales, o ambos cambian en la misma dirección
+    // Línea recta: solo permite los 6 ejes hexagonales
     const dq = action.to.q - unit.position.q;
     const dr = action.to.r - unit.position.r;
-    if (Math.abs(dq) > 1 || Math.abs(dr) > 1) {
-        if (dq !== 0 && dr !== 0 && dq !== -dr) return state;
+    if (dq !== 0 && dr !== 0 && dq !== -dr) return state;
+
+    // No puede atravesar unidades
+    if (dq !== 0 && dr !== 0) {
+        const mid1 = { q: unit.position.q + dq, r: unit.position.r };
+        const mid2 = { q: unit.position.q, r: unit.position.r + dr };
+        if (isHexOccupied(state, mid1) || isHexOccupied(state, mid2)) return state;
+    } else {
+        const mid = { q: unit.position.q + dq / 2, r: unit.position.r + dr / 2 };
+        if (isHexOccupied(state, mid)) return state;
     }
 
     let s = consumeAP(state, unit.owner, 1);
@@ -118,6 +168,7 @@ function handleCarga(state: GameState, unit: Unit, action: GameAction): GameStat
     if (!action.targetId) return state;
     if (!unit.usedCabalgar) return state;
     if (unit.usedCarga) return state;
+    if (unit.movedThisTurn) return state;
 
     const target = state.units[action.targetId];
     if (!target || target.owner === unit.owner) return state;
@@ -132,12 +183,12 @@ function handleCarga(state: GameState, unit: Unit, action: GameAction): GameStat
     s = applyAbilityFlag(s, unit.id, 'attackedThisTurn', true);
     s = applyAbilityFlag(s, unit.id, 'hasCargaBonus', true);
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state: s, unit: s.units[unit.id], target,
         from: s.units[unit.id].position, to: target.position, distance,
         isCarga: true,
     });
-    return afterAttack;
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class);
 }
 
 // ── Doble ataque (cavalería/lancero) ──
@@ -156,12 +207,12 @@ function handleDobleAtaque(state: GameState, unit: Unit, action: GameAction): Ga
     let s = consumeAP(state, unit.owner, 1);
     s = applyAbilityFlag(s, unit.id, 'usedDobleAtaque', true);
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state: s, unit, target,
         from: unit.position, to: target.position, distance,
         damagePenalty: 1,
     });
-    return afterAttack;
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class);
 }
 
 // ── Ventaja de alcance ──
@@ -180,12 +231,12 @@ function handleVentajaAlcance(state: GameState, unit: Unit, action: GameAction):
     let s = consumeAP(state, unit.owner, 1);
     s = applyAbilityFlag(s, unit.id, 'usedVentajaAlcance', true);
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state: s, unit, target,
         from: unit.position, to: target.position, distance,
         bonusRange: 1,
     });
-    return afterAttack;
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class);
 }
 
 // ── Avance ──
@@ -201,21 +252,42 @@ function handleAvance(state: GameState, unit: Unit, action: GameAction): GameSta
     let s = consumeAP(state, unit.owner, 1);
     s = applyAbilityFlag(s, unit.id, 'usedAvance', true);
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state: s, unit, target,
         from: unit.position, to: target.position, distance,
     });
 
-    const dead = afterAttack.graveyard[target.id];
-    if (!dead) return afterAttack;
+    let afterState = storeAttackResult(result, unit.id, target.id, unit.class, target.class);
+
+    const dead = afterState.graveyard[target.id];
+    if (!dead) return afterState;
 
     // Ocupar posición del enemigo eliminado
-    return updateUnit(afterAttack, unit.id, (u) => ({
+    return updateUnit(afterState, unit.id, (u) => ({
         ...u, position: target.position, movedThisTurn: false, didMovePreviousTurn: false,
     }));
 }
 
 // ── Helpers ──
+
+function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string): GameState {
+    return {
+        ...result.state,
+        lastAttackResult: {
+            attackerId,
+            targetId,
+            die1: result.roll.die1,
+            die2: result.roll.die2,
+            total: result.roll.total,
+            difficulty: result.difficulty,
+            hit: result.hit,
+            damage: result.damage,
+            counterDamage: result.counterDamage,
+            attackerClass,
+            targetClass,
+        },
+    };
+}
 
 function playerAP(state: GameState, playerId: string): number {
     return state.players[playerId]?.actionPoints ?? 0;

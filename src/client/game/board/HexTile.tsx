@@ -6,6 +6,8 @@ type Props = {
     hovered: boolean;
     selected: boolean;
     reachable: boolean;
+    attackable: boolean;
+    inRange: boolean;
     onHover: (hex: HexCoord | null) => void;
     onClick: (hex: HexCoord) => void;
 };
@@ -15,6 +17,8 @@ export function HexTile({
     hovered,
     selected,
     reachable,
+    attackable,
+    inRange,
     onHover,
     onClick,
 }: Props) {
@@ -24,11 +28,15 @@ export function HexTile({
 
     const fill = selected
         ? '#2563eb'
-        : reachable
-            ? '#065f46'
-            : hovered
-                ? '#374151'
-                : '#1f2937';
+        : attackable
+            ? '#7f1d1d'
+            : reachable
+                ? '#065f46'
+                : inRange
+                    ? '#4b5563'
+                    : hovered
+                        ? '#374151'
+                        : '#1f2937';
 
 
     return (
@@ -36,8 +44,8 @@ export function HexTile({
             <polygon
                 points={points}
                 fill={fill}
-                stroke="#4b5563"
-                strokeWidth={2}
+                stroke={attackable ? '#ef4444' : '#4b5563'}
+                strokeWidth={attackable ? 2.5 : 2}
                 onMouseEnter={() => onHover(hex)}
                 onMouseLeave={() => onHover(null)}
                 onClick={() => onClick(hex)}
@@ -51,17 +59,23 @@ export function HexTile({
                 />
             )}
 
-            <text
-                x={x}
-                y={y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={9}
-                fill="#9ca3af"
-                pointerEvents="none"
-            >
-                {hex.q},{hex.r}
-            </text>
+            {inRange && !reachable && !attackable && (
+                <polygon
+                    points={points}
+                    fill="rgba(156, 163, 175, 0.2)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {attackable && (
+                <polygon
+                    points={points}
+                    fill="rgba(239, 68, 68, 0.3)"
+                    pointerEvents="none"
+                />
+            )}
+
+
         </>
     );
 }

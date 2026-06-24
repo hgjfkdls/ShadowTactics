@@ -52,21 +52,15 @@ const CARD_TEMPLATES: Record<string, CardTemplate> = {
 };
 
 export function getCardName(cardId: CardId): string {
-    const parts = cardId.split('_');
-    const key = parts[0];
-    return CARD_TEMPLATES[key]?.name ?? cardId;
+    return CARD_TEMPLATES[getKey(cardId)]?.name ?? cardId;
 }
 
 export function getCardType(cardId: CardId): 'BUFF' | 'DEBUFF' | 'COUNTER' | undefined {
-    const parts = cardId.split('_');
-    const key = parts[0];
-    return CARD_TEMPLATES[key]?.type;
+    return CARD_TEMPLATES[getKey(cardId)]?.type;
 }
 
 export function getCardDescription(cardId: CardId): string {
-    const parts = cardId.split('_');
-    const key = parts[0];
-    return CARD_TEMPLATES[key]?.description ?? '';
+    return CARD_TEMPLATES[getKey(cardId)]?.description ?? '';
 }
 
 function getKey(cardId: CardId): string {

@@ -21,10 +21,14 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
 
     const player = state.players[action.playerId];
     if (!player) return state;
-    if (!player.unitsToDeploy?.includes(action.unitId)) return state;
+
+    const poolEntry = player.unitsToDeploy?.find(u => u.unitId === action.unitId);
+    if (!poolEntry) return state;
+
     if (isHexOccupied(state, action.position)) return state;
     if (!isWithinBounds(action.position, state.map.radius)) return state;
 
+    const unitClass = poolEntry.unitClass;
     const deployedCount = player.deployedUnits?.length ?? 0;
 
     if (deployedCount === 0) {
@@ -37,13 +41,16 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
     }
 
     const classCounts = countPlayerClasses(state, action.playerId);
-    if (classCounts[action.class] >= 3) return state;
-    if (action.class === 'general' && classCounts.general >= 1) return state;
+    if (classCounts[unitClass] >= 3) return state;
+    if (unitClass === 'general' && classCounts.general >= 1) return state;
 
-    const remainingUnits = player.unitsToDeploy.length;
-    if (remainingUnits === 1 && classCounts.general === 0 && action.class !== 'general') return state;
+    // Must deploy at least 1 general among the 11 units per player
+    if (classCounts.general === 0) {
+        const deployed = player.deployedUnits?.length ?? 0;
+        if (unitClass !== 'general' && deployed >= 10) return state;
+    }
 
-    const unit = createUnit(action.unitId, action.playerId, action.position, action.class);
+    const unit = createUnit(action.unitId, action.playerId, action.position, unitClass);
 
     let newState: GameState = {
         ...state,
@@ -52,7 +59,7 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
             ...state.players,
             [action.playerId]: {
                 ...player,
-                unitsToDeploy: player.unitsToDeploy.filter(id => id !== unit.id),
+                unitsToDeploy: player.unitsToDeploy.filter(u => u.unitId !== unit.id),
                 deployedUnits: [...(player.deployedUnits || []), unit.id]
             }
         }
@@ -61,15 +68,12 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
     const nextCount = state.deploymentCount + 1;
     const target = getTargetForStep(state.deploymentStep);
 
-    // Aún no completa la ronda
     if (nextCount < target) {
         return { ...newState, deploymentCount: nextCount };
     }
 
-    // Ronda completada → avanzar al siguiente paso
     const nextStep = state.deploymentStep + 1;
 
-    // Si se acabaron los pasos, terminar despliegue
     if (nextStep >= 12) {
         const postDeploy: GameState = {
             ...newState,
@@ -78,7 +82,6 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
             gamePhase: 'GAME',
             preparationPhase: 'DONE',
         };
-        // Primer turno: DRAW → robar carta → recibir PA → MAIN
         return applyTurnStart(postDeploy, newState.activePlayer);
     }
 

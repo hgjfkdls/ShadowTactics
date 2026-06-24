@@ -1,20 +1,62 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
-import { DebugPanel } from './debug/DebugPanel';
 import { HexBoard } from './game/board/HexBoard';
+import { PreparationScreen } from './prep/PreparationScreen';
+import { DeploymentScreen } from './prep/DeploymentScreen';
+import { PlayerSidebar } from './game/layout/PlayerSidebar';
+import { RightPanel } from './game/layout/RightPanel';
+import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
+
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
 
 export function App() {
     const {
         state,
         gameId,
         role,
+        bothPlayersReady,
         joinGame,
         leaveGame,
         sendAction,
         connected,
+        lastBlockedReason,
+        clearBlockedReason,
     } = useGameState();
 
     const [gameIdInput, setGameIdInput] = useState('');
+    const [prepDone, setPrepDone] = useState(false);
+    const [selectedInfo, setSelectedInfo] = useState<SelectedInfo>(null);
+    const { alerts, addAlert, removeAlert } = useAlerts();
+
+    useEffect(() => {
+        if (state?.gamePhase === 'PREPARATION') {
+            setPrepDone(false);
+            setSelectedInfo(null);
+        }
+    }, [state?.gamePhase]);
+
+    useEffect(() => {
+        if (lastBlockedReason) {
+            addAlert(lastBlockedReason, 'warning');
+            clearBlockedReason();
+        }
+    }, [lastBlockedReason]);
+
+    const playerId = role?.role === 'player' ? role.playerId : 'p1';
+    const isGameOrOver = state && (state.gamePhase === 'GAME' || state.gamePhase === 'GAME_OVER');
+
+    const wasInDrawRef = useRef(false);
+    useEffect(() => {
+        if (state?.turnPhase === 'DRAW' && state.gamePhase === 'GAME') {
+            const handSize = state.players[playerId]?.cardsInHand?.length ?? 0;
+            if (handSize > 3 && !wasInDrawRef.current) {
+                wasInDrawRef.current = true;
+                addAlert('Debes descartar 1 carta antes de realizar cualquier acción', 'warning');
+            }
+        } else {
+            wasInDrawRef.current = false;
+        }
+    }, [state?.turnPhase, state?.gamePhase]);
 
     return (
         <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
@@ -33,33 +75,68 @@ export function App() {
                     </button>
                 </>}
             </header>
+
             {gameId ? (
-                <div className="grid grid-cols-[320px_1fr] overflow-hidden h-full">
-                    <aside className="border-r border-zinc-700 p-2 overflow-auto">
-                        <DebugPanel />
-                    </aside>
-                    <main className="relative overflow-hidden">
-                        {state ? (
+                state && state.gamePhase === 'PREPARATION' && !prepDone ? (
+                    <PreparationScreen
+                        state={state}
+                        sendAction={sendAction}
+                        role={role}
+                        bothPlayersReady={bothPlayersReady}
+                        onDone={() => setPrepDone(true)}
+                    />
+                ) : state && state.preparationPhase === 'DEPLOYMENT' ? (
+                    <DeploymentScreen
+                        state={state}
+                        sendAction={sendAction}
+                        role={role}
+                        selectedInfo={selectedInfo}
+                        onInfoSelect={setSelectedInfo}
+                    />
+                ) : isGameOrOver ? (
+                    <div className="grid grid-cols-[240px_1fr_280px] overflow-hidden h-full">
+                        <PlayerSidebar
+                            state={state}
+                            playerId={playerId}
+                            mode="GAME"
+                            selectedInfo={selectedInfo}
+                            onSelectIdentity={pid => setSelectedInfo(
+                                selectedInfo?.type === 'identity' && selectedInfo.playerId === pid ? null : { type: 'identity', playerId: pid }
+                            )}
+                            onInfoSelect={setSelectedInfo}
+                            sendAction={sendAction}
+                        />
+                        <main className="relative overflow-hidden">
                             <HexBoard
                                 state={state}
                                 sendAction={sendAction}
+                                playerId={playerId}
+                                onInfoSelect={setSelectedInfo}
+                                addAlert={addAlert}
                             />
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-zinc-400">
-                                Waiting for game state…
-                            </div>
-                        )}
-                        {role?.role === 'player' && state && (
-                            <button
-                                className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
-                                disabled={state.activePlayer !== role.playerId}
-                                onClick={() => sendAction({ type: 'END_TURN' })}
-                            >
-                                End Turn
-                            </button>
-                        )}
-                    </main>
-                </div>
+                            {role?.role === 'player' && state.gamePhase === 'GAME' && (
+                                <button
+                                    className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
+                                    disabled={state.activePlayer !== role.playerId}
+                                    onClick={() => sendAction({ type: 'END_TURN', playerId: role.playerId })}
+                                >
+                                    End Turn
+                                </button>
+                            )}
+                            <AlertPanel alerts={alerts} removeAlert={removeAlert} />
+                        </main>
+                        <RightPanel
+                            state={state}
+                            playerId={playerId}
+                            selectedInfo={selectedInfo}
+                            sendAction={sendAction}
+                        />
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-center h-full text-zinc-400">
+                        Waiting for game state…
+                    </div>
+                )
             ) : (
                 <main className="flex items-start justify-center h-full">
                     <div className="flex flex-col items-center gap-4 mt-24">

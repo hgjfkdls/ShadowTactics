@@ -154,6 +154,8 @@ function prepIdentity() {
         assert(r2.diceRolls['p1'] === undefined &&
                r2.diceRolls['p2'] === undefined,
             'ROLL_DICE — empate reinicia dados a undefined');
+        assert(r2.lastTieRoll !== undefined && typeof r2.lastTieRoll === 'number' && r2.lastTieRoll >= 2 && r2.lastTieRoll <= 12,
+            'ROLL_DICE — lastTieRoll almacena el valor del empate');
         assertEqual(r2.preparationPhase, 'ROLL',
             'ROLL_DICE — sigue en ROLL tras empate');
     }
@@ -177,6 +179,8 @@ function prepIdentity() {
             const r3 = applyAction(r2, { type: 'ROLL_DICE', playerId: 'p1' });
             assert(typeof r3.diceRolls['p1'] === 'number',
                 'ROLL_DICE — tras empate, p1 vuelve a tirar (sin bloqueo)');
+            assert(r3.lastTieRoll === undefined,
+                'ROLL_DICE — lastTieRoll se limpia al tirar de nuevo');
             break;
         }
     }
@@ -212,19 +216,18 @@ function prepDeployment() {
         'deployment setup — fase DEPLOYMENT');
 
     const deployer = state.currentDeployingPlayer!;
-    const unitId = state.players[deployer].unitsToDeploy![0];
+    const entry = state.players[deployer].unitsToDeploy![0];
 
     // Primera unidad debe estar a rango 2 del centro
     const first = applyAction(state, {
         type: 'DEPLOY_UNIT',
         playerId: deployer,
-        unitId,
+        unitId: entry.unitId,
         position: { q: 2, r: 0 },
-        class: 'infantry'
     });
-    assert(first.units[unitId] !== undefined,
+    assert(first.units[entry.unitId] !== undefined,
         'DEPLOY_UNIT — primera unidad colocada en rango 2');
-    assertEqual(first.players[deployer].unitsToDeploy?.length, 10,
+    assertEqual(first.players[deployer].unitsToDeploy?.length, 12,
         'DEPLOY_UNIT — una unidad menos en pool');
     assertEqual(first.players[deployer].deployedUnits?.length, 1,
         'DEPLOY_UNIT — una unidad en deployed');
@@ -233,69 +236,62 @@ function prepDeployment() {
 {
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
-    const unitId = state.players[deployer].unitsToDeploy![0];
+    const entry = state.players[deployer].unitsToDeploy![0];
 
     // Primera unidad NO puede estar en rango != 2
     const bad = applyAction(state, {
         type: 'DEPLOY_UNIT',
         playerId: deployer,
-        unitId,
+        unitId: entry.unitId,
         position: { q: 0, r: 0 },
-        class: 'infantry'
     });
     assert(bad === state,
         'DEPLOY_UNIT — primera unidad en centro es rechazada');
 }
 
 {
-    // No se puede desplegar más de 3 unidades de la misma clase
+    // Pre-classed units: max 3 per class. Deploying 4th archer fails because pool only has 3
     const state = prepDeployment();
-    const deployer = state.currentDeployingPlayer!;   // P1 (step 0, coloca 1)
+    const deployer = state.currentDeployingPlayer!;
     const other = deployer === 'p1' ? 'p2' : 'p1';
 
-    function deploy(s: typeof state, p: string, q: number, r: number, cls: string) {
-        const uid = s.players[p].unitsToDeploy![0];
+    function deployNext(s: typeof state, p: string, q: number, r: number) {
+        const entry = s.players[p].unitsToDeploy![0];
         return applyAction(s, {
-            type: 'DEPLOY_UNIT',
-            playerId: p,
-            unitId: uid,
-            position: { q, r },
-            class: cls
+            type: 'DEPLOY_UNIT', playerId: p, unitId: entry.unitId, position: { q, r }
         });
     }
 
-    // Step 0: deployer coloca 1
-    let s = deploy(state, deployer, 2, 0, 'infantry');
+    let s = state;
 
-    // Step 1: other coloca 2
-    s = deploy(s, other, -2, 0, 'infantry');
-    s = deploy(s, other, -2, 1, 'infantry');
+    // Step 0: deployer coloca 1 (u1 = archer)
+    s = deployNext(s, deployer, 2, 0);
+    // Step 1: other coloca 2 (u14 = archer, u15 = archer)
+    s = deployNext(s, other, -2, 0);
+    s = deployNext(s, other, -2, 1);
+    // Step 2: deployer coloca 2 (u2 = archer, u3 = archer)
+    s = deployNext(s, deployer, 2, -1);
+    s = deployNext(s, deployer, 2, -2);
+    // Step 3: other coloca 2 (u16 = archer — 3ª archer de other, u17 = infantry)
+    s = deployNext(s, other, -2, -1);
+    s = deployNext(s, other, -2, -2);
 
-    // Step 2: deployer coloca 2 (2ª y 3ª infantería suya)
-    s = deploy(s, deployer, 2, -1, 'infantry');
-    s = deploy(s, deployer, 2, -2, 'infantry');
-
-    // Step 3: other coloca 2
-    s = deploy(s, other, -2, -1, 'lancer');
-    s = deploy(s, other, -2, -2, 'lancer');
-
-    // Step 4: deployer intenta 4ª infantería → rechazado
-    const reject = deploy(s, deployer, 2, 1, 'infantry');
-    assert(reject === s,
-        'DEPLOY_UNIT — 4ª unidad misma clase rechazada');
+    // Only 3 archers exist per player. The 4th deploy picks u4(infantry) for deployer
+    const entry4 = s.players[deployer].unitsToDeploy![0];
+    assertEqual(entry4.unitClass, 'infantry',
+        'DEPLOY_UNIT — 4ª unidad del pool no es archer (solo hay 3)');
 }
 
 {
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
-    const unitId = state.players[deployer].unitsToDeploy![0];
+    const entry = state.players[deployer].unitsToDeploy![0];
 
     const r = applyAction(state, {
         type: 'DEPLOY_UNIT',
         playerId: 'p1',
-        unitId,
+        unitId: entry.unitId,
         position: { q: 2, r: 0 },
-        class: 'infantry'
     });
     if (deployer !== 'p1') {
         assert(r === state,
@@ -310,22 +306,20 @@ function prepDeployment() {
     const other = deployer === 'p1' ? 'p2' : 'p1';
 
     // Desplegar primera unidad
-    const u1 = state.players[deployer].unitsToDeploy![0];
+    const e1 = state.players[deployer].unitsToDeploy![0];
     const s1 = applyAction(state, {
         type: 'DEPLOY_UNIT',
         playerId: deployer,
-        unitId: u1,
+        unitId: e1.unitId,
         position: { q: 2, r: 0 },
-        class: 'infantry'
     });
 
-    const u2 = state.players[other].unitsToDeploy![0];
+    const e2 = state.players[other].unitsToDeploy![0];
     const s2 = applyAction(s1, {
         type: 'DEPLOY_UNIT',
         playerId: other,
-        unitId: u2,
+        unitId: e2.unitId,
         position: { q: -2, r: 0 },
-        class: 'infantry'
     });
 
     // Ambos desplegaron 1
@@ -337,15 +331,15 @@ function prepDeployment() {
     // Hex ocupado: no se puede colocar sobre otra unidad
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
-    const u1 = state.players[deployer].unitsToDeploy![0];
+    const e1 = state.players[deployer].unitsToDeploy![0];
     const s1 = applyAction(state, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: u1,
-        position: { q: 2, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: e1.unitId,
+        position: { q: 2, r: 0 }
     });
-    const u2 = s1.players[deployer].unitsToDeploy![0];
+    const e2 = s1.players[deployer].unitsToDeploy![0];
     const reject = applyAction(s1, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: u2,
-        position: { q: 2, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: e2.unitId,
+        position: { q: 2, r: 0 }
     });
     assert(reject === s1,
         'DEPLOY_UNIT — hex ocupado es rechazado');
@@ -355,15 +349,15 @@ function prepDeployment() {
     // Segunda unidad sin aliado cerca → rechazada
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
-    const u1 = state.players[deployer].unitsToDeploy![0];
+    const e1 = state.players[deployer].unitsToDeploy![0];
     const s1 = applyAction(state, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: u1,
-        position: { q: 2, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: e1.unitId,
+        position: { q: 2, r: 0 }
     });
-    const u2 = s1.players[deployer].unitsToDeploy![0];
+    const e2 = s1.players[deployer].unitsToDeploy![0];
     const reject = applyAction(s1, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: u2,
-        position: { q: 5, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: e2.unitId,
+        position: { q: 5, r: 0 }
     });
     assert(reject === s1,
         'DEPLOY_UNIT — unidad lejos de aliada es rechazada');
@@ -375,86 +369,47 @@ function prepDeployment() {
     const deployer = state.currentDeployingPlayer!;
     const reject = applyAction(state, {
         type: 'DEPLOY_UNIT', playerId: deployer, unitId: 'nonexistent',
-        position: { q: 2, r: 0 }, class: 'infantry'
+        position: { q: 2, r: 0 }
     });
     assert(reject === state,
         'DEPLOY_UNIT — unitId no en pool es rechazada');
 }
 
 {
-    // Máximo 1 general por jugador
+    // Máximo 1 general — pool solo contiene 1 general por jugador
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
     const other = deployer === 'p1' ? 'p2' : 'p1';
 
-    function dp(s: typeof state, p: string, q: number, r: number, cls: string) {
+    function dp(s: typeof state, p: string, q: number, r: number) {
         const uid = s.players[p].unitsToDeploy![0];
-        return applyAction(s, { type: 'DEPLOY_UNIT', playerId: p, unitId: uid, position: { q, r }, class: cls });
+        return applyAction(s, { type: 'DEPLOY_UNIT', playerId: p, unitId: uid, position: { q, r } });
     }
 
-    let s = dp(state, deployer, 2, 0, 'infantry');                                 // step 0
-    s = dp(s, other, -2, 0, 'infantry'); s = dp(s, other, -2, 1, 'infantry');     // step 1
-    s = dp(s, deployer, 2, -1, 'general');                                         // step 2 — 1er general
-    const reject = dp(s, deployer, 2, -2, 'general');                              // step 2 — 2º → rechazado
-    assert(reject === s,
-        'DEPLOY_UNIT — 2º general mismo jugador rechazado');
+    let s = dp(state, deployer, 2, 0);                                                 // step 0 (archer)
+    s = dp(s, other, -2, 0); s = dp(s, other, -2, 1);                                 // step 1
+    s = dp(s, deployer, 2, -1);                                                       // step 2 — u2(archer), no general yet
+
+    // Deployer's pool: u1-archer(u1), u2-archer, u3-archer, u4-inf, ... u13-general
+    // Deploy all deployer units up to the general, then verify only 1 general in pool
+    s = dp(s, deployer, 2, -2);                                                       // step 2 — u3(archer)
+
+    // Scan deployer's remaining pool for general count
+    const genCount = s.players[deployer].unitsToDeploy!.filter(e => e.unitClass === 'general').length;
+    assertEqual(genCount, 1,
+        'DEPLOY_UNIT — solo 1 general en el pool');
 }
 
 {
-    // Última unidad sin general → debe ser general
+    // Pool contiene exactamente 1 general al final → depliegue natural lo satisface
     const state = prepDeployment();
     const order0 = state.deploymentOrder![0];
-    const order1 = state.deploymentOrder![1];
 
-    function d(s: typeof state, p: string, q: number, r: number, cls: string) {
-        const uid = s.players[p].unitsToDeploy![0];
-        return applyAction(s, { type: 'DEPLOY_UNIT', playerId: p, unitId: uid, position: { q, r }, class: cls });
-    }
-
-    let s = state;
-    // Step 0: order0 → 1
-    s = d(s, order0, 2, 0, 'infantry');
-    // Step 1: order1 → 2
-    s = d(s, order1, -2, 0, 'infantry'); s = d(s, order1, -2, 1, 'infantry');
-    // Step 2: order0 → 2
-    s = d(s, order0, 2, -1, 'lancer'); s = d(s, order0, 2, -2, 'lancer');
-    // Step 3: order1 → 2
-    s = d(s, order1, -2, 2, 'archer'); s = d(s, order1, -2, -1, 'archer');
-    // Step 4: order0 → 2
-    s = d(s, order0, 3, -2, 'archer'); s = d(s, order0, 3, -3, 'archer');
-    // Step 5: order1 → 2
-    s = d(s, order1, -3, 2, 'cavalry'); s = d(s, order1, -3, 3, 'cavalry');
-    // Step 6: order0 → 2
-    s = d(s, order0, 3, -4, 'cavalry'); s = d(s, order0, 4, -4, 'cavalry');
-    // Step 7: order1 → 2 (lancer, lancer — no repetir infantería)
-    s = d(s, order1, -4, 4, 'lancer'); s = d(s, order1, -4, 5, 'lancer');
-    // Step 8: order0 → 2 (10ª desplegada, 1 restante, sin general)
-    s = d(s, order0, 4, -5, 'infantry');
-    s = d(s, order0, 4, -6, 'infantry');
-    // Step 9: order1 → 2 (avanzar turno para que order0 vuelva en step 10)
-    s = d(s, order1, -4, 6, 'infantry'); s = d(s, order1, -3, 5, 'lancer');
-    // Step 10: order0 tiene 2 restantes, 0 generales
-    // Primera unidad: archer → aceptada (remaining=2, no hay constraint)
-    const first10 = s.players[order0].unitsToDeploy![0];
-    s = applyAction(s, {
-        type: 'DEPLOY_UNIT', playerId: order0, unitId: first10,
-        position: { q: 3, r: -5 }, class: 'archer'
-    });
-    // Segunda unidad: 1 restante, sin general
-    const lastId = s.players[order0].unitsToDeploy![0];
-    const reject = applyAction(s, {
-        type: 'DEPLOY_UNIT', playerId: order0, unitId: lastId,
-        position: { q: 2, r: -5 }, class: 'cavalry'  // cavalry=2 <3, general=0
-    });
-    assert(reject === s,
-        'DEPLOY_UNIT — última unidad sin general rechazada');
-
-    const accept = applyAction(s, {
-        type: 'DEPLOY_UNIT', playerId: order0, unitId: lastId,
-        position: { q: 2, r: -5 }, class: 'general'
-    });
-    assert(accept !== s && accept.players[order0].deployedUnits!.length === 11,
-        'DEPLOY_UNIT — última unidad como general aceptada');
+    const pool = state.players[order0].unitsToDeploy!;
+    const genEntry = pool.find(e => e.unitClass === 'general');
+    assert(genEntry !== undefined, 'Pool debe contener 1 general');
+    assertEqual(pool.indexOf(genEntry), pool.length - 1,
+        'DEPLOY_UNIT — general es la última entrada del pool');
 }
 
 // Despliegue completo: 12 pasos, 11 unidades por jugador → transición a GAME
@@ -463,18 +418,14 @@ function prepDeployment() {
     const order0 = state.deploymentOrder![0];   // menor dado, despliega primero
     const order1 = state.deploymentOrder![1];   // mayor dado, activo tras juego
 
-    const pos0: {q:number,r:number}[] = [
+    const pos0 = [
         {q:2,r:0},{q:2,r:-1},{q:2,r:-2},{q:3,r:-2},{q:3,r:-3},{q:3,r:-4},
-        {q:4,r:-4},{q:4,r:-5},{q:4,r:-6},{q:3,r:-5},{q:2,r:-5}
+        {q:4,r:-4},{q:4,r:-5},{q:4,r:-2},{q:3,r:-5},{q:2,r:-5}
     ];
-    const pos1: {q:number,r:number}[] = [
+    const pos1 = [
         {q:-2,r:0},{q:-2,r:1},{q:-2,r:2},{q:-3,r:2},{q:-3,r:3},{q:-3,r:4},
-        {q:-4,r:4},{q:-4,r:5},{q:-4,r:6},{q:-3,r:5},{q:-2,r:5}
+        {q:-4,r:4},{q:-4,r:5},{q:-4,r:3},{q:-3,r:5},{q:-2,r:5}
     ];
-
-    // Clases sin exceder 3 por tipo, general antes del final
-    const cls0 = ['infantry','infantry','lancer','lancer','archer','archer','cavalry','cavalry','archer','general','infantry'];
-    const cls1 = ['infantry','lancer','archer','cavalry','infantry','lancer','archer','cavalry','general','infantry','lancer'];
 
     const targetPerStep = [1,2,2,2,2,2,2,2,2,2,2,1];
     let i0 = 0, i1 = 0;
@@ -483,16 +434,21 @@ function prepDeployment() {
     for (let step = 0; step < 12; step++) {
         const player = step % 2 === 0 ? order0 : order1;
         const target = targetPerStep[step];
-        for (let j = 0; j < target; j++) {
-            const idx = player === order0 ? i0++ : i1++;
-            const pos = player === order0 ? pos0 : pos1;
-            const cls = player === order0 ? cls0 : cls1;
-            const uid = s.players[player].unitsToDeploy![0];
+        const posArr = player === order0 ? pos0 : pos1;
+        let idx = player === order0 ? i0 : i1;
+        for (let j = 0; j < target; j++, idx++) {
+            const pool = s.players[player].unitsToDeploy!;
+            const generalInPool = pool.find(e => e.unitClass === 'general');
+            const deployed = s.players[player].deployedUnits?.length ?? 0;
+            const generalsDeployed = Object.values(s.units).filter(u => u.owner === player && u.class === 'general').length;
+            // If 10 units deployed without a general, force deploy general
+            const entry = (generalInPool && deployed >= 10 && generalsDeployed === 0) ? generalInPool : pool[0];
             s = applyAction(s, {
-                type: 'DEPLOY_UNIT', playerId: player, unitId: uid,
-                position: pos[idx], class: cls[idx]
+                type: 'DEPLOY_UNIT', playerId: player, unitId: entry.unitId,
+                position: posArr[idx]
             });
         }
+        if (player === order0) i0 = idx; else i1 = idx;
     }
 
     // Verificar transición
@@ -511,11 +467,11 @@ function prepDeployment() {
     assertEqual(s.players[order1].cardsInHand?.length, 1,
         'DEPLOY completo — activePlayer tiene 1 carta robada');
 
-    // Pool vacío
-    assertEqual(s.players[order0].unitsToDeploy?.length, 0,
-        'DEPLOY completo — order[0] sin unidades pendientes');
-    assertEqual(s.players[order1].unitsToDeploy?.length, 0,
-        'DEPLOY completo — order[1] sin unidades pendientes');
+    // Pool tiene 2 unidades restantes (13−11=2 por jugador)
+    assertEqual(s.players[order0].unitsToDeploy?.length, 2,
+        'DEPLOY completo — order[0] tiene 2 unidades sin desplegar');
+    assertEqual(s.players[order1].unitsToDeploy?.length, 2,
+        'DEPLOY completo — order[1] tiene 2 unidades sin desplegar');
     assertEqual(s.players[order0].deployedUnits?.length, 11,
         'DEPLOY completo — order[0] tiene 11 desplegadas');
     assertEqual(s.players[order1].deployedUnits?.length, 11,
@@ -526,10 +482,10 @@ function prepDeployment() {
     // Primera unidad a distancia 1 del centro → rechazada (solo distancia 2 permitida)
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
-    const uid = state.players[deployer].unitsToDeploy![0];
+    const entry = state.players[deployer].unitsToDeploy![0];
     const reject = applyAction(state, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: uid,
-        position: { q: 1, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: entry.unitId,
+        position: { q: 1, r: 0 }
     });
     assert(reject === state,
         'DEPLOY_UNIT — primera unidad a distancia 1 rechazada');
@@ -540,21 +496,21 @@ function prepDeployment() {
     const state = prepDeployment();
     const deployer = state.currentDeployingPlayer!;
     const other = deployer === 'p1' ? 'p2' : 'p1';
-    const u1 = state.players[deployer].unitsToDeploy![0];
+    const e1 = state.players[deployer].unitsToDeploy![0];
     const s1 = applyAction(state, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: u1,
-        position: { q: 2, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: e1.unitId,
+        position: { q: 2, r: 0 }
     });
-    const u2 = s1.players[other].unitsToDeploy![0];
+    const e2 = s1.players[other].unitsToDeploy![0];
     const s2 = applyAction(s1, {
-        type: 'DEPLOY_UNIT', playerId: other, unitId: u2,
-        position: { q: -2, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: other, unitId: e2.unitId,
+        position: { q: -2, r: 0 }
     });
     // Deployer coloca su 2ª unidad (step 2) fuera del mapa
-    const u3 = s2.players[deployer].unitsToDeploy![0];
+    const e3 = s2.players[deployer].unitsToDeploy![0];
     const reject = applyAction(s2, {
-        type: 'DEPLOY_UNIT', playerId: deployer, unitId: u3,
-        position: { q: 10, r: 0 }, class: 'infantry'
+        type: 'DEPLOY_UNIT', playerId: deployer, unitId: e3.unitId,
+        position: { q: 10, r: 0 }
     });
     assert(reject === s2,
         'DEPLOY_UNIT — fuera del mapa rechazado');

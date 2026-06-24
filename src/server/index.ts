@@ -31,6 +31,12 @@ io.on('connection', socket => {
         }
 
         socket.emit('STATE', room.getCurrentState());
+
+        // Cuando ambos jugadores están conectados, notificar a todos
+        if (room.players.length === 2) {
+            io.to(gameId).emit('BOTH_PLAYERS_READY');
+        }
+
         console.log(room.debugInfo());
     });
 

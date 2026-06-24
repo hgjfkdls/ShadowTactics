@@ -28,7 +28,16 @@ export type AttackRoll = {
     seed: number;
 };
 
-export function resolveAttack(input: AttackInput): { state: GameState; roll: AttackRoll } {
+export type AttackResult = {
+    state: GameState;
+    roll: AttackRoll;
+    difficulty: number;
+    hit: boolean;
+    damage: number;
+    counterDamage: number;
+};
+
+export function resolveAttack(input: AttackInput): AttackResult {
     const { state, unit, target, distance } = input;
 
     // Dificultad (no depende del roll)
@@ -38,20 +47,23 @@ export function resolveAttack(input: AttackInput): { state: GameState; roll: Att
     const diffCtx = { state, attacker: unit, defender: target, distance, roll: 0, ctx: input };
     const diffResult: CombatResult = { difficulty, damage: 0, attackCost: 0, ignoresPassives: false };
     applyDifficultyAbilities(diffCtx, diffResult);
+    const finalDifficulty = diffResult.difficulty;
 
     const { die1, die2, total, seed: newSeed } = roll2d6(state.rngSeed);
     const canCounter = canCounterattack(unit, target, distance);
     const applyRNG = (s: GameState) => ({ ...s, rngSeed: newSeed });
     const rollResult: AttackRoll = { die1, die2, total, seed: newSeed };
 
-    if (total < diffResult.difficulty) {
+    if (total < finalDifficulty) {
         // MISS
+        let cdmg = 0;
         let s = pipeState(state, applyRNG);
         s = applyPostHitAbilities({ state: s, attacker: unit, defender: target, distance, roll: total, ctx: input }, s, false);
         if (canCounter) {
-            s = dealDamage(s, unit.id, getCounterDamage());
+            cdmg = getCounterDamage();
+            s = dealDamage(s, unit.id, cdmg);
         }
-        return { state: s, roll: rollResult };
+        return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg };
     }
 
     // HIT — computar daño ahora (depende del roll para crítico)
@@ -82,5 +94,7 @@ export function resolveAttack(input: AttackInput): { state: GameState; roll: Att
         s = addModifier(s, unit.owner, target.id, 'passiveDamage', 1, 'ADD', 0, 2);
     }
 
-    return { state: s, roll: rollResult };
+    const cdmg = canCounter ? getCounterDamage() : 0;
+
+    return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: true, damage: finalDamage, counterDamage: cdmg };
 }

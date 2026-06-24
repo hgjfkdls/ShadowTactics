@@ -1,0 +1,210 @@
+export const IDENTITY_INFO: Record<string, { name: string; className: string; desc: string; descVerbose: string }> = {
+    robin_hood: {
+        name: 'Robin Hood', className: 'Arquero',
+        desc: 'Especial: Daño gratis por turno. Global: Arqueros móviles + sustain.',
+        descVerbose: [
+            'Forajido de Sherwood, roba a los ricos para dar a los pobres. Arquero certero y defensor del pueblo.',
+            '',
+            'Especial — En la mira (Pasiva)',
+            'Tu General se considera arquero. Al comienzo de cada turno, elige una unidad enemiga e inflige 1 de daño sin coste. No puedes elegir al general enemigo.',
+            '',
+            'Global — Robar a los ricos (Pasiva)',
+            'Tus arqueros tienen coste movimiento 1 y pierden acción evasiva. El primer arquero que acierta un ataque cada turno recupera 1 HP.',
+        ].join('\n'),
+    },
+    francotirador: {
+        name: 'Francotirador del Bosque', className: 'Arquero',
+        desc: 'Especial: +1 rango habilidades de arquero. Global: Rango y precisión para arqueros.',
+        descVerbose: [
+            'Cazador solitario. Una flecha, un muerto. Nadie ve de dónde vino el disparo.',
+            '',
+            'Especial — Francotirador (Pasiva)',
+            'Tu General se considera arquero. Tu General tiene +1 rango de habilidades de arquero.',
+            '',
+            'Global — Tiro a distancia (Pasiva)',
+            'Tus arqueros obtienen +1 de rango para ataques básicos. Mejora Blanco fácil: -2 dificultad si el objetivo no se movió el turno anterior (en lugar de -1).',
+        ].join('\n'),
+    },
+    dios_trueno: {
+        name: 'Dios del Trueno', className: 'Infantería',
+        desc: 'Especial: Bendice aliado [+3/+2/+1] + pasivas. Global: +1 daño al 50% HP.',
+        descVerbose: [
+            'Thor, el dios nórdico del trueno. Su martillo forja tormentas y bendice a los suyos con rayos divinos.',
+            '',
+            'Especial — Rayo celestial (coste 1)',
+            'Tu General gana las pasivas Resistencia y Presión de infantería. Elige un aliado a rango ≤ 2 que realice ataques cuerpo a cuerpo: su siguiente ataque hace +3 de daño. El efecto termina después del ataque. Cada vez que usas esta habilidad, el daño se reduce en 1. [+3/+2/+1]',
+            '',
+            'Global — Furia berserker (Pasiva)',
+            'El General y tus unidades de infantería hacen +1 de daño mientras tengan 50% o menos de HP.',
+        ].join('\n'),
+    },
+    capitan_guardia: {
+        name: 'Capitán de la Guardia', className: 'Infantería',
+        desc: 'Especial: Contraataque + pasivas. Global: Presión al eliminar enemigos.',
+        descVerbose: [
+            'Veterano de mil batallas, lidera desde el frente. No pide a nadie lo que él no haría primero.',
+            '',
+            'Especial — Contraataque (Pasiva)',
+            'Tu General gana las pasivas Resistencia y Presión de infantería. Una vez por turno del enemigo, si tu General recibe un ataque melee, inflige +1 de daño al atacante.',
+            '',
+            'Global — Liderar a las tropas (Pasiva)',
+            'Si el General o una unidad de infantería a rango ≤ 2 del General elimina a un enemigo, todas tus unidades de infantería y el General activan Presión en el siguiente turno.',
+        ].join('\n'),
+    },
+    caballos_guerra: {
+        name: 'Caballos de Guerra', className: 'Caballería',
+        desc: 'Especial: Cabalgar mejorado (coste progresivo). Global: Cabalgar sin línea recta.',
+        descVerbose: [
+            'Caballería pesada de choque. Galopar, impactar y romper la línea. No hay formación que resista una carga bien ejecutada.',
+            '',
+            'Especial — A la carga (coste progresivo: +0/+1/+2/+3)',
+            'Tu General se considera caballería. Tu General puede avanzar 3 casillas (en lugar de 2) cuando usa Cabalgar hacia un enemigo. Cada activación aumenta su coste en 1 PA. [+0/+1/+2/+3]',
+            '',
+            'Global — Maniobras acrobáticas (Pasiva)',
+            'Caballería puede ignorar línea recta al Cabalgar. Carga debe respetar la línea recta desde la última casilla avanzada por Cabalgar.',
+        ].join('\n'),
+    },
+    cazadores: {
+        name: 'Cazadores', className: 'Caballería',
+        desc: 'Especial: +2 daño a unidades aisladas. Global: -1 dificultad a enemigos débiles.',
+        descVerbose: [
+            'Jinetes nómadas que rastrean a sus presas como lobos. Atacan al débil, al aislado, al que huye.',
+            '',
+            'Especial — Acechar (Pasiva)',
+            'Tu General se considera caballería. Tu General hace +2 de daño al atacar una unidad que no tenga aliados adyacentes. Contra el General enemigo, el bono es +1 en lugar de +2.',
+            '',
+            'Global — Hostigar (Pasiva)',
+            'Tus unidades de caballería tienen -1 dificultad al atacar a un enemigo con 50% de HP o menos.',
+        ].join('\n'),
+    },
+    punta_lanza: {
+        name: 'Punta de Lanza', className: 'Lancero',
+        desc: 'Especial: Torbellino (2 dmg área). Global: Proyección (daño detrás del objetivo).',
+        descVerbose: [
+            'La vanguardia del ejército. Su lanza es la primera en impactar y la última en retirarse.',
+            '',
+            'Especial — Torbellino (coste 3)',
+            'Tu General se considera lancero. El General puede girar su lanza una vez por turno. Inflige 2 de daño a todos los enemigos adyacentes y 1 de daño a los aliados adyacentes. Ignora cualquier habilidad defensiva.',
+            '',
+            'Global — Proyección (Pasiva)',
+            '1 vez por turno, cuando un lancero acierta un ataque cuerpo a cuerpo, hace 1 de daño a las 2 casillas detrás del objetivo (en línea recta desde el atacante).',
+        ].join('\n'),
+    },
+    espartano: {
+        name: 'Espartano', className: 'Lancero',
+        desc: 'Especial: Elegir rango o defensa cada turno. Global: -1 daño entre lanceros.',
+        descVerbose: [
+            'Guerrero de Esparta. Su escudo protege a su hermano. Su lanza alcanza al enemigo. La falange nunca retrocede.',
+            '',
+            'Especial — Lanza y escudo (Pasiva)',
+            'Tu General se considera lancero. Una vez por turno, elige: rango +1, o recibes -1 de daño hasta tu siguiente turno.',
+            '',
+            'Global — Muro espartano (Pasiva)',
+            'Tus lanceros adyacentes entre sí reciben -1 de daño.',
+        ].join('\n'),
+    },
+    monje_shaolin: {
+        name: 'Monje Shaolin', className: 'General',
+        desc: 'Especial: Curación + Resistencia condicional. Global: Karma (daño al asesino).',
+        descVerbose: [
+            'Monje del templo Shaolin. Años de disciplina forjan su cuerpo como arma. Mente en calma, puño de hierro.',
+            '',
+            'Especial — Meditación (coste variable)',
+            'Si no realizaste ninguna acción el turno anterior, tu General gana Resistencia (-1 de daño la primera vez que recibe daño) durante este turno. Durante tu turno, puedes pagar 1 PA por cada punto de HP que quieras curar a tu General (sin límite por turno).',
+            '',
+            'Global — Karma (Pasiva)',
+            'Cuando una unidad aliada es eliminada, la unidad que la eliminó recibe 1 de daño.',
+        ].join('\n'),
+    },
+    corazon_estratega: {
+        name: 'Corazón de Estratega', className: 'General',
+        desc: 'Especial: Movimiento gratuito 1 casilla. Global: Bonos por formación (línea/triángulo).',
+        descVerbose: [
+            'Mente maestra del campo de batalla. Mueve sus piezas con precisión y saca ventaja de cada formación.',
+            '',
+            'Especial — Posición estratégica (Pasiva)',
+            'Una vez por turno, tu General puede moverse 1 casilla sin coste de PA. La casilla destino debe estar adyacente a un aliado.',
+            '',
+            'Global — Formaciones tácticas (Pasiva)',
+            'Tus unidades ganan bonificaciones según su formación:',
+            '- Línea: si hay 3 o más unidades aliadas adyacentes en línea recta, todas reciben -1 de daño al ser atacadas.',
+            '- Triángulo: si 3 unidades aliadas están adyacentes entre sí (grupo cerrado), todas hacen +1 de daño al atacar.',
+        ].join('\n'),
+    },
+    comandante_supremo: {
+        name: 'Comandante Supremo', className: 'General',
+        desc: 'Especial: Mover aliado gratis + potenciar. Global: Plan de batalla (+1 atk o -1 dmg).',
+        descVerbose: [
+            'General veterano que ha dirigido innumerables batallas. Su experiencia le permite leer el campo como nadie.',
+            '',
+            'Especial — Voz de mando (Pasiva)',
+            'La primera vez que mueves a tu General en tu turno, puedes mover a una unidad aliada 1 casilla sin coste de PA. Esa unidad recibe el doble del efecto de Plan de batalla (+2 daño o -2 daño).',
+            '',
+            'Global — Plan de batalla (Pasiva)',
+            'Al inicio de tu turno, elige una orden para tu ejército hasta tu siguiente turno:',
+            '- Avanzar: el primer ataque de cada unidad este turno hace +1 de daño.',
+            '- Reagruparse: la primera vez que cada unidad es atacada (hasta tu siguiente turno), recibe -1 de daño.',
+        ].join('\n'),
+    },
+    inspiracion_real: {
+        name: 'Inspiración Real', className: 'General',
+        desc: 'Especial: Ataque 5 + escudo 3 HP a aliado. Global: +1 atk / -1 dmg a adyacentes.',
+        descVerbose: [
+            'La realeza en el campo de batalla. No es el más fuerte, pero su presencia convierte a hombres comunes en héroes.',
+            '',
+            'Especial — En nombre del rey (coste 2)',
+            'Elige un aliado a rango ≤ 2. Hasta tu siguiente turno, ese aliado tiene ataque 5 y un escudo de 3 HP (absorbe daño primero). El General no puede atacar este turno.',
+            '',
+            'Global — Guardia real (Pasiva)',
+            'Unidades que iniciaron el turno adyacentes al General tienen +1 de ataque y -1 de daño recibido. Al atacar o recibir daño, pierden ambas bonificaciones.',
+        ].join('\n'),
+    },
+    furia_tirano: {
+        name: 'Furia del Tirano', className: 'General',
+        desc: 'Especial: Sacrificar aliado para curarse. Global: Terror al eliminar enemigos.',
+        descVerbose: [
+            'General tirano que ve a su ejército como herramientas. No duda en sacrificarlos si eso le acerca a la victoria.',
+            '',
+            'Especial — Sacrificar (coste 1)',
+            'Elige un aliado adyacente: recibe 2 de daño y el General recupera 3 HP. Si el aliado es eliminado, el General recupera 5 HP.',
+            '',
+            'Global — Terror (Pasiva)',
+            'La primera vez por turno que un aliado elimina a un enemigo con un ataque cuerpo a cuerpo, los enemigos adyacentes a ese aliado tienen +1 de dificultad en su siguiente ataque.',
+        ].join('\n'),
+    },
+    samurai: {
+        name: 'Samurái', className: 'General',
+        desc: 'Especial: Desenvainado veloz (inmoviliza). Global: +1 PA por baja melee.',
+        descVerbose: [
+            'Guerrero de élite, forjado por años de disciplina. Su katana es precisa, su espíritu inquebrantable.',
+            '',
+            'Especial — Desenvainado veloz (coste 1)',
+            'El siguiente ataque de tu General este turno tiene -1 de dificultad. Si acierta, el objetivo no puede moverse en su siguiente turno (puede atacar).',
+            '',
+            'Global — Camino del guerrero (Pasiva)',
+            'Una vez por turno, cuando un aliado elimina a un enemigo con un ataque cuerpo a cuerpo, recuperas 1 PA.',
+        ].join('\n'),
+    },
+    escudo_comandante: {
+        name: 'Escudo del Comandante', className: 'General',
+        desc: 'Especial: Ángel Guardián (escudo masivo 2 HP). Global: Proteger a un aliado (-1 dmg).',
+        descVerbose: [
+            'Protector nato. Su misión no es vencer al enemigo, sino asegurarse de que todos los suyos vuelvan a casa.',
+            '',
+            'Especial — Ángel Guardián (coste 2)',
+            'Todos tus aliados reciben un escudo de 2 HP hasta tu siguiente turno.',
+            '',
+            'Global — Proteger (Pasiva)',
+            'Una vez por turno, puedes proteger a un aliado a rango ≤ 3 del General. Si no eliges a nadie, el General se protege a sí mismo. El protegido recibe -1 de daño de todas las fuentes hasta tu siguiente turno.',
+        ].join('\n'),
+    },
+};
+
+export function getIdentityKey(cardId: string): string {
+    return cardId.split('_').slice(0, -1).join('_');
+}
+
+export function getIdentityInfo(cardId: string) {
+    const key = getIdentityKey(cardId);
+    return IDENTITY_INFO[key] ?? null;
+}

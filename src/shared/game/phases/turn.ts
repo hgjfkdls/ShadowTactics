@@ -15,6 +15,7 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
     const carryOver = Math.floor(currentAP / 2);
 
     // Rotar flags de movimiento: movedThisTurn → didMovePreviousTurn
+    // Limpiar cargas de Fuego de cobertura al final del turno
     let units = { ...state.units };
     for (const id of Object.keys(units)) {
         const u = units[id];
@@ -23,6 +24,7 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
                 ...u,
                 didMovePreviousTurn: u.movedThisTurn ?? false,
                 movedThisTurn: false,
+                fuegoCoberturaCharges: undefined,
             };
         }
     }
@@ -57,6 +59,7 @@ function resetUnitTracking(unit: Unit): Unit {
         usedDobleAtaque: false,
         usedDisparoRapido: false,
         usedFuegoCobertura: false,
+        usedAccionEvasiva: false,
         usedAvance: false,
         hasCargaBonus: false,
     };

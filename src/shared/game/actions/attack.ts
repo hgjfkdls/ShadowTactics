@@ -1,8 +1,9 @@
 import type { GameState } from '../state';
 import type { GameAction } from '../action-types';
 import { hexDistance } from '../../hex';
-import { pipeState } from '../utils';
+import { pipeState, updateUnit } from '../utils';
 import { resolveAttack } from '../combat';
+import type { AttackResult } from '../combat';
 import { getPlayerAP, consumeAP, getAttackCost } from './helpers';
 import { consumeModifier } from '../modifiers/engine';
 import { applyCostAbilities } from '../combat/ability-effects';
@@ -20,6 +21,9 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     if (unit.owner !== playerId) return state;
     if (target.owner === playerId) return state;
 
+    // Solo 1 ataque básico por turno por unidad
+    if (unit.attackedThisTurn) return state;
+
     const distance = hexDistance(unit.position, target.position);
     if (distance > unit.range) return state;
 
@@ -29,10 +33,12 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         { state, attacker: unit, defender: target, distance, roll: 0, ctx: {} },
         costResult
     );
-    const cost = getAttackCost() + costResult.attackCost;
+    let cost = getAttackCost() + costResult.attackCost;
+    const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
+    if (hasSurcharge) cost += 1;
     if (ap < cost) return state;
 
-    const { state: afterAttack } = resolveAttack({
+    const result: AttackResult = resolveAttack({
         state,
         unit,
         target,
@@ -42,11 +48,30 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     });
 
     let s = pipeState(
-        afterAttack,
-        (s) => consumeAP(s, playerId, cost)
+        result.state,
+        (s) => consumeAP(s, playerId, cost),
+        (s) => updateUnit(s, action.unitId, (u) => ({ ...u, attackedThisTurn: true })),
+        (s) => hasSurcharge ? updateUnit(s, action.unitId, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
     );
 
     s = consumeModifier(s, playerId, 'attackCost', 1);
+
+    s = {
+        ...s,
+        lastAttackResult: {
+            attackerId: action.unitId,
+            targetId: action.targetId,
+            die1: result.roll.die1,
+            die2: result.roll.die2,
+            total: result.roll.total,
+            difficulty: result.difficulty,
+            hit: result.hit,
+            damage: result.damage,
+            counterDamage: result.counterDamage,
+            attackerClass: unit.class,
+            targetClass: target.class,
+        },
+    };
 
     return s;
 }

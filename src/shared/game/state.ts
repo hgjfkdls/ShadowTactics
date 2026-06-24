@@ -37,9 +37,10 @@ export type Unit = {
     usedDobleAtaque?: boolean;
     usedDisparoRapido?: boolean;
     usedFuegoCobertura?: boolean;
+    usedAccionEvasiva?: boolean;
     usedAvance?: boolean;
     hasCargaBonus?: boolean;         // true si usó Cabalgar + Carga
-    hasMovementPenalty?: boolean;    // true si recibió Fuego de cobertura
+    fuegoCoberturaCharges?: number;  // cargas restantes de Fuego de cobertura (coste +1)
 };
 
 export type GameState = {
@@ -75,6 +76,7 @@ export type GameState = {
 
     // Dados de fase de preparación
     diceRolls: Record<PlayerId, number | undefined>;
+    lastTieRoll?: number;              // valor del último empate (para mostrar antes de repetir)
 
     // Orden de despliegue
     deploymentOrder?: PlayerId[];
@@ -99,6 +101,21 @@ export type GameState = {
         playerId: PlayerId;
         targetId?: UnitId;
     };
+
+    // Último resultado de ataque (para mostrar dados al cliente)
+    lastAttackResult?: {
+        attackerId: UnitId;
+        targetId: UnitId;
+        die1: number;
+        die2: number;
+        total: number;
+        difficulty: number;
+        hit: boolean;
+        damage: number;
+        counterDamage: number;
+        attackerClass: string;
+        targetClass: string;
+    };
 };
 
 export type PlayerResources = {
@@ -114,7 +131,7 @@ export type PlayerResources = {
     revealedIdentity?: boolean;     // visible al rival
 
     // DESPLIEGUE
-    unitsToDeploy?: UnitId[];      // pool inicial
+    unitsToDeploy?: { unitId: UnitId; unitClass: Unit['class'] }[];  // pool inicial con clase asignada
     deployedUnits?: UnitId[];      // ya colocadas
 };
 

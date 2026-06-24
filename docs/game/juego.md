@@ -4,13 +4,13 @@
 
 # Shadow Tactics
 
-Juego de estrategia por turnos sobre un tablero hexagonal de radio 6 casillas.
+Juego de estrategia por turnos sobre un tablero hexagonal de radio 5 casillas.
 
 ## Componentes
 
 | Cantidad | Elemento |
 |---------:|----------|
-| 1 | tablero hexagonal (radio 6) |
+| 1 | tablero hexagonal (radio 5) |
 | 15 | cartas de identidad |
 | 52 | cartas de efecto |
 | 2 | generales |

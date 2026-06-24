@@ -597,43 +597,43 @@ function makeGameState(): GameState {
         'Pantano + MOVE — coste 4 PA (2 × 2)');
 }
 
-// ── MOVE_UNIT con hasMovementPenalty (Fuego de cobertura) ──
+// ── MOVE_UNIT con fuegoCoberturaCharges (Fuego de cobertura) ──
 {
     const state = makeGameState();
     const withPenalty: GameState = {
         ...state,
         units: {
             ...state.units,
-            'u2': { ...state.units['u2'], hasMovementPenalty: true }
+            'u2': { ...state.units['u2'], fuegoCoberturaCharges: 2 }
         }
     };
-    // u2 movementCost=1, hasMovementPenalty → ×2 → coste 2, PA 10-2=8
+    // u2 movementCost=1, fuegoCoberturaCharges → +1 → coste 2, PA 10-2=8
     const result = applyAction(withPenalty, {
         type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 3, r: 0 }
     });
     assert(result !== withPenalty,
         'Penalidad + MOVE — movimiento ejecutado');
     assertEqual(result.players.p1.actionPoints, 8,
-        'Penalidad + MOVE — coste 2 PA (1 × 2)');
+        'Penalidad + MOVE — coste 2 PA (1 + 1)');
 }
 
-// ── MOVE_UNIT con hasMovementPenalty + Pantano acumulados ──
+// ── MOVE_UNIT con fuegoCoberturaCharges + Pantano acumulados ──
 {
     const state = makeGameState();
     const withBoth: GameState = {
         ...state,
         units: {
             ...state.units,
-            'u2': { ...state.units['u2'], hasMovementPenalty: true }
+            'u2': { ...state.units['u2'], fuegoCoberturaCharges: 2 }
         },
         activeModifiers: [{ id: 'pant_mod2', sourcePlayerId: 'p2', stat: 'movementCost', value: 2, operator: 'MUL', remainingTurns: 1, remainingUses: 1 }]
     };
-    // u2 movementCost=1, hasMovementPenalty(×2)=2, MUL 2 → coste 4, PA 10-4=6
+    // u2 movementCost=1, fuegoCoberturaCharges(+1)=2, MUL 2 → coste 4, PA 10-4=6
     const result = applyAction(withBoth, {
         type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 3, r: 0 }
     });
     assert(result !== withBoth,
         'Penalidad + Pantano + MOVE — movimiento ejecutado');
     assertEqual(result.players.p1.actionPoints, 6,
-        'Penalidad + Pantano + MOVE — coste 4 PA (1 × 2 × 2)');
+        'Penalidad + Pantano + MOVE — coste 4 PA (1 + 1 × 2)');
 }

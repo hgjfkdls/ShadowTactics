@@ -98,31 +98,45 @@ App.tsx
 
 Cada jugador recibe 3 cartas de identidad y elige 1.
 
-### Elementos propuestos
+### Elementos
 
 | Elemento | Tipo | Comportamiento |
 |----------|------|---------------|
-| Mano de 3 cartas | Grid de 3 cartas | Muestra nombre/icono de cada identidad |
-| Carta seleccionada | Highlight | Click → selecciona, confirmar → envía `SELECT_IDENTITY` |
-| Botón "Confirmar" | `button` | Emite `SELECT_IDENTITY { cardId }` |
-| Estado del rival | Texto | "Oponente pensando..." / "Oponente listo" |
-| Revelación | Overlay | Ambos seleccionaron → muestra identidades elegidas |
+| Estado de espera | Texto | "Esperando jugadores..." hasta recibir `BOTH_PLAYERS_READY` |
+| Mano de 3 cartas | Grid horizontal | Muestra `identityCards[]` con nombre y clase |
+| Carta destacada | Highlight borde azul | Click → muestra info en panel derecho (no selecciona) |
+| Botón "Seleccionar carta" | `button` | Deshabilitado hasta destacar carta. Emite `SELECT_IDENTITY { cardId }` |
+| Panel derecho | Aside | Ilustración (placeholder), nombre, clase, descripción |
+| Estado del rival | Texto | "Esperando al oponente..." |
 
 ### Flujo
 
 ```
 IDENTITY_SELECTION
-  └─ Mostrar 3 cartas de identityCards[]
-  └─ Jugador clicka una → se marca como seleccionada
-  └─ Botón "Confirmar" → sendAction({ type: 'SELECT_IDENTITY', cardId })
-  └─ Mientras rival no confirma: "Esperando oponente..."
-  └─ Ambos confirmaron → revealedIdentity = true → avanza a ROLL
+  └─ ¿bothPlayersReady?
+       No → "Esperando jugadores..." (sin cartas)
+       Sí → Mostrar 3 cartas de identityCards[]
+  └─ Jugador clicka carta → se destaca (borde azul)
+       → Panel derecho muestra info + ilustración
+  └─ Botón "Seleccionar carta" → sendAction({ type: 'SELECT_IDENTITY', cardId })
+  └─ Carta confirmada → borde verde + check. Botón deshabilitado
+  └─ "Esperando al oponente..."
+  └─ Ambos confirmaron → avanza a ROLL
 ```
+
+### Eventos de servidor
+
+| Evento | Cuándo |
+|--------|--------|
+| `BOTH_PLAYERS_READY` | Segundo jugador se conecta a la sala |
 
 ### Archivos relacionados
 
 - `src/shared/game/state.ts` — `identityCards[]`, `selectedIdentity`
 - `src/shared/game/phases/identity.ts` — `handleIdentity()`
+- `src/client/prep/IdentitySelection.tsx` — componente React
+- `src/client/game/useGameState.ts` — hook con flag `bothPlayersReady`
+- `src/server/index.ts` — emisión de `BOTH_PLAYERS_READY`
 
 ---
 

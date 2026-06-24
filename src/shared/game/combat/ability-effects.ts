@@ -84,14 +84,8 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
         },
     },
     doble_ataque: {
-        onCost: (_ctx, r) => {
-            r.attackCost += 1;
-        },
     },
     disparo_rapido: {
-        onCost: (_ctx, r) => {
-            r.attackCost += 1;
-        },
     },
 };
 

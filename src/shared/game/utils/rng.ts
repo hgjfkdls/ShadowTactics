@@ -1,6 +1,6 @@
 export function nextRandom(seed: number): { value: number; seed: number } {
     const newSeed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return { value: newSeed, seed: newSeed };
+    return { value: newSeed >>> 16, seed: newSeed };
 }
 
 export function rollDice(seed: number, sides: number): { roll: number; seed: number } {

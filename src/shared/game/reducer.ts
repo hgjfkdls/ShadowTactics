@@ -2,10 +2,16 @@ import type { GameState } from './state';
 import type { GameAction } from './action-types';
 import { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
 import { handleMove, handleAttack, handleCard, handleAbility, handlePassCounter, handleDiscard } from './actions/index';
+import { simulatePreparation } from './phases/simulate';
 
 export function applyAction(state: GameState, action: GameAction): GameState {
 
     if (state.gamePhase === 'GAME_OVER') return state;
+
+    if (action.type === 'SIMULATE_PREPARATION') {
+        if (state.gamePhase !== 'PREPARATION') return state;
+        return simulatePreparation(state);
+    }
 
     if (state.gamePhase === 'PREPARATION') {
         switch (state.preparationPhase) {

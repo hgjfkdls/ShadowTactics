@@ -13,7 +13,8 @@ export function handleRoll(state: GameState, action: GameAction): GameState {
     const newState: GameState = {
         ...state,
         rngSeed: newSeed,
-        diceRolls: { ...state.diceRolls, [playerId]: total }
+        diceRolls: { ...state.diceRolls, [playerId]: total },
+        lastTieRoll: undefined
     };
 
     const p1Roll = newState.diceRolls['p1'];
@@ -21,7 +22,7 @@ export function handleRoll(state: GameState, action: GameAction): GameState {
     if (p1Roll === undefined || p2Roll === undefined) return newState;
 
     if (p1Roll === p2Roll) {
-        return { ...newState, diceRolls: { p1: undefined, p2: undefined } };
+        return { ...newState, diceRolls: { p1: undefined, p2: undefined }, lastTieRoll: p1Roll };
     }
 
     const [first, second] = p1Roll < p2Roll ? ['p1', 'p2'] as const : ['p2', 'p1'] as const;

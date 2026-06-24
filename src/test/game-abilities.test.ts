@@ -294,8 +294,8 @@ function makeState(): GameState {
         // Debería ejecutarse (attackedThisTurn no bloquea doble_ataque)
         assert(result !== afterAttack,
             'Doble ataque — ejecutado tras ataque normal');
-        assert(result.players['p1'].actionPoints === 7,
-            'Doble ataque — cuesta 1 PA (10-2-1 tras ataque normal, doble_ataque suma +1 attackCost)');
+        assert(result.players['p1'].actionPoints === 8,
+            'Doble ataque — cuesta 1 PA (10-1-1 tras ataque normal + habilidad)');
         assert(result.units['u2']?.usedDobleAtaque === true,
             'Doble ataque — flag usedDobleAtaque');
     }

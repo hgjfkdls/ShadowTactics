@@ -9,8 +9,10 @@ export function useGameState() {
 
     const [gameId, setGameId] = useState<string | null>(null);
     const [role, setRole] = useState<PlayerRole | null>(null);
+    const [bothPlayersReady, setBothPlayersReady] = useState(false);
 
     const [state, setState] = useState<GameState | null>(null);
+    const [lastBlockedReason, setLastBlockedReason] = useState<string | null>(null);
 
     useEffect(() => {
         function onConnect() {
@@ -25,12 +27,14 @@ export function useGameState() {
             setGameId(null);
             setRole(null);
             setState(null);
+            setBothPlayersReady(false);
         }
 
         function onDisconnect() {
             setConnected(false);
             setRole(null);
             setState(null);
+            setBothPlayersReady(false);
         }
 
         function onRole(payload: PlayerRole) {
@@ -46,11 +50,16 @@ export function useGameState() {
             setState(newState);
         }
 
+        function onBothPlayersReady() {
+            setBothPlayersReady(true);
+        }
+
         socket.on('connect', onConnect);
         socket.on('disconnect', onDisconnect);
         socket.on('ROLE', onRole);
         socket.on('STATE', onState);
         socket.on('LEFT_GAME', onLeftGame);
+        socket.on('BOTH_PLAYERS_READY', onBothPlayersReady);
 
         return () => {
             socket.off('connect', onConnect);
@@ -58,6 +67,7 @@ export function useGameState() {
             socket.off('ROLE', onRole);
             socket.off('STATE', onState);
             socket.off('LEFT_GAME', onLeftGame);
+            socket.off('BOTH_PLAYERS_READY', onBothPlayersReady);
         };
     }, []);
 
@@ -88,11 +98,23 @@ export function useGameState() {
         if (!state) return;
 
 
-        if (state.activePlayer !== role.playerId) {
+        // Durante PREPARATION no se aplica el guard de activePlayer
+        // (ambos jugadores deben poder seleccionar identidad y tirar dados)
+        if (state.gamePhase !== 'PREPARATION' && state.activePlayer !== role.playerId) {
+            setLastBlockedReason('No es tu turno');
             console.warn(
                 `Acción bloqueada: no es tu turno (${role.playerId})`
             );
             return;
+        }
+
+        // DRAW phase: mano llena, solo se permite descartar
+        if (state.turnPhase === 'DRAW' && state.gamePhase === 'GAME') {
+            const handSize = state.players[state.activePlayer]?.cardsInHand?.length ?? 0;
+            if (handSize > 3 && action.type !== 'DISCARD_CARD') {
+                setLastBlockedReason('Debes descartar 1 carta antes de realizar cualquier acción');
+                return;
+            }
         }
 
         debugStore.add({
@@ -113,6 +135,7 @@ export function useGameState() {
 
         gameId,
         role,
+        bothPlayersReady,
         isPlayer: role?.role === 'player',
         playerId: role?.role === 'player' ? role.playerId : null,
 
@@ -121,5 +144,7 @@ export function useGameState() {
         joinGame,
         leaveGame,
         sendAction,
+        lastBlockedReason,
+        clearBlockedReason: () => setLastBlockedReason(null),
     };
 }
