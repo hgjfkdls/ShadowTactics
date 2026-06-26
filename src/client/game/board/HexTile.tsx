@@ -7,6 +7,8 @@ type Props = {
     selected: boolean;
     reachable: boolean;
     attackable: boolean;
+    identityTarget: boolean;
+    allyTarget: boolean;
     inRange: boolean;
     onHover: (hex: HexCoord | null) => void;
     onClick: (hex: HexCoord) => void;
@@ -18,6 +20,8 @@ export function HexTile({
     selected,
     reachable,
     attackable,
+    identityTarget,
+    allyTarget,
     inRange,
     onHover,
     onClick,
@@ -30,14 +34,18 @@ export function HexTile({
         ? '#2563eb'
         : attackable
             ? '#7f1d1d'
-            : reachable
-                ? '#065f46'
-                : hovered
-                    ? '#374151'
-                    : '#1f2937';
+            : identityTarget
+                ? '#5b1280'
+                : allyTarget
+                    ? '#0f766e'
+                    : reachable
+                        ? '#065f46'
+                        : hovered
+                            ? '#374151'
+                            : '#1f2937';
 
-    const stroke = attackable ? '#ef4444' : '#4b5563';
-    const strokeW = attackable ? 2.5 : 2;
+    const stroke = identityTarget ? '#a855f7' : allyTarget ? '#14b8a6' : attackable ? '#ef4444' : '#4b5563';
+    const strokeW = identityTarget || allyTarget || attackable ? 2.5 : 2;
 
 
     return (
@@ -76,6 +84,21 @@ export function HexTile({
                 />
             )}
 
+            {identityTarget && (
+                <polygon
+                    points={points}
+                    fill="rgba(168, 85, 247, 0.25)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {allyTarget && (
+                <polygon
+                    points={points}
+                    fill="rgba(20, 184, 166, 0.25)"
+                    pointerEvents="none"
+                />
+            )}
 
         </>
     );

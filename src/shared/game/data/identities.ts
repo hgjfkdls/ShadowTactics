@@ -1,0 +1,63 @@
+import type { UnitClass } from './abilities';
+
+export type IdentityEffect = {
+  unitClassOverride: UnitClass;
+  abilitiesOverride?: string[];
+  copyStats?: boolean;
+  statsToCopy?: Array<'range' | 'movementCost' | 'difficulty'>;
+};
+
+export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
+  robin_hood: {
+    unitClassOverride: 'archer',
+    copyStats: true,
+  },
+  francotirador: {
+    unitClassOverride: 'archer',
+    copyStats: true,
+  },
+  dios_trueno: {
+    unitClassOverride: 'infantry',
+    abilitiesOverride: ['resistencia', 'presion', 'rayo_celestial'],
+  },
+  capitan_guardia: {
+    unitClassOverride: 'infantry',
+    abilitiesOverride: ['resistencia', 'presion'],
+  },
+  caballos_guerra: {
+    unitClassOverride: 'cavalry',
+    copyStats: true,
+    statsToCopy: ['range', 'movementCost'],
+    abilitiesOverride: ['romper_filas', 'cabalgar_2', 'carga', 'a_la_carga'],
+  },
+  cazadores: {
+    unitClassOverride: 'cavalry',
+    copyStats: true,
+    statsToCopy: ['range', 'movementCost'],
+    abilitiesOverride: ['romper_filas', 'cabalgar', 'carga'],
+  },
+  punta_lanza: {
+    unitClassOverride: 'lancer',
+    abilitiesOverride: ['anti_caballeria', 'formacion_defensiva', 'ventaja_alcance', 'torbellino'],
+  },
+  espartano: {
+    unitClassOverride: 'lancer',
+    abilitiesOverride: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque'],
+  },
+  monje_shaolin: {
+    unitClassOverride: 'general',
+    abilitiesOverride: ['meditacion'],
+  },
+  corazon_estratega: {
+    unitClassOverride: 'general',
+    abilitiesOverride: ['posicion_estrategica'],
+  },
+  inspiracion_real: {
+    unitClassOverride: 'general',
+    abilitiesOverride: ['en_nombre_del_rey'],
+  },
+};
+
+export function getIdentityKey(cardId: string): string {
+  return cardId.split('_').slice(0, -1).join('_');
+}

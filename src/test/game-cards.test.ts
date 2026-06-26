@@ -18,9 +18,9 @@ function makeState(): GameState {
             p2: { ...s.players['p2'], actionPoints: 5, cardsInHand: [] },
         },
         units: {
-            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 8, difficulty: 6, range: 4, movementCost: 2, class: 'archer' },
-            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry' },
-            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 1, movementCost: 1, class: 'infantry' },
+            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2, class: 'archer' },
+            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry' },
+            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1, class: 'infantry' },
         }
     };
     return s;

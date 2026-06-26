@@ -63,6 +63,7 @@ export type GameAction =
         abilityId: string;
         targetId?: UnitId;
         to?: HexCoord;          // para Cabalgar (posición destino)
+        path?: HexCoord[];      // para Cabalgar_2 (recorrido de 2-3 hex)
     }
 
     | {
@@ -87,4 +88,31 @@ export type GameAction =
         type: 'OCCUPY_POSITION';
         playerId: PlayerId;
         accept: boolean;
+    }
+
+    // HABILIDAD DE IDENTIDAD — ej: Robin Hood «En la mira»
+    | {
+        type: 'IDENTITY_ABILITY';
+        playerId: PlayerId;
+        targetId: UnitId;
+    }
+
+    // ESPARTANO — Lanza y escudo
+    | {
+        type: 'ESPARTANO_CHOICE';
+        playerId: PlayerId;
+        choice: 'range' | 'defense';
+    }
+
+    // COMANDANTE SUPREMO — Plan de batalla
+    | {
+        type: 'COMANDANTE_CHOICE';
+        playerId: PlayerId;
+        choice: 'attack' | 'defense';
+    }
+
+    // RESULTADO DE ATAQUE — Continuar (ambos jugadores)
+    | {
+        type: 'CONTINUE_ATTACK_RESULT';
+        playerId: PlayerId;
     };

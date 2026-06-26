@@ -17,59 +17,93 @@ function makeState(): GameState {
             p2: { ...s.players['p2'], actionPoints: 5, cardsInHand: [] },
         },
         units: {
-            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 8, difficulty: 6, range: 4, movementCost: 2, class: 'archer', abilities: ['blanco_facil', 'disparo_rapido', 'fuego_cobertura', 'accion_evasiva'] },
-            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'] },
-            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
-            u4: { id: 'u4', owner: 'p2', position: { q: 3, r: 1 }, attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'] },
-            gen: { id: 'gen', owner: 'p2', position: { q: 5, r: 0 }, attack: 5, hp: 15, difficulty: 6, range: 1, movementCost: 1, class: 'general', abilities: [] },
+            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2, class: 'archer', abilities: ['blanco_facil', 'patada_acrobatica', 'fuego_cobertura', 'accion_evasiva'] },
+            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'] },
+            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
+            u4: { id: 'u4', owner: 'p2', position: { q: 3, r: 1 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'] },
+            gen: { id: 'gen', owner: 'p2', position: { q: 5, r: 0 }, attack: 4, hp: 20, difficulty: 6, range: 1, movementCost: 1, class: 'general', abilities: [] },
         }
     };
     return s;
 }
 
-// ── Disparo rápido ──
+// ── Patada acrobática ──
 
 {
     const state = makeState();
-    // u1 (arquero en 0,0) ataca a u3 (infantry en 4,0) — distancia 4 > 2, no debería poder
+    // u1 (arquero en 0,0), u3 está en (4,0) — distancia 4 > 1, no adyacente → rechazado
     const result = applyAction(state, {
         type: 'USE_ABILITY',
         playerId: 'p1',
         unitId: 'u1',
-        abilityId: 'disparo_rapido',
-        targetId: 'u3'
+        abilityId: 'patada_acrobatica',
+        targetId: 'u3',
+        to: { q: 1, r: 0 }
     });
 
     assert(result === state,
-        'Disparo rápido — rechazado si distancia > 2');
+        'Patada acrobática — rechazado si enemigo no está adyacente');
 }
 
 {
     const state = makeState();
-    // Mover u3 a distancia 2 de u1
-    const moved: GameState = {
+    // u1 (arquero en 0,0), mover u3 a (1,0) — adyacente
+    const adjacent: GameState = {
         ...state,
         units: {
             ...state.units,
-            u3: { ...state.units['u3'], position: { q: 2, r: 0 } }
+            u3: { ...state.units['u3'], position: { q: 1, r: 0 } }
         }
     };
 
-    // Poner dificultad baja para garantizar impacto
-    moved.units['u1'] = { ...moved.units['u1'], difficulty: 2 };
-
-    const result = applyAction(moved, {
+    // Destino (0,1) está adyacente a u1 pero no a u3 en (1,0) → distancia 1 a u1, distancia 1 a u3 = inválido
+    // (1,0) está a distancia 1 de u3, que es 0 (misma posición) o 1 → inválido
+    // Probar un destino inválido: (0,1) está a distancia 1 de u3 (1,0)? hexDistance((0,1),(1,0)) = 1 → adyacente → inválido
+    const resultInvalidDest = applyAction(adjacent, {
         type: 'USE_ABILITY',
         playerId: 'p1',
         unitId: 'u1',
-        abilityId: 'disparo_rapido',
-        targetId: 'u3'
+        abilityId: 'patada_acrobatica',
+        targetId: 'u3',
+        to: { q: 0, r: 1 }
     });
 
-    assert(result !== moved,
-        'Disparo rápido — ejecutado si distancia ≤ 2');
-    assert(result.players['p1'].actionPoints === 9,
-        'Disparo rápido — cuesta 1 PA');
+    assert(resultInvalidDest === adjacent,
+        'Patada acrobática — rechazado si destino está adyacente al enemigo');
+}
+
+{
+    const state = makeState();
+    // u1 (arquero en 0,0), u3 en (1,0) — adyacente
+    // Destino válido: (0,-1) está adyacente a u1 (dist 1) y a distancia 2 de u3 (1,0) → no adyacente
+    const setup: GameState = {
+        ...state,
+        units: {
+            ...state.units,
+            u3: { ...state.units['u3'], position: { q: 1, r: 0 } }
+        }
+    };
+
+    const result = applyAction(setup, {
+        type: 'USE_ABILITY',
+        playerId: 'p1',
+        unitId: 'u1',
+        abilityId: 'patada_acrobatica',
+        targetId: 'u3',
+        to: { q: 0, r: -1 }
+    });
+
+    assert(result !== setup,
+        'Patada acrobática — ejecutado');
+    assertEqual(result.players['p1'].actionPoints, 9,
+        'Patada acrobática — cuesta 1 PA');
+    assertEqual(result.units['u1'].position.q, 0,
+        'Patada acrobática — u1 se movió a q=0');
+    assertEqual(result.units['u1'].position.r, -1,
+        'Patada acrobática — u1 se movió a r=-1');
+    // u3 debe tener 1 de daño (hp 16 - 1 = 15)
+    assertEqual(result.units['u3'].hp, 15,
+        'Patada acrobática — u3 recibió 1 de daño');
 }
 
 // ── Cabalgar ──
@@ -239,8 +273,8 @@ function makeState(): GameState {
 // ── Fuego de cobertura ──
 
 {
-    const state = makeState();
-    // u1 (archer en 0,0) ataca a u3 (infantry en 4,0) — distancia 4 = rango
+    const state = { ...makeState(), units: { ...makeState().units, u3: { ...makeState().units['u3'], position: { q: 3, r: 0 } } } };
+    // u1 (archer en 0,0) ataca a u3 (infantry en 3,0) — distancia 3 = rango máximo
     const result = applyAction(state, {
         type: 'USE_ABILITY',
         playerId: 'p1',
@@ -356,6 +390,8 @@ function makeState(): GameState {
         'Ventaja alcance — éxito a distancia = rango+1');
     assertEqual(result.players['p1'].actionPoints, 9,
         'Ventaja alcance — cuesta 1 PA');
+    assert(result.units['u5']?.attackedThisTurn === true,
+        'Ventaja alcance — marca attackedThisTurn (reemplaza ataque básico)');
 }
 
 // ── Exclusión mutua: ventaja_alcance → doble_ataque bloqueado ──
@@ -392,6 +428,41 @@ function makeState(): GameState {
         });
         assert(result === afterVA,
             'Ventaja alcance + doble ataque — rechazado (mutuamente excluyentes)');
+    }
+}
+
+// ── Ventaja de alcance bloquea ataque básico ──
+
+{
+    const state = makeState();
+    const withLancer: GameState = {
+        ...state,
+        units: {
+            ...state.units,
+            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 0 }, attack: 4, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'] },
+            uTarget: { id: 'uTarget', owner: 'p2', position: { q: 2, r: 0 }, attack: 3, hp: 5, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: [] },
+        }
+    };
+
+    const afterVA = applyAction(withLancer, {
+        type: 'USE_ABILITY',
+        playerId: 'p1',
+        unitId: 'u5',
+        abilityId: 'ventaja_alcance',
+        targetId: 'uTarget'
+    });
+
+    // Si el target sobrevive, intentar ataque básico debe ser rechazado
+    const targetAlive = afterVA.units['uTarget'];
+    if (targetAlive) {
+        const result = applyAction(afterVA, {
+            type: 'ATTACK_UNIT',
+            playerId: 'p1',
+            unitId: 'u5',
+            targetId: 'uTarget',
+        });
+        assert(result === afterVA,
+            'Ventaja alcance + ataque básico — rechazado (ventaja reemplaza al básico)');
     }
 }
 
@@ -509,7 +580,7 @@ function makeState(): GameState {
 
 {
     const state = makeState();
-    // Lancer ataca cavalry → +2 daño
+    // Lancer ataca cavalry → +1 daño
     const setup: GameState = {
         ...state,
         units: {
@@ -531,9 +602,9 @@ function makeState(): GameState {
             'Anti-caballería — u2 eliminado');
     } else {
         const hpLost = 10 - targetAfter.hp;
-        // attack=3, anti-caballería +2 → daño 5
-        assert(hpLost >= 3 && hpLost <= 8,
-            `Anti-caballería — daño entre 3-8 (recibido ${hpLost})`);
+        // attack=3, anti-caballería +1 → daño 4 (o 6 con crítico)
+        assert(hpLost >= 4 && hpLost <= 6,
+            `Anti-caballería — daño entre 4-6 (recibido ${hpLost})`);
     }
 }
 

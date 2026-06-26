@@ -4,6 +4,7 @@ import { hexDistance } from '../../hex';
 import { isHexOccupied, isWithinBounds, countPlayerClasses } from '../utils';
 import { createUnit } from '../units';
 import { applyTurnStart } from './turn';
+import { applyIdentityEffects } from './identity-apply';
 
 function getTargetForStep(step: number): number {
     if (step === 0) return 1;   // order[0] (menor dado) coloca 1 primero
@@ -75,8 +76,9 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
     const nextStep = state.deploymentStep + 1;
 
     if (nextStep >= 12) {
+        const identityApplied = applyIdentityEffects(newState);
         const postDeploy: GameState = {
-            ...newState,
+            ...identityApplied,
             deploymentCount: 0,
             deploymentStep: nextStep,
             gamePhase: 'GAME',

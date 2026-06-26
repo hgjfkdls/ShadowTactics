@@ -1,10 +1,11 @@
-import type { GameState } from '../state';
+import type { GameState, PlayerId } from '../state';
 import type { GameAction } from '../action-types';
 import { hexDistance } from '../../hex';
 import { pipeState, isHexOccupied, isWithinBounds, updateUnit } from '../utils';
 import { getMovementCost } from '../movement';
 import { getPlayerAP, consumeAP, updateUnitPos } from './helpers';
-import { consumeModifier, modifierExists } from '../modifiers/engine';
+import { consumeModifier, modifierExists, addModifier } from '../modifiers/engine';
+
 
 export function handleMove(state: GameState, action: GameAction): GameState {
     if (action.type !== 'MOVE_UNIT') return state;
@@ -42,16 +43,57 @@ export function handleMove(state: GameState, action: GameAction): GameState {
 
     if (ap < cost) return state;
 
+    // Voz de mando (Comandante Supremo): si no es el general y el bono está listo
+    const identity = state.players[playerId]?.selectedIdentity ?? '';
+    const isGeneral = unit.class === 'general';
+    const vozDeMando = identity.startsWith('comandante_supremo') && state.players[playerId]?.vozDeMandoReady;
+    const useVozBonus = !isGeneral && vozDeMando;
+    if (useVozBonus) {
+        cost = Math.max(0, cost - 1);
+    }
+
     let s = pipeState(
         state,
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnitPos(s, unit.id, to),
-        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, didMovePreviousTurn: true })),
+        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, didMovePreviousTurn: true, performedActionThisTurn: true })),
         (s) => hasSurcharge ? updateUnit(s, unit.id, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
     );
 
     // Consumir modificador de movementCost
     s = consumeModifier(s, playerId, 'movementCost', 1);
+
+    // Voz de mando (Comandante Supremo)
+    if (identity.startsWith('comandante_supremo')) {
+        if (isGeneral && !state.players[playerId]?.vozDeMandoReady) {
+            // General se movió → activar bono
+            s = {
+                ...s,
+                players: {
+                    ...s.players,
+                    [playerId]: { ...s.players[playerId], vozDeMandoReady: true },
+                },
+            };
+        } else if (useVozBonus) {
+            // Aliado usó el bono → consumir para todos, marcar esta unidad y dar doble bono de Plan de Batalla
+            s = updateUnit(s, unit.id, (u) => ({ ...u, usedVozDeMando: true }));
+            // Dar doble bono: duplicar el valor del modificador de Plan de Batalla existente
+            const existingAttack = s.activeModifiers.find(m => m.targetId === unit.id && m.stat === 'attack' && m.value > 0);
+            const existingDamage = s.activeModifiers.find(m => m.targetId === unit.id && m.stat === 'damage' && m.value < 0);
+            if (existingAttack) {
+                s = { ...s, activeModifiers: s.activeModifiers.map(m => m.id === existingAttack.id ? { ...m, value: m.value + existingAttack.value } : m) };
+            } else if (existingDamage) {
+                s = { ...s, activeModifiers: s.activeModifiers.map(m => m.id === existingDamage.id ? { ...m, value: m.value + existingDamage.value } : m) };
+            }
+            s = {
+                ...s,
+                players: {
+                    ...s.players,
+                    [playerId]: { ...s.players[playerId], vozDeMandoReady: false },
+                },
+            };
+        }
+    }
 
     return s;
 }

@@ -32,7 +32,7 @@ export const IDENTITY_INFO: Record<string, { name: string; className: string; de
             'Thor, el dios nórdico del trueno. Su martillo forja tormentas y bendice a los suyos con rayos divinos.',
             '',
             'Especial — Rayo celestial (coste 1)',
-            'Tu General gana las pasivas Resistencia y Presión de infantería. Elige un aliado a rango ≤ 2 que realice ataques cuerpo a cuerpo: su siguiente ataque hace +3 de daño. El efecto termina después del ataque. Cada vez que usas esta habilidad, el daño se reduce en 1. [+3/+2/+1]',
+            'Tu General gana las pasivas Resistencia y Presión de infantería. Elige un aliado a rango ≤ 2 que tenga rango 1: su siguiente ataque hace +3 de daño. El efecto termina después del ataque. Cada vez que usas esta habilidad, el daño se reduce en 1. [+3/+2/+1]',
             '',
             'Global — Furia berserker (Pasiva)',
             'El General y tus unidades de infantería hacen +1 de daño mientras tengan 50% o menos de HP.',

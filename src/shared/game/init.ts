@@ -43,6 +43,7 @@ export function createInitialGameState(seed?: number): GameState {
             p1: {
                 actionPoints: 0,
                 carryOver: 0,
+                lastAcknowledgedIndex: -1,
 
                 cardsInHand: [],
 
@@ -51,20 +52,20 @@ export function createInitialGameState(seed?: number): GameState {
                 selectedIdentity: undefined,
                 revealedIdentity: undefined,
 
-                // DESPLIEGUE — 13 unidades pre-claseadas (3 por clase + 1 general)
+                // DESPLIEGUE — 13 unidades (3 por clase + 1 general)
                 unitsToDeploy: [
-                    { unitId: 'u1',  unitClass: 'archer' },
-                    { unitId: 'u2',  unitClass: 'archer' },
-                    { unitId: 'u3',  unitClass: 'archer' },
-                    { unitId: 'u4',  unitClass: 'infantry' },
-                    { unitId: 'u5',  unitClass: 'infantry' },
-                    { unitId: 'u6',  unitClass: 'infantry' },
-                    { unitId: 'u7',  unitClass: 'cavalry' },
-                    { unitId: 'u8',  unitClass: 'cavalry' },
-                    { unitId: 'u9',  unitClass: 'cavalry' },
-                    { unitId: 'u10', unitClass: 'lancer' },
-                    { unitId: 'u11', unitClass: 'lancer' },
-                    { unitId: 'u12', unitClass: 'lancer' },
+                    { unitId: 'u1',  unitClass: 'cavalry' },
+                    { unitId: 'u2',  unitClass: 'cavalry' },
+                    { unitId: 'u3',  unitClass: 'cavalry' },
+                    { unitId: 'u4',  unitClass: 'lancer' },
+                    { unitId: 'u5',  unitClass: 'lancer' },
+                    { unitId: 'u6',  unitClass: 'lancer' },
+                    { unitId: 'u7',  unitClass: 'infantry' },
+                    { unitId: 'u8',  unitClass: 'infantry' },
+                    { unitId: 'u9',  unitClass: 'infantry' },
+                    { unitId: 'u10', unitClass: 'archer' },
+                    { unitId: 'u11', unitClass: 'archer' },
+                    { unitId: 'u12', unitClass: 'archer' },
                     { unitId: 'u13', unitClass: 'general' },
                 ],
                 deployedUnits: [],
@@ -72,6 +73,7 @@ export function createInitialGameState(seed?: number): GameState {
             p2: {
                 actionPoints: 0,
                 carryOver: 0,
+                lastAcknowledgedIndex: -1,
 
                 cardsInHand: [],
 
@@ -80,20 +82,20 @@ export function createInitialGameState(seed?: number): GameState {
                 selectedIdentity: undefined,
                 revealedIdentity: undefined,
 
-                // DESPLIEGUE — 13 unidades pre-claseadas (3 por clase + 1 general)
+                // DESPLIEGUE — 13 unidades (3 por clase + 1 general)
                 unitsToDeploy: [
-                    { unitId: 'u14', unitClass: 'archer' },
-                    { unitId: 'u15', unitClass: 'archer' },
-                    { unitId: 'u16', unitClass: 'archer' },
-                    { unitId: 'u17', unitClass: 'infantry' },
-                    { unitId: 'u18', unitClass: 'infantry' },
-                    { unitId: 'u19', unitClass: 'infantry' },
-                    { unitId: 'u20', unitClass: 'cavalry' },
-                    { unitId: 'u21', unitClass: 'cavalry' },
-                    { unitId: 'u22', unitClass: 'cavalry' },
-                    { unitId: 'u23', unitClass: 'lancer' },
-                    { unitId: 'u24', unitClass: 'lancer' },
-                    { unitId: 'u25', unitClass: 'lancer' },
+                    { unitId: 'u14', unitClass: 'cavalry' },
+                    { unitId: 'u15', unitClass: 'cavalry' },
+                    { unitId: 'u16', unitClass: 'cavalry' },
+                    { unitId: 'u17', unitClass: 'lancer' },
+                    { unitId: 'u18', unitClass: 'lancer' },
+                    { unitId: 'u19', unitClass: 'lancer' },
+                    { unitId: 'u20', unitClass: 'infantry' },
+                    { unitId: 'u21', unitClass: 'infantry' },
+                    { unitId: 'u22', unitClass: 'infantry' },
+                    { unitId: 'u23', unitClass: 'archer' },
+                    { unitId: 'u24', unitClass: 'archer' },
+                    { unitId: 'u25', unitClass: 'archer' },
                     { unitId: 'u26', unitClass: 'general' },
                 ],
                 deployedUnits: [],
@@ -118,6 +120,7 @@ export function createInitialGameState(seed?: number): GameState {
         activeModifiers: [],
         nextModifierId: 1,
         lastCardAction: undefined,
+        attackResults: [],
 
     };
 }

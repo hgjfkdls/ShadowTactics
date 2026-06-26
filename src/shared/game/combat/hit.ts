@@ -1,7 +1,7 @@
 import type { Unit } from '../state';
 
 export function getDifficulty(unit: Unit, distance: number): number {
-    if (unit.class === 'archer') {
+    if (unit.class === 'archer' || (unit.abilities ?? []).includes('blanco_facil')) {
         return 5 + distance;
     }
     return unit.difficulty;

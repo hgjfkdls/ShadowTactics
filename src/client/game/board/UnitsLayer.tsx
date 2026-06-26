@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { hexDistance, getDifficulty } from '@shared';
-import type { GameState, GameAction, UnitId, ModifierInstance } from '@shared';
+import type { GameState, GameAction, UnitId, ModifierInstance, HexCoord } from '@shared';
 import type { Unit } from '@shared/game/state';
 import { axialToPixel } from './hexMath';
 import { ABILITIES } from '@shared/game/data/abilities';
@@ -13,6 +13,11 @@ type Props = {
     pendingAbilityUnitId?: UnitId | null;
     playerId?: string;
     canAct?: boolean;
+    identityTargetMode?: boolean;
+    onIdentityTargetSelect?: (unitId: UnitId) => void;
+    onPatadaTargetSelect?: (unitId: UnitId) => void;
+    animPositions?: Record<string, HexCoord>;
+    movingUnitId?: UnitId | null;
     onSelectUnit: (unitId: UnitId) => void;
     onRequestMove?: (unitId: UnitId) => void;
     onRequestAttack?: (unitId: UnitId) => void;
@@ -24,7 +29,7 @@ type Props = {
 };
 
 const MAX_HP: Record<string, number> = {
-    general: 15, infantry: 12, cavalry: 10, archer: 8, lancer: 10,
+    general: 20, infantry: 16, cavalry: 14, archer: 12, lancer: 14,
 };
 
 function getMaxHp(cls: string): number {
@@ -35,61 +40,199 @@ const TOKEN_W = 38;
 const TOKEN_H = 46;
 const TOKEN_RX = 7;
 
-export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbilityId, pendingAbilityUnitId, playerId, canAct, onSelectUnit, onRequestMove, onRequestAttack, onAttackUnit, onRequestAbilityTarget, onUseAbilityOnUnit, onInfoSelect, sendAction }: Props) {
+export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbilityId, pendingAbilityUnitId, playerId, canAct, identityTargetMode, onIdentityTargetSelect, onPatadaTargetSelect, animPositions, movingUnitId, onSelectUnit, onRequestMove, onRequestAttack, onAttackUnit, onRequestAbilityTarget, onUseAbilityOnUnit, onInfoSelect, sendAction }: Props) {
     const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
 
     const units = Object.values(state.units);
 
     // Hovered unit last so its <g> (including tooltip) draws on top
+    // Selected unit second to last so its persistent tooltip isn't covered
     const sortedUnits = [...units].sort((a, b) => {
         if (a.id === hoveredUnitId) return 1;
         if (b.id === hoveredUnitId) return -1;
+        if (a.id === selectedUnitId) return 1;
+        if (b.id === selectedUnitId) return -1;
         return 0;
     });
 
     return (
         <>
             {sortedUnits.map(unit => {
-                const { x, y } = axialToPixel(unit.position);
+                const animPos = animPositions?.[unit.id];
+                const renderPos = animPos ?? unit.position;
+                const { x, y } = axialToPixel(renderPos);
                 const selected = unit.id === selectedUnitId;
                 const hovered = hoveredUnitId === unit.id;
                 const maxHp = getMaxHp(unit.class);
                 const { buffs, debuffs } = getUnitStatus(unit, state.activeModifiers);
 
+                const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
                 const attackingUnit = attackingUnitId ? state.units[attackingUnitId] : null;
-                const isAttackTarget = attackingUnit !== null && unit.owner !== playerId && hexDistance(attackingUnit.position, unit.position) <= attackingUnit.range;
+                const identityBonus = (state.players[attackingUnit?.owner ?? '']?.selectedIdentity ?? '').startsWith('francotirador') ? 1 : 0;
+                const espartanoRangeBonus = attackingUnit?.espartanoRangeBonus ? 1 : 0;
+                const attackRange = (attackingUnit?.range ?? 0) + identityBonus + espartanoRangeBonus;
+                const isAttackTarget = attackingUnit !== null && unit.owner !== playerId && hexDistance(attackingUnit.position, unit.position) <= attackRange;
 
                 const pendingAttacker = pendingAbilityId && pendingAbilityUnitId ? state.units[pendingAbilityUnitId] : null;
-                const hasBlancoFacil = (attackingUnit?.abilities ?? []).includes('blanco_facil')
-                    || (pendingAbilityId && pendingAttacker && ['disparo_rapido', 'fuego_cobertura'].includes(pendingAbilityId) && (pendingAttacker.abilities ?? []).includes('blanco_facil'));
-                const isBlancoFacilTarget = hasBlancoFacil && unit.owner !== playerId && !unit.didMovePreviousTurn;
+                const hasBlancoFacil = (selectedUnit?.owner === playerId && (selectedUnit?.abilities ?? []).includes('blanco_facil'))
+                    || (attackingUnit?.abilities ?? []).includes('blanco_facil')
+                    || (pendingAbilityId && pendingAttacker && ['patada_acrobatica', 'fuego_cobertura'].includes(pendingAbilityId) && (pendingAttacker.abilities ?? []).includes('blanco_facil'));
+                const isBlancoFacilTarget = hasBlancoFacil && unit.owner !== playerId && unit.didMovePreviousTurn === false;
 
                 const unitAbilities = unit.abilities ?? [];
                 const hasActiveShield = unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false
                     || unitAbilities.includes('resistencia') && !unit.timesDamagedThisTurn;
-                const isAttacking = attackingUnitId !== null || (pendingAbilityId !== null && ['disparo_rapido', 'fuego_cobertura'].includes(pendingAbilityId));
-                const showShield = isAttacking && unit.owner !== playerId && unit.class === 'infantry' && hasActiveShield;
+                const isAttacking = attackingUnitId !== null || (pendingAbilityId !== null && ['patada_acrobatica', 'fuego_cobertura'].includes(pendingAbilityId));
+                const attackerHasRomperFilas = !!(attackingUnit?.abilities ?? []).includes('romper_filas') || !!(selectedUnit?.abilities ?? []).includes('romper_filas');
+                const hasShieldClass = unit.class === 'infantry' || (unit.class === 'general' && (unitAbilities.includes('resistencia') || unitAbilities.includes('linea_defensiva')));
+                const showShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && hasShieldClass && hasActiveShield && !attackerHasRomperFilas;
 
-                const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
-                const showSword = selectedUnit && selectedUnit.owner === playerId && selectedUnit.class === 'infantry'
+                const hasPresionClass = selectedUnit?.class === 'infantry' || (selectedUnit?.class === 'general' && (selectedUnit?.abilities ?? []).includes('presion'));
+                const showSword = selectedUnit && selectedUnit.owner === playerId && hasPresionClass
                     && (selectedUnit.abilities ?? []).includes('presion')
                     && unit.owner !== playerId && selectedUnit.lastTargetId === unit.id;
 
+                const showAnticaballeria = !!selectedUnit && selectedUnit.owner === playerId
+                    && (selectedUnit.abilities ?? []).includes('anti_caballeria')
+                    && unit.owner !== playerId && unit.class === 'cavalry';
+
+                const isCazador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('cazadores');
+                const isIsolated = unit.owner !== playerId && !Object.values(state.units)
+                    .some(u => u.owner !== playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1);
+                const showAcechar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && selectedUnit.class === 'general' && unit.owner !== playerId && isIsolated;
+                const showHostigar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && unit.owner !== playerId
+                    && (selectedUnit.class === 'general' || selectedUnit.class === 'cavalry')
+                    && unit.hp <= Math.floor((MAX_HP[unit.class] ?? 10) / 2);
+                const showCazadorDiana = showAcechar || showHostigar;
+
+                const showFormacionDefensiva = !!selectedUnit && selectedUnit.owner === playerId
+                    && selectedUnit.class === 'cavalry'
+                    && unit.owner !== playerId && unit.class === 'lancer'
+                    && unitAbilities.includes('formacion_defensiva');
+
+                const showCelestialRay = (unit.celestialRayDamageBonus ?? 0) > 0;
+
+                const unitOwnerIdentity = state.players[unit.owner]?.selectedIdentity ?? '';
+                // Monje Shaolin: resistencia por meditación (modifier damage -1)
+                const hasDamageReductionMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'damage' && m.value < 0 && (m.remainingUses ?? 1) > 0);
+                const hasAttackBonusMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0);
+                const isMonjeShaolin = unitOwnerIdentity.startsWith('monje_shaolin');
+                const isCorazonEstratega = unitOwnerIdentity.startsWith('corazon_estratega');
+                const isComandanteSupremo = unitOwnerIdentity.startsWith('comandante_supremo');
+                const isInspiracionReal = unitOwnerIdentity.startsWith('inspiracion_real');
+                const showMeditacionShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && hasDamageReductionMod && isMonjeShaolin;
+                const showFormacionLineaShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && hasDamageReductionMod && isCorazonEstratega;
+                const showFormacionTrianguloDiana = unit.owner === playerId && hasAttackBonusMod && isCorazonEstratega && !!selectedUnit;
+
+                // Comandante Supremo
+                const hasAvanzarBuff = isComandanteSupremo && hasAttackBonusMod;
+                const hasReagruparBuff = isComandanteSupremo && hasDamageReductionMod;
+                const vozDeMandoActivo = state.players[playerId]?.vozDeMandoReady === true && unit.class !== 'general';
+                const showAvanzarDiana = unit.owner === playerId && hasAvanzarBuff && !!selectedUnit;
+                const showReagruparShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && hasReagruparBuff;
+                const showReagruparSelf = unit.owner === playerId && hasReagruparBuff && !!selectedUnit;
+
+                // Inspiración Real: Guardia real
+                const guardiaAtk = isInspiracionReal && hasAttackBonusMod;
+                const guardiaDef = isInspiracionReal && hasDamageReductionMod;
+                const showGuardiaDiana = unit.owner === playerId && guardiaAtk && !!selectedUnit;
+                const showGuardiaShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && guardiaDef;
+                // En nombre del rey: escudo real visible en hover
+                const hasRoyalShield = unit.royalShieldSavedHp !== undefined;
+
+                // Voz de mando: persiste en tooltip hasta el siguiente turno
+                const showVozDeMandoReady = vozDeMandoActivo && unit.owner === playerId;
+                const showVozDeMandoUsed = !!unit.usedVozDeMando && unit.owner === playerId;
+
+                // Valores reales de los modificadores (para mostrar +2/-2 con Voz de Mando)
+                const atkModSum = state.activeModifiers
+                    .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0)
+                    .reduce((s, m) => s + m.value, 0);
+                const dmgModSum = state.activeModifiers
+                    .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'damage' && m.value < 0 && (m.remainingUses ?? 1) > 0)
+                    .reduce((s, m) => s + m.value, 0);
+
+                const isDiosTrueno = unitOwnerIdentity.startsWith('dios_trueno');
+                const showFuriaBerserker = isDiosTrueno && (unit.class === 'infantry' || unit.class === 'general')
+                    && unit.hp <= Math.floor((MAX_HP[unit.class] ?? 10) / 2);
+                const liderarNextTurn = state.players[unit.owner]?.nextTurnGlobalPresion;
+                const liderarActive = state.players[unit.owner]?.globalPresionActive;
+                const isInfantryOrGeneral = unit.class === 'infantry' || unit.class === 'general';
+                const showLiderarTropas = liderarNextTurn
+                    ? unit.class === 'general'
+                    : liderarActive && isInfantryOrGeneral;
+
                 const passiveLabels: string[] = [];
-                if (isBlancoFacilTarget) passiveLabels.push('Blanco fácil (-1 dificultad)');
+                const isFrancotirador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('francotirador');
+                if (isBlancoFacilTarget) passiveLabels.push(`Blanco fácil (${isFrancotirador ? '-2' : '-1'} dificultad)`);
                 if (showSword) passiveLabels.push('Presión (+1 daño)');
+                if (showAnticaballeria) passiveLabels.push('Anti-caballería (+1 daño)');
+                if (showFormacionDefensiva) {
+                    passiveLabels.push('Form. defensiva (anula Carga)');
+                    passiveLabels.push('Form. defensiva (+1 contraataque)');
+                }
                 if (showShield) {
                     if (unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false) passiveLabels.push('Línea defensiva (-1 daño)');
                     else if (unitAbilities.includes('resistencia') && !unit.timesDamagedThisTurn) passiveLabels.push('Resistencia (-1 daño)');
                 }
+                if (showMeditacionShield) passiveLabels.push('Meditación (-1 daño)');
+                if (showFormacionLineaShield) passiveLabels.push('Formación línea (-1 daño)');
+                if (showFormacionTrianguloDiana) passiveLabels.push('Formación triángulo (+1 daño)');
+                if (showVozDeMandoReady || showVozDeMandoUsed) passiveLabels.push('Voz de mando');
+                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`Plan de batalla: Avanzar (+${atkModSum} daño)`);
+                if (showReagruparShield || showReagruparSelf) {
+                    if (dmgModSum < 0) passiveLabels.push(`Plan de batalla: Reagruparse (${dmgModSum} daño)`);
+                }
+                if (showGuardiaDiana && atkModSum > 0) passiveLabels.push(`Guardia real (+${atkModSum} ataque)`);
+                if (showGuardiaShield && dmgModSum < 0) passiveLabels.push(`Guardia real (${dmgModSum} daño)`);
+                if (hasRoyalShield) passiveLabels.push('Escudo real (+3 HP temporal)');
+                if (unitOwnerIdentity.startsWith('capitan_guardia') && unit.class === 'general') {
+                    const usado = unit.usedCounterattack ? ' (agotado)' : '';
+                    passiveLabels.push(`Contraataque (acierto: +1, fallo: +3)${usado}`);
+                }
+                if (showAcechar) passiveLabels.push(`Acechar (+${unit.class === 'general' ? 1 : 2} daño)`);
+                if (showHostigar) passiveLabels.push('Hostigar (-1 dificultad)');
+                if (showCelestialRay) passiveLabels.push(`Rayo celestial (+${unit.celestialRayDamageBonus} daño)`);
+                if (showFuriaBerserker) passiveLabels.push('Furia berserker (+1 daño)');
+                if (liderarNextTurn && unit.class === 'general') passiveLabels.push('Liderar a las tropas (próximo turno)');
+                if (liderarActive && isInfantryOrGeneral) passiveLabels.push('Liderar a las tropas (+1 daño)');
+                if (isDiosTrueno && unit.class === 'general') {
+                    const rayBonus = state.players[unit.owner]?.celestialRayBonus ?? 0;
+                    if (rayBonus > 0) passiveLabels.push(`Rayo celestial disponible (+${rayBonus} daño)`);
+                }
 
-                const attackAbilities = new Set(['disparo_rapido', 'fuego_cobertura', 'carga', 'doble_ataque', 'ventaja_alcance']);
+                if (isMonjeShaolin) passiveLabels.push('Karma (+2 daño al morir)');
+
+                const isEspartano = unitOwnerIdentity.startsWith('espartano');
+                if (unit.espartanoRangeBonus) passiveLabels.push('Lanza y escudo (+1 rango)');
+                if (unit.espartanoDefenseBonus) passiveLabels.push('Lanza y escudo (-1 daño recibido)');
+                if (isEspartano && unit.class === 'lancer') {
+                    const hasAdjLancer = Object.values(state.units)
+                        .some(u => u.owner === unit.owner && u.class === 'lancer' && u.id !== unit.id && hexDistance(unit.position, u.position) === 1);
+                    if (hasAdjLancer) passiveLabels.push('Muro espartano (-1 daño)');
+                }
+
+                const attackAbilities = new Set(['patada_acrobatica', 'fuego_cobertura', 'carga', 'doble_ataque', 'ventaja_alcance']);
                 const isAbilityTarget = pendingAttacker && unit.owner !== playerId && isEnemyInAbilityRange(pendingAttacker.position, unit.position, pendingAbilityId ?? '', pendingAttacker);
 
-                const attackInfo = (attackingUnit && isAttackTarget) || (isAbilityTarget && pendingAttacker) ? {
-                    distance: hexDistance((attackingUnit ?? pendingAttacker!).position, unit.position),
-                    difficulty: getDifficulty(attackingUnit ?? pendingAttacker!, hexDistance((attackingUnit ?? pendingAttacker!).position, unit.position)),
-                } : null;
+                const attackInfo = (attackingUnit && isAttackTarget) || (isAbilityTarget && pendingAttacker) ? (() => {
+                    const attacker = attackingUnit ?? pendingAttacker!;
+                    const dist = hexDistance(attacker.position, unit.position);
+                    const base = getDifficulty(attacker, dist);
+                    let final = base;
+                    if (unit.didMovePreviousTurn === false && (attacker.abilities ?? []).includes('blanco_facil')) {
+                        const isFranco = (state.players[attacker.owner]?.selectedIdentity ?? '').startsWith('francotirador');
+                        final -= isFranco ? 2 : 1;
+                    }
+                    if ((state.players[attacker.owner]?.selectedIdentity ?? '').startsWith('cazadores')) {
+                        const isCavOrGen = attacker.class === 'cavalry' || attacker.class === 'general';
+                        if (isCavOrGen && unit.hp <= Math.floor((MAX_HP[unit.class] ?? 10) / 2)) {
+                            final -= 1;
+                        }
+                    }
+                    if (pendingAbilityId === 'carga') final -= 1;
+                    return { distance: dist, difficulty: final, baseDifficulty: base };
+                })() : null;
 
                 const hasAdjacentEnemy = unit.owner === playerId && Object.values(state.units)
                     .filter(u => u.owner !== playerId)
@@ -105,9 +248,15 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         transform={`translate(${x}, ${y})`}
                         onClick={e => {
                             e.stopPropagation();
-                            if (attackingUnitId && isAttackTarget) {
+                            if (identityTargetMode && unit.owner !== playerId && unit.class !== 'general') {
+                                onIdentityTargetSelect?.(unit.id);
+                            } else if (attackingUnitId && isAttackTarget) {
                                 onAttackUnit?.(attackingUnitId, unit.id);
+                            } else if (pendingAbilityId === 'patada_acrobatica' && pendingAbilityUnitId && unit.owner !== playerId) {
+                                onPatadaTargetSelect?.(unit.id);
                             } else if (pendingAbilityId && pendingAbilityUnitId && unit.owner !== playerId) {
+                                onUseAbilityOnUnit?.(pendingAbilityId, pendingAbilityUnitId, unit.id);
+                            } else if (pendingAbilityId && pendingAbilityUnitId && unit.owner === playerId && ABILITIES[pendingAbilityId]?.requiresTarget) {
                                 onUseAbilityOnUnit?.(pendingAbilityId, pendingAbilityUnitId, unit.id);
                             } else {
                                 onInfoSelect?.({ type: 'unit', unitId: unit.id });
@@ -156,7 +305,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             </g>
                         )}
 
-                        {showShield && (
+                        {(showShield || showMeditacionShield || showFormacionLineaShield || showReagruparShield || showReagruparSelf || showGuardiaShield) && (
                             <g transform="translate(-14, -14)" pointerEvents="none">
                                 <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
                                 <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
@@ -165,10 +314,89 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {showSword && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#60a5fa" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#60a5fa" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#60a5fa" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#60a5fa" />
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                            </g>
+                        )}
+
+                        {showAnticaballeria && (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                            </g>
+                        )}
+
+                        {(showFormacionTrianguloDiana || showAvanzarDiana || showGuardiaDiana) && (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                            </g>
+                        )}
+
+                        {showCazadorDiana && (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                            </g>
+                        )}
+
+                        {unit.espartanoRangeBonus && (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                            </g>
+                        )}
+
+                        {unit.espartanoDefenseBonus && (
+                            <g transform="translate(-14, -14)" pointerEvents="none">
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
+                            </g>
+                        )}
+
+                        {isEspartano && unit.class === 'lancer' && (() => {
+                            const hasAdjLancer = Object.values(state.units)
+                                .some(u => u.owner === unit.owner && u.class === 'lancer' && u.id !== unit.id && hexDistance(unit.position, u.position) === 1);
+                            return hasAdjLancer && (
+                                <g transform="translate(-14, -14)" pointerEvents="none">
+                                    <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                    <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
+                                </g>
+                            );
+                        })()}
+
+                        {showFormacionDefensiva && (
+                            <g transform="translate(-14, -14)" pointerEvents="none">
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#f59e0b" stroke="#f59e0b" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#fbbf24" stroke="#f59e0b" strokeWidth={0.8} />
+                            </g>
+                        )}
+
+                        {showCelestialRay ? (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <polygon points="0,-8 -3,0 -1,0 -4,7 2,0 1,0" fill="#facc15" stroke="#ca8a04" strokeWidth={0.8} />
+                            </g>
+                        ) : showFuriaBerserker ? (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                            </g>
+                        ) : showLiderarTropas && (
+                            <g transform="translate(14, -14)" pointerEvents="none">
+                                <line x1={-4} y1={6} x2={-4} y2={-6} stroke="#60a5fa" strokeWidth={1.5} />
+                                <polygon points="-4,-6 7,-5 7,-1 -4,-3" fill="#60a5fa" />
                             </g>
                         )}
 
@@ -189,7 +417,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         )}
 
                         {hovered && (
-                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} sendAction={sendAction} playerId={playerId} canAct={canAct} onSelectUnit={onSelectUnit} onRequestMove={onRequestMove} onRequestAttack={onRequestAttack} onRequestAbilityTarget={onRequestAbilityTarget} hasAdjacentEnemy={hasAdjacentEnemy} attackInfo={attackInfo} closeTooltip={() => setHoveredUnitId(null)} passiveLabels={passiveLabels} />
+                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} passiveLabels={passiveLabels} />
                         )}
                     </g>
                 );
@@ -198,39 +426,32 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
     );
 }
 
-function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct, onSelectUnit, onRequestMove, onRequestAttack, onRequestAbilityTarget, hasAdjacentEnemy, attackInfo, closeTooltip, passiveLabels }: { unit: Unit; maxHp: number; buffs: string[]; debuffs: string[]; sendAction?: (action: GameAction) => void; playerId?: string; canAct?: boolean; onSelectUnit?: (unitId: UnitId) => void; onRequestMove?: (unitId: UnitId) => void; onRequestAttack?: (unitId: UnitId) => void; onRequestAbilityTarget?: (abilityId: string, unitId: UnitId) => void; hasAdjacentEnemy?: boolean; attackInfo: { distance: number; difficulty: number } | null; closeTooltip?: () => void; passiveLabels?: string[] }) {
+function UnitTooltip({ unit, maxHp, buffs, debuffs, attackInfo, passiveLabels }: { unit: Unit; maxHp: number; buffs: string[]; debuffs: string[]; attackInfo: { distance: number; difficulty: number; baseDifficulty: number } | null; passiveLabels?: string[] }) {
     const lineH = 16;
     const padX = 12;
     const padY = 10;
     const colX = TOKEN_W / 2 + 8;
     const firstY = -TOKEN_H + padY;
 
-    const isOwnUnit = unit.owner === playerId;
-    const interactive = canAct && isOwnUnit;
-
-    const activeAbilities = (unit.abilities ?? [])
-        .map(id => ({ id, def: ABILITIES[id] }))
-        .filter(a => a.def?.type === 'active');
-
     const pLen = passiveLabels?.length ?? 0;
     let rows = 2;
-    if (attackInfo) rows += 1;
+    if (attackInfo) rows += 2;
     if (buffs.length > 0) rows += 2 + buffs.length;
     if (debuffs.length > 0) rows += 2 + debuffs.length;
     if (pLen > 0) rows += 1 + pLen;
-    rows += 1 + 2 + activeAbilities.length; // actions header + 2 basic + N abilities
 
-    const tipW = 150;
+    const tipW = 180;
     const tipH = padY * 2 + rows * lineH;
 
-    const attackRow = attackInfo ? 3 : -1;
-    const buffHeaderRow = attackInfo ? 4 : 3;
+    const showAttackInfo = !!attackInfo;
+    const attackRow = showAttackInfo ? 3 : -1;
+    const diffRow = showAttackInfo ? 4 : -1;
+    const buffHeaderRow = showAttackInfo ? 5 : 3;
     const buffStartRow = buffHeaderRow + 1;
-    const debuffHeaderRow = buffs.length > 0 ? buffStartRow + buffs.length : (attackInfo ? 4 : 3);
+    const debuffHeaderRow = buffs.length > 0 ? buffStartRow + buffs.length : (showAttackInfo ? 5 : 3);
     const debuffStartRow = debuffHeaderRow + 1;
     const passiveHeaderRow = debuffs.length > 0 ? debuffStartRow + debuffs.length : debuffHeaderRow;
     const passiveStartRow = passiveHeaderRow + 1;
-    const actionsRow = pLen > 0 ? passiveStartRow + pLen : passiveHeaderRow;
 
     return (
         <g>
@@ -253,10 +474,15 @@ function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct
                 HP: {unit.hp}/{maxHp} ({Math.round((unit.hp / maxHp) * 100)}%)
             </text>
 
-            {attackInfo && (
-                <text x={colX} y={firstY + lineH * attackRow} fontSize={8} fill="#f59e0b" fontWeight="bold" pointerEvents="none">
-                    ⚔️ Distancia: {attackInfo.distance} · Dificultad: {attackInfo.difficulty} ({hitPercent(attackInfo.difficulty)})
-                </text>
+            {showAttackInfo && (
+                <>
+                    <text x={colX} y={firstY + lineH * attackRow} fontSize={8} fill="#f59e0b" fontWeight="bold" pointerEvents="none">
+                        Distancia: {attackInfo!.distance}
+                    </text>
+                    <text x={colX} y={firstY + lineH * diffRow} fontSize={8} fill="#f59e0b" fontWeight="bold" pointerEvents="none">
+                        Dificultad: Base {attackInfo!.baseDifficulty} ({hitPercent(attackInfo!.baseDifficulty)}) · Final {attackInfo!.difficulty} ({hitPercent(attackInfo!.difficulty)})
+                    </text>
+                </>
             )}
 
             {buffs.length > 0 && (
@@ -297,97 +523,6 @@ function UnitTooltip({ unit, maxHp, buffs, debuffs, sendAction, playerId, canAct
                     ))}
                 </>
             )}
-
-            {(() => {
-                const basicActions = [
-                    {
-                        id: '__attack__',
-                        label: unit.attackedThisTurn ? '⚔️ Ya atacó' : '⚔️ Ataque básico',
-                        cost: 1,
-                        disabled: !!unit.attackedThisTurn,
-                    },
-                    { id: '__move__', label: '🏃 Movimiento', cost: unit.movementCost, disabled: false },
-                ];
-
-                const allActions = [
-                    ...basicActions,
-                    ...activeAbilities.map(a => ({
-                        id: a.id,
-                        label: a.def!.name,
-                        cost: a.def!.cost ?? 0,
-                        disabled:
-                            (a.id === 'accion_evasiva' && (!!unit.movedThisTurn || !hasAdjacentEnemy)) ||
-                            (a.id === 'disparo_rapido' && (!!unit.usedCarga || !unit.attackedThisTurn || !!unit.usedDisparoRapido)) ||
-                            (a.id === 'doble_ataque' && (!!unit.usedCarga || !unit.attackedThisTurn || !!unit.usedDobleAtaque)) ||
-                            (a.id === 'cabalgar' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
-                            (a.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)),
-                        def: a.def,
-                    })),
-                ];
-
-                if (allActions.length === 0) return null;
-
-                const labelColor = interactive ? '#60a5fa' : '#4b5563';
-
-                return (
-                    <>
-                        <text
-                            x={colX}
-                            y={firstY + lineH * actionsRow}
-                            fontSize={8}
-                            fill={labelColor}
-                            fontWeight="bold"
-                            pointerEvents="none"
-                        >
-                            ⚡ Acciones
-                        </text>
-                        {allActions.map((a, i) => {
-                            const btnY = firstY + lineH * (actionsRow + 1 + i);
-                            const canClick = interactive && !a.disabled;
-                            const fill = canClick ? '#1e3a5f' : '#374151';
-                            const stroke = canClick ? '#3b82f6' : '#4b5563';
-                            const textClr = canClick ? '#93c5fd' : '#6b7280';
-                            return (
-                                <g key={a.id}>
-                                    <rect
-                                        x={colX}
-                                        y={btnY - 9}
-                                        width={tipW - padX - 6}
-                                        height={12}
-                                        rx={3}
-                                        fill={fill}
-                                        stroke={stroke}
-                                        strokeWidth={0.8}
-                                        style={{ cursor: canClick ? 'pointer' : 'default' }}
-                                        onClick={canClick ? (e => {
-                                            e.stopPropagation();
-                                            if (a.id === '__attack__') {
-                                                onRequestAttack?.(unit.id);
-                                                closeTooltip?.();
-                                            } else if (a.id === '__move__') {
-                                                onRequestMove?.(unit.id);
-                                                closeTooltip?.();
-                                            } else if (a.def) {
-                                                onRequestAbilityTarget?.(a.id, unit.id);
-                                                closeTooltip?.();
-                                            }
-                                        }) : undefined}
-                                    />
-                                    <text
-                                        x={colX + 5}
-                                        y={btnY}
-                                        fontSize={8}
-                                        fill={textClr}
-                                        pointerEvents="none"
-                                    >
-                                        {a.label} ({a.cost} PA)
-                                    </text>
-                                </g>
-                            );
-                        })}
-                    </>
-                );
-            })()}
         </g>
     );
 }
@@ -433,7 +568,7 @@ function hitPercent(difficulty: number): string {
 function isEnemyInAbilityRange(from: { q: number; r: number }, to: { q: number; r: number }, abilityId: string, unit: Unit): boolean {
     const d = hexDistance(from, to);
     switch (abilityId) {
-        case 'disparo_rapido': return d <= 2;
+        case 'patada_acrobatica': return d <= 1;
         case 'carga': {
             if (!unit.cabalgarDir) return false;
             return to.q === from.q + unit.cabalgarDir.dq && to.r === from.r + unit.cabalgarDir.dr;
@@ -470,6 +605,12 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
             continue;
         }
 
+        if (stat === 'damage' && m.value < 0 && m.targetId) {
+            continue;
+        }
+        if (stat === 'attack' && m.value > 0 && m.targetId) {
+            continue;
+        }
         if (harmfulStats.includes(stat)) {
             if (!debuffs.includes(stat)) debuffs.push(stat);
         } else if (helpfulStats.includes(stat)) {

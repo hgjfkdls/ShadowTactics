@@ -32,7 +32,7 @@ export function updateUnit(state: GameState, unitId: string, updater: (unit: Uni
     };
 }
 
-export function killUnit(state: GameState, unitId: string): GameState {
+export function killUnit(state: GameState, unitId: string, killerId?: string): GameState {
     const unit = state.units[unitId];
     if (!unit) return state;
     const { [unitId]: _, ...remainingUnits } = state.units;
@@ -50,6 +50,19 @@ export function killUnit(state: GameState, unitId: string): GameState {
             gamePhase: 'GAME_OVER',
             winner: unit.owner === 'p1' ? 'p2' : 'p1'
         };
+    }
+    // Karma (Monje Shaolin): la unidad que eliminó a esta recibe 2 de daño
+    if (!killerId) {
+        const lastAttack = state.lastAttackResult;
+        if (lastAttack && lastAttack.targetId === unitId) {
+            killerId = lastAttack.attackerId;
+        }
+    }
+    if (killerId) {
+        const identity = state.players[unit.owner]?.selectedIdentity ?? '';
+        if (identity.startsWith('monje_shaolin')) {
+            newState = dealDamage(newState, killerId, 2);
+        }
     }
     return newState;
 }

@@ -2,6 +2,8 @@ import type { GameState, Unit } from '../state';
 import type { AttackInput } from './resolver';
 import { getModifierSum } from '../modifiers/engine';
 import { dealDamage, updateUnit } from '../utils';
+import { BASE_STATS } from '../units';
+import { hexDistance } from '../../hex';
 
 export type CombatResult = {
     difficulty: number;
@@ -32,12 +34,17 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     blanco_facil: {
         onDifficulty: (ctx, r) => {
             if (ctx.abilitySide !== 'attacker') return;
-            if (!ctx.defender.didMovePreviousTurn) r.difficulty -= 1;
+            if (ctx.defender.didMovePreviousTurn === false) {
+                const ownerId = ctx.attacker.owner;
+                const identity = ctx.state.players[ownerId]?.selectedIdentity ?? '';
+                const isFrancotirador = identity.startsWith('francotirador');
+                r.difficulty -= isFrancotirador ? 2 : 1;
+            }
         },
     },
     anti_caballeria: {
         onDamage: (ctx, r) => {
-            if (ctx.defender.class === 'cavalry') r.damage += 2;
+            if (ctx.defender.class === 'cavalry') r.damage += 1;
         },
     },
     presion: {
@@ -94,15 +101,16 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     },
     doble_ataque: {
     },
-    disparo_rapido: {
+    patada_acrobatica: {
     },
 };
 
-export function getUnitModifiers(state: GameState, playerId: string): { difficulty: number; damage: number; attackCost: number } {
+export function getUnitModifiers(state: GameState, playerId: string, unitId?: string): { difficulty: number; attackMod: number; damageMod: number; attackCost: number } {
     return {
-        difficulty: getModifierSum(state, playerId, null, 'difficulty'),
-        damage: getModifierSum(state, playerId, null, 'attack') + getModifierSum(state, playerId, null, 'damage'),
-        attackCost: getModifierSum(state, playerId, null, 'attackCost'),
+        difficulty: getModifierSum(state, playerId, unitId ?? null, 'difficulty'),
+        attackMod: getModifierSum(state, playerId, unitId ?? null, 'attack'),
+        damageMod: getModifierSum(state, playerId, unitId ?? null, 'damage'),
+        attackCost: getModifierSum(state, playerId, unitId ?? null, 'attackCost'),
     };
 }
 
@@ -113,23 +121,67 @@ export function applyDifficultyAbilities(ctx: AbilityContext, result: CombatResu
     for (const ability of ctx.defender.abilities ?? []) {
         ABILITY_EFFECTS[ability]?.onDifficulty?.({ ...ctx, abilitySide: 'defender' }, result);
     }
-    const mods = getUnitModifiers(ctx.state, ctx.attacker.owner);
+    const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
     result.difficulty += mods.difficulty;
+
+    // Hostigar (Cazadores) — caballería -1 dificultad si objetivo tiene ≤ 50% HP
+    const cazadorIdentity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
+    if (cazadorIdentity.startsWith('cazadores')) {
+        const isCavalryOrGeneral = ctx.attacker.class === 'cavalry' || ctx.attacker.class === 'general';
+        if (isCavalryOrGeneral) {
+            const maxHp = BASE_STATS[ctx.defender.class].hp;
+            if (ctx.defender.hp <= Math.floor(maxHp / 2)) {
+                result.difficulty -= 1;
+            }
+        }
+    }
 }
 
 export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult): void {
     for (const ability of ctx.attacker.abilities ?? []) {
         ABILITY_EFFECTS[ability]?.onDamage?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
-    const mods = getUnitModifiers(ctx.state, ctx.attacker.owner);
-    result.damage += mods.damage;
+    const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
+    // Ataque saliente: attack modifiers + damage modifiers positivos (Flechas de fuego)
+    result.damage += mods.attackMod + Math.max(0, mods.damageMod);
+
+    // Furia berserker (Dios del Trueno) — general e infantería +1 daño si HP ≤ 50%
+    const identity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
+    if (identity.startsWith('dios_trueno')) {
+        const isInfantryOrGeneral = ctx.attacker.class === 'infantry' || ctx.attacker.class === 'general';
+        if (isInfantryOrGeneral) {
+            const maxHp = BASE_STATS[ctx.attacker.class].hp;
+            if (ctx.attacker.hp <= Math.floor(maxHp / 2)) {
+                result.damage += 1;
+            }
+        }
+    }
+
+    // Acechar (Cazadores) — +2 daño a unidades aisladas (sin aliados adyacentes)
+    const cazadorIdentity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
+    if (cazadorIdentity.startsWith('cazadores')) {
+        const hasAdjacentAlly = Object.values(ctx.state.units)
+            .some(u => u.owner === ctx.defender.owner && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
+        if (!hasAdjacentAlly) {
+            const bonus = ctx.defender.class === 'general' ? 1 : 2;
+            result.damage += bonus;
+        }
+    }
+
+    // Liderar a las tropas (Capitán de la Guardia) — Presión global para infantería + general
+    if (ctx.state.players[ctx.attacker.owner]?.globalPresionActive) {
+        const isInfantryOrGeneral = ctx.attacker.class === 'infantry' || ctx.attacker.class === 'general';
+        if (isInfantryOrGeneral) {
+            result.damage += 1;
+        }
+    }
 }
 
 export function applyCostAbilities(ctx: AbilityContext, result: CombatResult): void {
     for (const ability of ctx.attacker.abilities ?? []) {
         ABILITY_EFFECTS[ability]?.onCost?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
-    const mods = getUnitModifiers(ctx.state, ctx.attacker.owner);
+    const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
     result.attackCost += mods.attackCost;
 }
 
@@ -140,8 +192,24 @@ export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult)
     for (const ability of ctx.defender.abilities ?? []) {
         ABILITY_EFFECTS[ability]?.onDefense?.({ ...ctx, abilitySide: 'defender' }, result);
     }
-    const mods = getUnitModifiers(ctx.state, ctx.defender.owner);
-    result.damage += mods.damage;
+    const mods = getUnitModifiers(ctx.state, ctx.defender.owner, ctx.defender.id);
+    // damageMod negativo afecta daño entrante (Reagruparse, Mantenimiento sobre el defensor)
+    result.damage += Math.min(0, mods.damageMod);
+
+    // Espartano: Lanza y escudo (-1 daño recibido)
+    if (ctx.defender.espartanoDefenseBonus) {
+        result.damage = Math.max(1, result.damage - 1);
+    }
+
+    // Muro espartano: lanceros adyacentes entre sí reciben -1 daño
+    const espartanoIdentity = ctx.state.players[ctx.defender.owner]?.selectedIdentity ?? '';
+    if (espartanoIdentity.startsWith('espartano') && ctx.defender.class === 'lancer') {
+        const hasAdjacentLancer = Object.values(ctx.state.units)
+            .some(u => u.owner === ctx.defender.owner && u.class === 'lancer' && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
+        if (hasAdjacentLancer) {
+            result.damage = Math.max(1, result.damage - 1);
+        }
+    }
 }
 
 export function applyPostHitAbilities(ctx: AbilityContext, state: GameState, hit: boolean): GameState {

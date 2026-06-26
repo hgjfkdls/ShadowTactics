@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GameState, GameAction } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
 import { getCardName, getCardType } from '@shared/game/actions/card';
@@ -39,12 +39,45 @@ function getIdentityClass(cardId: string | undefined): string {
 
 export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selectedInfo, selectedDeployUnitId, onSelectDeployUnit, onInfoSelect, sendAction }: Props) {
     const opponentId = playerId === 'p1' ? 'p2' : 'p1';
+    const isGameActive = mode === 'GAME' || (mode === 'DEPLOYMENT' && state.gamePhase !== 'PREPARATION');
+
+    const [totalTime, setTotalTime] = useState(0);
+    const gameStartRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (isGameActive && gameStartRef.current === null) {
+            gameStartRef.current = Date.now();
+        }
+    }, [isGameActive]);
+    useEffect(() => {
+        if (!isGameActive) return;
+        const id = setInterval(() => {
+            if (gameStartRef.current) setTotalTime(Math.floor((Date.now() - gameStartRef.current) / 1000));
+        }, 1000);
+        return () => clearInterval(id);
+    }, [isGameActive]);
+
+    function fmtTime(s: number): string {
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return `${m}:${sec.toString().padStart(2, '0')}`;
+    }
 
     return (
         <aside className="h-full border-r border-zinc-700 flex flex-col overflow-hidden bg-zinc-900/80">
+            {isGameActive && (
+                <div className="px-3 py-2 border-b border-zinc-700 space-y-0.5">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase">Turno</span>
+                        <span className="text-sm font-bold text-zinc-200">{state.turn}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase">Tiempo</span>
+                        <span className="text-xs font-bold text-zinc-200">{fmtTime(totalTime)}</span>
+                    </div>
+                </div>
+            )}
             <div className="flex-1 flex flex-col overflow-hidden border-b border-zinc-700">
                 <PlayerHalf
-                    label="Tú"
                     playerId={playerId}
                     isOwner={true}
                     identityCardId={state.players[playerId]?.selectedIdentity}
@@ -61,7 +94,6 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
             </div>
             <div className="flex-1 flex flex-col overflow-hidden">
                 <PlayerHalf
-                    label="Oponente"
                     playerId={opponentId}
                     isOwner={false}
                     identityCardId={state.players[opponentId]?.selectedIdentity}
@@ -78,7 +110,7 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
     );
 }
 
-function PlayerHalf({ label, playerId, isOwner, identityCardId, isActive, isSelected, onIdentityClick, mode, state, selectedDeployUnitId, onSelectDeployUnit, onInfoSelect, sendAction }: {
+function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, onIdentityClick, mode, state, selectedDeployUnitId, onSelectDeployUnit, onInfoSelect, sendAction }: {
     label: string;
     playerId: string;
     isOwner: boolean;
@@ -133,8 +165,23 @@ function PlayerHalf({ label, playerId, isOwner, identityCardId, isActive, isSele
                     : 'bg-red-900/20 border-l-2 border-red-500'
                 : 'border-l-2 border-transparent',
         ].join(' ')}>
+            {/* Player name + active badge */}
+            <div className="flex items-center justify-between px-3 pt-2 pb-2">
+                <span className="text-xs font-semibold text-zinc-200">Jugador {playerId === 'p1' ? '1' : '2'}</span>
+                {isActive && (
+                    <span className={[
+                        'text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap tracking-wide',
+                        playerId === 'p1'
+                            ? 'bg-green-700/60 text-green-200'
+                            : 'bg-red-700/60 text-red-200',
+                    ].join(' ')}>
+                        {mode === 'DEPLOYMENT' ? 'DESPLEGANDO' : 'EN TURNO'}
+                    </span>
+                )}
+            </div>
+
             {/* Compact identity card */}
-            <div className="px-2 pt-2">
+            <div className="px-2 mb-2">
                 <div
                     onClick={onIdentityClick}
                     className={[
@@ -152,28 +199,23 @@ function PlayerHalf({ label, playerId, isOwner, identityCardId, isActive, isSele
                         />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-[10px] text-zinc-500">{label}</div>
                         <div className="text-xs font-bold truncate">{getIdentityName(identityCardId) || '—'}</div>
                         <div className="text-[9px] text-zinc-500">{getIdentityClass(identityCardId)}</div>
                     </div>
-                    {isActive && (
-                        <div className={[
-                            'text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap tracking-wide',
-                            playerId === 'p1'
-                                ? 'bg-green-700/60 text-green-200'
-                                : 'bg-red-700/60 text-red-200',
-                        ].join(' ')}>
-                            {mode === 'DEPLOYMENT' ? 'DESPLEGANDO' : 'EN TURNO'}
-                        </div>
-                    )}
                 </div>
             </div>
 
             {/* Stats row (GAME) */}
             {mode === 'GAME' && (
-                <div className="flex gap-4 px-3 py-2 text-xs text-zinc-400">
-                    <span>PA: <span className="text-zinc-200 font-bold">{actionPoints}</span></span>
-                    <span>Unidades: <span className="text-zinc-200 font-bold">{unitCount}</span></span>
+                <div className="flex gap-3 px-3 py-2 bg-zinc-800/60 border-2 border-zinc-700 mx-2 rounded-lg mb-2">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-zinc-200 font-bold uppercase">PA</span>
+                        <span className="text-sm font-bold text-yellow-400">{actionPoints}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-zinc-200 font-bold uppercase">Unidades</span>
+                        <span className="text-sm font-bold text-yellow-400">{unitCount}</span>
+                    </div>
                 </div>
             )}
 

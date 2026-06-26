@@ -1,8 +1,11 @@
 import type { GameState, Unit } from '../state';
 import type { GameAction } from '../action-types';
+import { hexDistance } from '../../hex';
 import { drawCard } from '../actions/card';
 import { updateUnit } from '../utils';
-import { processModifiersAtTurnStart } from '../modifiers/engine';
+import { processModifiersAtTurnStart, addModifier } from '../modifiers/engine';
+import { applyFormationModifiers } from '../formations';
+import { BASE_STATS } from '../units';
 
 export function handleEndTurn(state: GameState, action: GameAction): GameState {
     if (action.type !== 'END_TURN') return state;
@@ -13,6 +16,10 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
     const currentAP = state.players[currentPlayer]?.actionPoints ?? 0;
     const nextPlayer = state.activePlayer === 'p1' ? 'p2' : 'p1';
     const carryOver = Math.floor(currentAP / 2);
+
+    // Capturar performedActionThisTurn del General antes del reset (Monje Shaolin)
+    const general = Object.values(state.units).find(u => u.owner === currentPlayer && u.class === 'general');
+    const generalActedThisTurn = general?.performedActionThisTurn ?? false;
 
     // Rotar flags de movimiento: movedThisTurn → didMovePreviousTurn
     // Limpiar cargas de Fuego de cobertura al final del turno
@@ -25,6 +32,7 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
                 didMovePreviousTurn: u.movedThisTurn ?? false,
                 movedThisTurn: false,
                 fuegoCoberturaCharges: undefined,
+                espartanoRangeBonus: false,
             };
         }
     }
@@ -39,10 +47,18 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
             ...state.players,
             [currentPlayer]: {
                 ...state.players[currentPlayer],
-                carryOver
+                carryOver,
+                globalPresionActive: false,
             }
         }
     };
+
+    // Monje Shaolin: si el General no actuó este turno, recibe -1 daño en el turno del rival
+    const identity = state.players[currentPlayer]?.selectedIdentity ?? '';
+    if (identity.startsWith('monje_shaolin') && !generalActedThisTurn && general) {
+        const afterMod = addModifier(newState, currentPlayer, general.id, 'damage', -1, 'ADD', 1, 1);
+        return applyTurnStart(afterMod, nextPlayer);
+    }
 
     return applyTurnStart(newState, nextPlayer);
 }
@@ -57,10 +73,16 @@ function resetUnitTracking(unit: Unit): Unit {
         usedCabalgar: false,
         usedVentajaAlcance: false,
         usedDobleAtaque: false,
-        usedDisparoRapido: false,
+        usedPatadaAcrobatica: false,
         usedFuegoCobertura: false,
         usedAccionEvasiva: false,
         hasCargaBonus: false,
+        usedCounterattack: false,
+        usedTorbellino: false,
+        performedActionThisTurn: false,
+        usedPosicionEstrategica: false,
+        usedVozDeMando: false,
+        usedEnNombreDelRey: false,
     };
 }
 
@@ -87,7 +109,12 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             [playerId]: {
                 ...player,
                 actionPoints: totalAP,
-                carryOver: 0
+                carryOver: 0,
+                identityHealedThisTurn: false,
+                pendingIdentityTarget: false,
+                pendingEspartanoChoice: false,
+                pendingPlanBatalla: false,
+                vozDeMandoReady: false,
             }
         }
     };
@@ -98,13 +125,158 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
     // Procesar modificadores activos (decrementar turnos, aplicar AP, limpiar expirados)
     newState = processModifiersAtTurnStart(newState, playerId);
 
+    // Robin Hood: «En la mira» — elegir objetivo enemigo al inicio del turno
+    const identity = newState.players[playerId]?.selectedIdentity ?? '';
+    if (identity.startsWith('robin_hood')) {
+        const hasValidTarget = Object.values(newState.units)
+            .some(u => u.owner !== playerId && u.class !== 'general');
+        newState = {
+            ...newState,
+            players: {
+                ...newState.players,
+                [playerId]: { ...newState.players[playerId], pendingIdentityTarget: hasValidTarget },
+            },
+        };
+    }
+
+    // Punta de Lanza: activar Proyección en todos los lanceros
+    if (identity.startsWith('punta_lanza')) {
+        let uu = { ...newState.units };
+        for (const id of Object.keys(uu)) {
+            if (uu[id].owner === playerId && uu[id].class === 'lancer') {
+                uu[id] = { ...uu[id], proyeccionActive: true };
+            }
+        }
+        newState = { ...newState, units: uu };
+    }
+
+    // Espartano: Lanza y escudo — elegir al inicio del turno
+    if (identity.startsWith('espartano')) {
+        newState = {
+            ...newState,
+            players: {
+                ...newState.players,
+                [playerId]: { ...newState.players[playerId], pendingEspartanoChoice: true },
+            },
+        };
+    }
+
+    // Capitán de la Guardia: activar Presión global si estaba pendiente
+    if (newState.players[playerId]?.nextTurnGlobalPresion) {
+        newState = {
+            ...newState,
+            players: {
+                ...newState.players,
+                [playerId]: { ...newState.players[playerId], globalPresionActive: true, nextTurnGlobalPresion: false },
+            },
+        };
+    }
+
+    // Corazón de Estratega: evaluar formaciones tácticas
+    if (identity.startsWith('corazon_estratega')) {
+        newState = applyFormationModifiers(newState, playerId);
+    }
+
+    // Guardia real (Inspiración Real): limpiar bonos del ciclo anterior
+    newState = {
+        ...newState,
+        activeModifiers: newState.activeModifiers.filter(m => !m.id.startsWith('guardia_')),
+    };
+
+    // Limpiar efectos de En nombre del rey si es turno del jugador con inspiracion_real
+    if (identity.startsWith('inspiracion_real')) {
+        let uu = { ...newState.units };
+        for (const id of Object.keys(uu)) {
+            const u = uu[id];
+            if (u.owner === playerId) {
+                const origAtk = BASE_STATS[u.class].attack;
+                let updated = { ...u };
+                // Revertir escudo real: si aun tiene HP extra, volver al HP guardado
+                if (u.royalShieldSavedHp !== undefined) {
+                    if (u.hp > u.royalShieldSavedHp) {
+                        updated.hp = u.royalShieldSavedHp;
+                    }
+                    updated.royalShieldSavedHp = undefined;
+                }
+                // Restaurar ataque base
+                if (u.attack !== origAtk) {
+                    updated.attack = origAtk;
+                }
+                uu[id] = updated;
+            }
+        }
+        newState = { ...newState, units: uu };
+    }
+
+    // Turno propio: +1 ataque a adyacentes al general (Inspiración Real)
+    if (identity.startsWith('inspiracion_real')) {
+        const general = Object.values(newState.units).find(u => u.owner === playerId && u.class === 'general');
+        if (general) {
+            for (const u of Object.values(newState.units)) {
+                if (u.owner !== playerId || u.class === 'general') continue;
+                if (hexDistance(general.position, u.position) === 1) {
+                    newState = addModifier(newState, playerId, u.id, 'attack', 1, 'ADD', 0, 1);
+                    const last = newState.activeModifiers[newState.activeModifiers.length - 1];
+                    if (last) {
+                        newState = { ...newState, activeModifiers: newState.activeModifiers.map((m, i) =>
+                            i === newState.activeModifiers.length - 1 ? { ...m, id: `guardia_ataque_${u.id}` } : m
+                        ) };
+                    }
+                }
+            }
+        }
+    }
+
+    // Turno oponente: -1 daño a adyacentes al general del rival con inspiracion_real
+    const otherPlayerId = playerId === 'p1' ? 'p2' : 'p1';
+    const otherIdentity = newState.players[otherPlayerId]?.selectedIdentity ?? '';
+    if (otherIdentity.startsWith('inspiracion_real')) {
+        const otherGeneral = Object.values(newState.units).find(u => u.owner === otherPlayerId && u.class === 'general');
+        if (otherGeneral) {
+            for (const u of Object.values(newState.units)) {
+                if (u.owner !== otherPlayerId || u.class === 'general') continue;
+                if (hexDistance(otherGeneral.position, u.position) === 1) {
+                    newState = addModifier(newState, otherPlayerId, u.id, 'damage', -1, 'ADD', 0, 1);
+                    const last = newState.activeModifiers[newState.activeModifiers.length - 1];
+                    if (last) {
+                        newState = { ...newState, activeModifiers: newState.activeModifiers.map((m, i) =>
+                            i === newState.activeModifiers.length - 1 ? { ...m, id: `guardia_defensa_${u.id}` } : m
+                        ) };
+                    }
+                }
+            }
+        }
+    }
+
+    // Comandante Supremo: limpiar modificadores de Plan de Batalla del turno anterior
+    if (identity.startsWith('comandante_supremo')) {
+        newState = {
+            ...newState,
+            activeModifiers: newState.activeModifiers.filter(m => {
+                if (m.sourcePlayerId !== playerId) return true;
+                if (m.targetId === undefined) return true;
+                if (m.remainingUses === undefined) return true;
+                if (m.stat === 'attack' && m.value > 0) return false;
+                if (m.stat === 'damage' && m.value < 0) return false;
+                return true;
+            }),
+        };
+        newState = {
+            ...newState,
+            players: {
+                ...newState.players,
+                [playerId]: { ...newState.players[playerId], pendingPlanBatalla: true },
+            },
+        };
+    }
+
     // Si la mano supera 3 cartas, el jugador debe descartar antes de salir de DRAW
     const handSize = newState.players[playerId]?.cardsInHand?.length ?? 0;
     if (handSize > 3) {
         return { ...newState, turnPhase: 'DRAW' };
     }
 
-    // Pasar a MAIN phase — el jugador puede jugar cartas/habilidades
+    // Pasar a MAIN phase
     newState = { ...newState, turnPhase: 'MAIN' };
 
     return newState;

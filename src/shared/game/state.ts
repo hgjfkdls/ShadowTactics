@@ -36,12 +36,24 @@ export type Unit = {
     cabalgarDir?: { dq: number; dr: number };
     usedVentajaAlcance?: boolean;
     usedDobleAtaque?: boolean;
-    usedDisparoRapido?: boolean;
+    usedPatadaAcrobatica?: boolean;
     usedFuegoCobertura?: boolean;
     usedAccionEvasiva?: boolean;
     usedAvance?: boolean;
     hasCargaBonus?: boolean;         // true si usó Cabalgar + Carga
     fuegoCoberturaCharges?: number;  // cargas restantes de Fuego de cobertura (coste +1)
+    usedCounterattack?: boolean;      // Capitán de la Guardia: 1 contraataque por turno enemigo
+    usedTorbellino?: boolean;          // Punta de Lanza: Torbellino usado este turno
+    celestialRayDamageBonus?: number; // Dios del Trueno: bonus de daño del próximo ataque
+    aLaCargaActive?: boolean;          // Caballos de Guerra: Cabalgar potenciado (3 hex)
+    espartanoRangeBonus?: boolean;     // Espartano: +1 rango este turno
+    espartanoDefenseBonus?: boolean;   // Espartano: -1 daño recibido este turno
+    proyeccionActive?: boolean;        // Punta de Lanza: primer ataque hace daño detrás
+    performedActionThisTurn?: boolean;  // Monje Shaolin: tracking de acciones por turno
+    usedPosicionEstrategica?: boolean;  // Corazón de Estratega: 1 vez por turno
+    usedVozDeMando?: boolean;           // Comandante Supremo: consumió Voz de mando
+    royalShieldSavedHp?: number;          // Inspiración Real: HP guardado antes del escudo
+    usedEnNombreDelRey?: boolean;         // Inspiración Real: 1 vez por turno
 };
 
 export type GameState = {
@@ -109,8 +121,11 @@ export type GameState = {
         position: HexCoord;
     };
 
-    // Último resultado de ataque (para mostrar dados al cliente)
-    lastAttackResult?: {
+    // Robin Hood: curación por identidad
+    lastIdentityHeal?: { unitId: UnitId };
+
+    // Historial de resultados de ataque
+    attackResults: Array<{
         attackerId: UnitId;
         targetId: UnitId;
         die1: number;
@@ -122,7 +137,8 @@ export type GameState = {
         counterDamage: number;
         attackerClass: string;
         targetClass: string;
-    };
+        turn: number;
+    }>;
 };
 
 export type PlayerResources = {
@@ -136,6 +152,22 @@ export type PlayerResources = {
     identityCards?: CardId[];      // 3 cartas iniciales
     selectedIdentity?: CardId;     // elegida (oculta)
     revealedIdentity?: boolean;     // visible al rival
+
+    // IDENTIDAD — seguimiento por turno
+    identityHealedThisTurn?: boolean;  // Robin Hood: 1 curación por turno
+    pendingIdentityTarget?: boolean;   // Robin Hood: elegir objetivo para En la mira
+    pendingEspartanoChoice?: boolean;   // Espartano: elegir Lanza y escudo
+    celestialRayBonus?: number;        // Dios del Trueno: bonus de Rayo celestial (3/2/1)
+    aLaCargaCost?: number;              // Caballos de Guerra: coste actual de A la carga (0/1/2)
+    nextTurnGlobalPresion?: boolean;    // Capitán de la Guardia: Presión global pendiente para el próximo turno
+    globalPresionActive?: boolean;      // Capitán de la Guardia: Presión global activa este turno
+
+    // RESULTADO DE ATAQUE
+    lastAcknowledgedIndex: number;     // Último índice en attackResults que el jugador reconoció (-1 = ninguno)
+
+    // COMANDANTE SUPREMO
+    pendingPlanBatalla?: boolean;     // Plan de batalla: elección pendiente
+    vozDeMandoReady?: boolean;        // Voz de mando: disponible tras mover general
 
     // DESPLIEGUE
     unitsToDeploy?: { unitId: UnitId; unitClass: Unit['class'] }[];  // pool inicial con clase asignada

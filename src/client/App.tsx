@@ -6,6 +6,9 @@ import { DeploymentScreen } from './prep/DeploymentScreen';
 import { PlayerSidebar } from './game/layout/PlayerSidebar';
 import { RightPanel } from './game/layout/RightPanel';
 import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
+import { KeyBindingsProvider, useKeyBindings } from './game/KeyBindingsContext';
+import { TurnTimer } from './game/layout/TurnTimer';
+import { HamburgerMenu } from './game/layout/HamburgerMenu';
 
 type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
 
@@ -58,7 +61,21 @@ export function App() {
         }
     }, [state?.turnPhase, state?.gamePhase]);
 
+    const lastHealKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (state?.lastIdentityHeal) {
+            const key = `${state.lastIdentityHeal.unitId}-${state.turn}-${state.activePlayer}`;
+            if (key !== lastHealKeyRef.current) {
+                lastHealKeyRef.current = key;
+                const unit = state.units[state.lastIdentityHeal.unitId];
+                const ownerLabel = unit?.owner === 'p1' ? 'Jugador 1' : 'Jugador 2';
+                addAlert(`🩹 ${ownerLabel}: Robar a los ricos — un arquero recupera 1 HP`, 'success');
+            }
+        }
+    }, [state?.lastIdentityHeal]);
+
     return (
+        <KeyBindingsProvider>
         <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
@@ -67,12 +84,9 @@ export function App() {
                         [{gameId} · {role?.role ?? 'unknown'}
                         {role?.role === 'player' && ` (${role.playerId})`}]
                     </div>
-                    <button
-                        onClick={leaveGame}
-                        className="ml-auto text-sm bg-zinc-800 hover:bg-red-600 transition px-3 py-1 rounded-md cursor-pointer"
-                    >
-                        Leave game
-                    </button>
+                    <div className="ml-auto">
+                        <HamburgerMenu onLeaveGame={leaveGame} />
+                    </div>
                 </>}
             </header>
 
@@ -115,15 +129,15 @@ export function App() {
                                 addAlert={addAlert}
                             />
                             {role?.role === 'player' && state.gamePhase === 'GAME' && (
-                                <button
-                                    className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
-                                    disabled={state.activePlayer !== role.playerId}
-                                    onClick={() => sendAction({ type: 'END_TURN', playerId: role.playerId })}
-                                >
-                                    End Turn
-                                </button>
+                                <EndTurnBtn role={role} state={state} sendAction={sendAction} />
                             )}
                             <AlertPanel alerts={alerts} removeAlert={removeAlert} />
+                            {state && (state.gamePhase === 'GAME' || state.gamePhase === 'GAME_OVER') && (
+                                <TurnTimer
+                                    activePlayer={state.activePlayer}
+                                    turnPhase={state.turnPhase ?? ''}
+                                />
+                            )}
                         </main>
                         <RightPanel
                             state={state}
@@ -163,5 +177,20 @@ export function App() {
                 </main>
             )}
         </div>
+        </KeyBindingsProvider>
+    );
+}
+
+function EndTurnBtn({ role, state, sendAction }: { role: { role: string; playerId: string } | null; state: GameState; sendAction: (action: GameAction) => void }) {
+    const { bindings } = useKeyBindings();
+    const keyLabel = bindings.END_TURN === 'escape' ? 'ESC' : bindings.END_TURN.toUpperCase();
+    return (
+        <button
+            className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
+            disabled={state.activePlayer !== role?.playerId}
+            onClick={() => sendAction({ type: 'END_TURN', playerId: role!.playerId })}
+        >
+            End Turn [{keyLabel}]
+        </button>
     );
 }

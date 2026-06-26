@@ -512,3 +512,286 @@ Sección "⚡ Pasivas que afectan" en el hover panel con las habilidades relevan
 - Sistema de fin de turno y contador de rondas
 - Condición de victoria (muerte del general) y pantalla de Game Over
 - Balance general de stats y costos
+
+---
+
+# Sesión de trabajo — 24 Jun 2026 (tarde)
+
+## Objetivo
+Finalizar UI de selección de unidades, implementar teclas de acceso rápido configurables, migrar panel de acciones a HTML fijo, mejorar paneles de información, y añadir temporizadores de partida y turno.
+
+---
+
+## 1. Selección de unidades — pulido
+
+### Click en misma unidad deselecciona
+- `onSelectUnit` en `HexBoard.tsx`: si `selectedUnitId === unitId` → limpia selección y targeting.
+
+### Click en hex vacío deselecciona
+- En `onHexClick`, el `else` final llama a `setSelectedUnitId(null)` y limpia targeting.
+
+### Teclas rápidas — primera versión (remapeada varias veces)
+- Mapa final: **Q** ataque, **SPACE** movimiento, **W/E/R** habilidades 1-3, **D** deseleccionar, **ESC** end turn.
+- Validaciones: solo si hay PA suficiente, habilidad disponible, unidad no ha atacado, etc.
+- Alertas cuando no se cumple condición ("No tienes PA suficientes", "Ya has atacado este turno", "Habilidad no disponible en este momento").
+
+---
+
+## 2. Sistema de key bindings configurables
+
+### `src/client/game/KeyBindingsContext.tsx`
+- Context + Provider + hook `useKeyBindings()`
+- Persistencia en `localStorage` con versionado (`_version: 2`) para migrar defaults futuros.
+- Defaults: `DESELECT: 'd'`, `BASIC_ATTACK: 'q'`, `MOVE: ' '`, `ABILITY_1: 'w'`, `ABILITY_2: 'e'`, `ABILITY_3: 'r'`, `END_TURN: 'escape'`
+- `updateBinding` y `resetBindings` expuestos.
+
+### `src/client/game/layout/KeyBindingsModal.tsx`
+- Modal con lista de 7 acciones.
+- Click en acción → modo "recording" → presionar tecla para asignar.
+- Detección de conflictos (misma tecla para dos acciones).
+- Botón "Restaurar valores por defecto".
+- Escape cancela recording (no cierra modal).
+
+### `src/client/game/layout/HamburgerMenu.tsx`
+- Botón ☰ en esquina superior derecha (dentro del header de App).
+- Dropdown: "Configurar teclas" (abre modal) y "Leave game".
+- Cierra al clickear fuera.
+
+### `src/client/App.tsx`
+- Reemplazado botón "Leave Game" por `HamburgerMenu`.
+- Envuelto con `KeyBindingsProvider`.
+- `EndTurnBtn` componente separado para acceder a `useKeyBindings` (muestra `[ESC]` en el botón).
+
+### `src/client/game/board/HexBoard.tsx`
+- `useKeyBindings()` en el handler de teclado reemplaza valores hardcodeados.
+
+---
+
+## 3. Panel de acciones migrado a HTML fijo
+
+### `src/client/game/layout/ActionPanel.tsx`
+- Nuevo componente HTML posicionado `absolute bottom-4 right-4`.
+- Tamaño fijo `w-[250px] h-[230px]` — no cambia con cantidad de botones.
+- Muestra "No hay selección de aliado" cuando no hay unidad seleccionada.
+- Botones: ataque, movimiento, habilidades con tecla asignada `[Q]`, `[SPACE]`, `[W]`, etc.
+- Alertas PA insuficiente, ya atacó, habilidad no disponible.
+- Ya no depende de SVG overlay — no bloquea hexágonos del tablero.
+
+### `src/client/game/board/UnitsLayer.tsx`
+- `UnitTooltip` simplificado a modo compacto (solo clase, HP, estados, pasivas, info de ataque).
+- Eliminada toda la lógica de acciones SVG (botones).
+- `getMaxHp` y `getUnitStatus` se mantienen como utilidades locales.
+
+---
+
+## 4. Panel de información de habilidades
+
+### `src/client/game/layout/RightPanel.tsx`
+- `AbilityList` rediseñada: siempre muestra descripción completa (sin collapse).
+- Cada habilidad en un bloque con borde, nombre, descripción, restricciones, tipo y coste.
+- Eliminado `useState` de `expandedAbility` y prop `onToggle`.
+
+---
+
+## 5. Panel lateral de jugadores
+
+### `src/client/game/layout/PlayerSidebar.tsx`
+- Nueva sección "Turno X" + "Tiempo" (total desde despliegue) arriba de los dos jugadores.
+- "Jugador 1" / "Jugador 2" reemplaza "Tú" / "Oponente".
+- Badge "EN TURNO" / "DESPLEGANDO" fuera de la carta de identidad, junto al nombre.
+- Más separación entre nombre y carta (`pb-2` + `mb-2`).
+- Stats PA y Unidades en fila con borde (`border-2 border-zinc-700`), labels blancos `font-bold uppercase`, valores amarillos `text-yellow-400 font-bold`.
+
+---
+
+## 6. Temporizadores
+
+### Timer total de partida (en PlayerSidebar)
+- Comienza a contar desde despliegue (`gamePhase !== 'PREPARATION'`).
+- Formato `M:SS`, se actualiza cada segundo.
+
+### `src/client/game/layout/TurnTimer.tsx`
+- Nuevo componente centrado arriba del tablero.
+- Cuenta regresiva de 60s por turno.
+- Se reinicia al cambiar `activePlayer` o `turnPhase`.
+- ≤ 10s: fondo rojo, texto rojo (urgencia).
+- `onTimeUp` callback listo para auto-end-turn (no implementado).
+- Timer se pausa durante fase DRAW (descarte) y COUNTER (contra-respuesta).
+
+### `src/client/App.tsx`
+- `TurnTimer` renderizado en main area durante GAME/GAME_OVER.
+
+---
+
+## 7. Archivos creados
+
+| Archivo | Descripción |
+|---------|-------------|
+| `src/client/game/KeyBindingsContext.tsx` | Context + hook para key bindings persistentes |
+| `src/client/game/layout/KeyBindingsModal.tsx` | Modal de configuración de teclas |
+| `src/client/game/layout/HamburgerMenu.tsx` | Menú hamburguesa con leave game + key config |
+| `src/client/game/layout/ActionPanel.tsx` | Panel de acciones HTML fijo abajo-derecha |
+| `src/client/game/layout/TurnTimer.tsx` | Countdown de 60s por turno |
+
+## 8. Archivos modificados
+
+| Archivo | Cambio principal |
+|---------|------------------|
+| `src/client/App.tsx` | HamburgerMenu, KeyBindingsProvider, EndTurnBtn, TurnTimer |
+| `src/client/game/board/HexBoard.tsx` | Key bindings dinámicos, ActionPanel, alerts en teclas |
+| `src/client/game/board/UnitsLayer.tsx` | UnitTooltip compacto, key labels en botones |
+| `src/client/game/layout/PlayerSidebar.tsx` | Game info, Jugador 1/2, EN TURNO fuera, stats destacados |
+| `src/client/game/layout/RightPanel.tsx` | AbilityList siempre expandido |
+
+---
+
+## Pendientes para próxima sesión
+
+- Implementar cartas de efecto (BUFF/DEBUFF/COUNTER) desde la UI
+- End turn automático al expirar timer (conectar `onTimeUp` a `sendAction`)
+- Condición de victoria (muerte del general) y pantalla de Game Over
+- Balance general de stats y costos
+
+---
+
+# Sesión de trabajo — 25 Jun 2026
+
+## Objetivo
+Implementar cartas de identidad: Robin Hood y Francotirador del Bosque como generales testeables, con sus habilidades de clase (arquero), habilidades especiales y globales, y sistema de targeting.
+
+---
+
+## 1. Generales forzados en simulación
+
+### `src/shared/game/phases/simulate.ts`
+- `simulatePreparation` asigna directamente `robin_hood_1` a P1 y `francotirador_1` a P2, sin pasar por `handleIdentity`.
+- Eliminada función `pickIdentityCard` y su import `handleIdentity`.
+
+---
+
+## 2. Aplicación de identidad al desplegar
+
+### `src/shared/game/data/identities.ts`
+- Nuevo: `IDENTITY_EFFECTS` (mapea identidad → `unitClassOverride`) + `getIdentityKey()` exportada.
+
+### `src/shared/game/phases/identity-apply.ts`
+- `applyIdentityEffects()` se ejecuta al completar despliegue (desde `deployment.ts`).
+- **Paso 1**: el general del jugador recibe las habilidades y stats de la clase override (arquero: `range:4`, `movementCost:2`, `difficulty:6`; HP y attack se mantienen).
+- **Paso 2**: efectos globales de la identidad sobre todos los arqueros + general:
+  - **Robin Hood**: `movementCost:1`, elimina `accion_evasiva`
+  - **Francotirador**: sin cambio estático de rango (manejado dinámicamente en ataque/habilidades)
+
+---
+
+## 3. Robin Hood — Habilidades globales
+
+### Movimiento 1 PA y sin acción evasiva
+- `identity-apply.ts`: todos los arqueros (+ general) → `movementCost: 1`, filtran `accion_evasiva` de `abilities`.
+
+### Robar a los ricos — curación al primer acierto
+- `state.ts`: nuevo flag `identityHealedThisTurn` en `PlayerResources`.
+- `attack.ts`: tras acierto, si el atacante pertenece a Robin Hood y es arquero/general, cura 1 HP (si no está full). Marca `identityHealedThisTurn`.
+- `turn.ts`: flag se resetea a `false` al iniciar turno.
+- `App.tsx`: alerta `🩹 Jugador X: Robar a los ricos — un arquero recupera 1 HP` al ocurrir la curación.
+- `state.ts`: campo `lastIdentityHeal?: { unitId }` para comunicación al cliente.
+
+---
+
+## 4. Francotirador del Bosque — Habilidades globales
+
+### +1 rango ataques básicos
+- `attack.ts`: si el atacante pertenece a Francotirador, `basicRangeBonus = 1` para el check de alcance.
+- `HexBoard.tsx` + `UnitsLayer.tsx`: helpers `getBasicAttackRange()` y `getAbilityRange()` para que el cliente refleje el rango extra (destacado de hexágonos, detección de targets).
+
+### +1 rango en fuego_cobertura (solo general)
+- `ability.ts`: nuevo helper `getAbilityRange()` que añade +1 si la unidad es `general` y pertenece a Francotirador. Usado en `handleFuegoCobertura`.
+
+### Blanco fácil mejorado (-2 dificultad)
+- `combat/ability-effects.ts`: `blanco_facil.onDifficulty` reduce -2 en vez de -1 si el atacante pertenece a Francotirador.
+- `UnitsLayer.tsx:92` + `RightPanel.tsx:307`: tooltips y descripciones muestran -2 dinámicamente.
+
+### Fórmula de dificultad de arquero para generales
+- `combat/hit.ts`: `getDifficulty` usa `5 + distance` si la unidad tiene `blanco_facil` (incluye generales con identidad arquero).
+
+---
+
+## 5. Panel de información del general
+
+### Habilidades de identidad visibles
+- `RightPanel.tsx`: `UnitDetail` muestra `descVerbose` de la identidad (Especial + Global) en tarjetas con borde amarillo, icono 👑, debajo de las habilidades de clase.
+
+### Habilidades heredadas colapsables
+- `RightPanel.tsx`: `AbilityList` recibe prop `startCollapsed`. Para generales, las habilidades de clase empiezan colapsadas. Las habilidades de identidad (Especial/Global) se muestran expandidas siempre.
+
+---
+
+## 6. En la mira — Robin Hood (daño gratis por turno)
+
+### Estado y acción
+- `state.ts`: `pendingIdentityTarget?: boolean` en `PlayerResources`.
+- `action-types.ts`: nueva acción `IDENTITY_ABILITY { playerId, targetId }`.
+- `actions/identity.ts`: handler que valida objetivo enemigo (no general), inflige 1 daño, limpia flag.
+
+### Flujo de turno
+- `turn.ts`: al pasar a MAIN, si el jugador tiene Robin Hood y hay enemigos válidos, marca `pendingIdentityTarget: true`. Si no hay objetivos, se salta.
+
+### Bloqueo de acciones
+- `reducer.ts`: bloquea toda acción excepto `IDENTITY_ABILITY` mientras el flag esté activo.
+
+### UI de targeting
+- `HexBoard.tsx`: banner púrpura fijo 🎯 "Robin Hood — En la mira: selecciona un enemigo (excepto general)".
+- `HexTile.tsx`: hexágonos válidos con relleno púrpura (`#5b1280`), borde `#a855f7`, overlay `rgba(168, 85, 247, 0.25)`.
+- `UnitsLayer.tsx`: nuevo prop `onIdentityTargetSelect` — click en token de enemigo válido abre panel de confirmación.
+- Panel de confirmación centrado con clase del objetivo, HP, botones **Atacar** / **Cancelar**.
+
+### Notificaciones
+- `App.tsx`: alerta success `🩹 Jugador X: Robar a los ricos — un arquero recupera 1 HP`.
+
+---
+
+## 7. Archivos creados
+
+| Archivo | Descripción |
+|---------|-------------|
+| `src/shared/game/data/identities.ts` | Efectos mecánicos de identidad + `getIdentityKey` |
+| `src/shared/game/phases/identity-apply.ts` | Aplica clase override + efectos globales al desplegar |
+| `src/shared/game/actions/identity.ts` | Handler `IDENTITY_ABILITY` (En la mira) |
+
+## 8. Archivos modificados
+
+| Archivo | Cambio principal |
+|---------|------------------|
+| `src/shared/game/state.ts` | `identityHealedThisTurn`, `pendingIdentityTarget`, `lastIdentityHeal` |
+| `src/shared/game/action-types.ts` | `IDENTITY_ABILITY` action |
+| `src/shared/game/reducer.ts` | Bloqueo de acciones + `IDENTITY_ABILITY` handler |
+| `src/shared/game/phases/simulate.ts` | Identidades forzadas Robin Hood / Francotirador |
+| `src/shared/game/phases/turn.ts` | `pendingIdentityTarget` set/reset |
+| `src/shared/game/phases/deployment.ts` | Llama `applyIdentityEffects` al completar despliegue |
+| `src/shared/game/actions/index.ts` | Export `handleIdentityAbility` |
+| `src/shared/game/actions/attack.ts` | Francotirador +1 range básico; Robin Hood heal on hit |
+| `src/shared/game/actions/ability.ts` | `getAbilityRange` para Francotirador general |
+| `src/shared/game/combat/ability-effects.ts` | Blanco fácil -2 para Francotirador |
+| `src/shared/game/combat/hit.ts` | `getDifficulty` usa `blanco_facil` como proxy arquero |
+| `src/client/App.tsx` | Alerta heal Robin Hood |
+| `src/client/game/board/HexBoard.tsx` | Identity target mode, banner, confirmación, helpers rango |
+| `src/client/game/board/HexTile.tsx` | `identityTarget` prop con highlight púrpura |
+| `src/client/game/board/UnitsLayer.tsx` | `onIdentityTargetSelect`, rango bonus, -2 tooltip |
+| `src/client/game/layout/RightPanel.tsx` | Identidad visible en general, habilidades colapsables, -2 visual |
+
+## 9. General testing
+
+- **Robin Hood** ✅ — Arquero con movimiento 1 PA, sin acción evasiva. Cura 1 HP al primer acierto por turno. En la mira: 1 daño gratis a enemigo no general al inicio del turno.
+- **Francotirador del Bosque** ✅ — Arquero con +1 rango en ataques básicos. General con +1 rango en fuego_cobertura. Blanco fácil -2 dificultad. Fórmula de dificultad 5+distancia.
+- **Dios del Trueno** ✅ — Infantería: solo Resistencia + Presión. Stats de general. Rayo celestial (coste 1): bendice aliado rango 1 a ≤2 con +3/+2/+1 daño según usos. Furia berserker: +1 daño si HP ≤ 50%.
+- **Capitán de la Guardia** ✅ — Infantería: solo Resistencia + Presión. Stats de general. Contraataque: 1 daño si aciertan, 3 si fallan (rango 1, 1 vez por turno enemigo). Liderar a las tropas: al eliminar, todas las infanterías + general tienen Presión global el siguiente turno.
+- **Caballos de Guerra** ✅ — Caballería: romper_filas, cabalgar_2, carga, a_la_carga. Copia range y movementCost de caballería, mantiene difficulty 6. Cabalgar_2: movimiento en cualquier dirección (2-3 pasos con animación step-by-step). A la Carga: coste progresivo +0/+1/+2, extiende cabalgar a 3 pasos. Maniobras acrobáticas: caballería ignora línea recta al cabalgar. Carga: -1 dificultad.
+- **Cazadores** ✅ — Caballería: romper_filas, cabalgar, carga, doble_ataque. Copia range y movementCost de caballería, mantiene difficulty 6. Acechar: +2 daño (+1 vs general) a enemigos aislados (sin aliados adyacentes). Hostigar: -1 dificultad al atacar enemigos con ≤ 50% HP. Indicadores diana amarilla estandarizados.
+- **Punta de Lanza** ✅ — Lancero: anti_caballería, formacion_defensiva, ventaja_alcance, torbellino. Mantiene stats de general. Torbellino (coste 3, dificultad 7): acierto → 2 daño a enemigos; fallo → 1 daño a todos excepto general. Panel de resultado muestra enemigos/aliados dañados. Proyección: al inicio del turno todos los lanceros tienen activo; el primer ataque que acierta hace +1 daño a 2 hex detrás del objetivo; luego se desactiva hasta el próximo turno.
+- **Espartano** ✅ — Lancero: anti_caballería, formacion_defensiva, doble_ataque. Mantiene stats de general. Lanza y escudo: al inicio del turno elige +1 rango (dura el turno, diana amarilla) o -1 daño (dura hasta próxima elección, escudo azul). Muro espartano: lanceros adyacentes reciben -1 daño. Indicadores: escudo azul en (-14,-14).
+
+## Pendientes para próxima sesión
+
+- Implementar el resto de cartas de identidad (13 pendientes)
+- Implementar cartas de efecto (BUFF/DEBUFF/COUNTER) desde la UI
+- Condición de victoria (muerte del general) y pantalla de Game Over
+- Balance general de stats y costos

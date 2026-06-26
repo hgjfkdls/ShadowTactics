@@ -1,5 +1,4 @@
-import type { GameState } from '../state';
-import { handleIdentity } from './identity';
+import type { GameState, CardId } from '../state';
 import { handleRoll } from './roll';
 import { handleDeployment } from './deployment';
 
@@ -12,16 +11,6 @@ const POSITIONS_P2 = [
     {q:-2,r:0},{q:-2,r:1},{q:-2,r:2},{q:-3,r:2},{q:-3,r:3},{q:-3,r:4},
     {q:-4,r:4},{q:-4,r:5},{q:-4,r:3},{q:-3,r:5},{q:-2,r:5}
 ];
-
-function pickIdentityCard(state: GameState, playerId: string): GameState {
-    const cards = state.players[playerId]?.identityCards;
-    if (!cards || cards.length === 0) return state;
-    return handleIdentity(state, {
-        type: 'SELECT_IDENTITY',
-        playerId: playerId as any,
-        cardId: cards[0],
-    });
-}
 
 function rollDice(state: GameState, playerId: string): GameState {
     return handleRoll(state, {
@@ -57,10 +46,35 @@ function deployAllForPlayer(state: GameState, playerId: string): GameState {
 export function simulatePreparation(state: GameState): GameState {
     let s = state;
 
-    // 1. Both players pick identity
-    s = pickIdentityCard(s, 'p1');
-    s = pickIdentityCard(s, 'p2');
-    // After both selected, phase advances to ROLL
+    // 1. Force identities — Comandante Supremo for P1, Inspiración Real for P2
+    const allCards = [
+        ...(s.players.p1?.identityCards ?? []),
+        ...(s.players.p2?.identityCards ?? []),
+        ...s.identityDeck,
+    ];
+    const remaining = allCards.filter(
+        id => id !== 'comandante_supremo_1' && id !== 'inspiracion_real_1'
+    );
+    s = {
+        ...s,
+        identityDeck: remaining,
+        players: {
+            ...s.players,
+            p1: {
+                ...s.players.p1!,
+                selectedIdentity: 'comandante_supremo_1' as CardId,
+                identityCards: [],
+                revealedIdentity: true,
+            },
+            p2: {
+                ...s.players.p2!,
+                selectedIdentity: 'inspiracion_real_1' as CardId,
+                identityCards: [],
+                revealedIdentity: true,
+            },
+        },
+        preparationPhase: 'ROLL',
+    };
 
     // 2. Roll dice for both, handle ties
     let rollAttempts = 0;

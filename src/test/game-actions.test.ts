@@ -32,31 +32,31 @@ function makeGameState(): GameState {
             'u1': {
                 id: 'u1', owner: 'p1',
                 position: { q: 0, r: 0 },
-                attack: 3, hp: 8, difficulty: 6, range: 4, movementCost: 2,
+                attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2,
                 class: 'archer'
             },
             'u2': {
                 id: 'u2', owner: 'p1',
                 position: { q: 2, r: 0 },
-                attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1,
+                attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1,
                 class: 'cavalry'
             },
             'u3': {
                 id: 'u3', owner: 'p2',
                 position: { q: 4, r: 0 },
-                attack: 3, hp: 12, difficulty: 6, range: 1, movementCost: 1,
+                attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1,
                 class: 'infantry'
             },
             'u4': {
                 id: 'u4', owner: 'p2',
                 position: { q: 3, r: 1 },
-                attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1,
+                attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1,
                 class: 'cavalry'
             },
             'general-p2': {
                 id: 'general-p2', owner: 'p2',
                 position: { q: 5, r: 0 },
-                attack: 5, hp: 15, difficulty: 6, range: 1, movementCost: 1,
+                attack: 4, hp: 20, difficulty: 6, range: 1, movementCost: 1,
                 class: 'general'
             },
         }
@@ -151,9 +151,9 @@ function makeGameState(): GameState {
 // ── ATTACK_UNIT ──
 
 {
-    const state = makeGameState();
+    const state = { ...makeGameState(), units: { ...makeGameState().units, u3: { ...makeGameState().units['u3'], position: { q: 3, r: 0 } } } };
 
-    // u1 (arquero, rango 4, dificultad 6) ataca a u3 (infantería en (4,0))
+    // u1 (arquero, rango 3, dificultad 6) ataca a u3 (infantería en (3,0)) — distancia 3 = rango máximo
     const result = applyAction(state, {
         type: 'ATTACK_UNIT',
         playerId: 'p1',
@@ -161,7 +161,7 @@ function makeGameState(): GameState {
         targetId: 'u3'
     });
 
-    // Distancia = 4, dentro de rango 4
+    // Distancia = 3, dentro de rango 3
     assert(result !== state, 'ATTACK_UNIT — estado mutado');
     assertEqual(result.players['p1'].actionPoints, 9,
         'ATTACK_UNIT — costó 1 PA');
@@ -172,12 +172,13 @@ function makeGameState(): GameState {
     if (!u3after) {
         assert(result.graveyard['u3'] !== undefined,
             'ATTACK_UNIT — u3 eliminado');
-    } else if (u3after.hp < 12) {
-        assert(u3after.hp === 12 - 3,
-            'ATTACK_UNIT — u3 recibió 3 de daño (hit)');
+    } else if (u3after.hp < 16) {
+        // u3 tiene Resistencia (-1), attack=3 → daño 2
+        assert(u3after.hp === 16 - 2,
+            'ATTACK_UNIT — u3 recibió 2 de daño (hit con Resistencia)');
     } else {
-        // Falló: u3 (rango 1) está a distancia 4, no puede contraatacar
-        assert(u1after && u1after.hp === 8,
+        // Falló: u3 (rango 1) está a distancia 3, no puede contraatacar
+        assert(u1after && u1after.hp === 12,
             'ATTACK_UNIT — miss sin contraataque (fuera de rango)');
     }
 }
@@ -206,13 +207,13 @@ function makeGameState(): GameState {
     assert(result !== melee, 'ATTACK_UNIT melee — estado mutado');
     const u2after = result.units['u2'];
     if (u2after) {
-        if (u2after.hp < 10) {
-            assert(u2after.hp === 10 - 3,
-                'ATTACK_UNIT melee — u2 recibió 3 de daño (hit)');
+        if (u2after.hp < 14) {
+            assert(u2after.hp === 14 - 2,
+                'ATTACK_UNIT melee — u2 recibió 2 de daño (hit)');
         } else {
             // Falló: u2 (rango 1) puede contraatacar
             const u3after = result.units['u3'];
-            assert(u3after && u3after.hp < 12,
+            assert(u3after && u3after.hp < 16,
                 'ATTACK_UNIT melee — miss, u3 recibió contraataque');
         }
     }

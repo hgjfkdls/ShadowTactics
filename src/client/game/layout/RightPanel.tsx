@@ -180,7 +180,6 @@ function EffectDetail({ stat, label, description }: { stat: string; label: strin
 }
 
 function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: string; myPlayerId: string }) {
-    const [expandedAbility, setExpandedAbility] = useState<string | null>(null);
 
     // Try live unit, then graveyard, then pool (undeployed)
     const liveUnit = state.units[unitId];
@@ -254,9 +253,42 @@ function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: s
                 </div>
             )}
 
-            {/* Abilities with clickable names */}
+            {/* Identity card abilities (general only) — special + global as cards */}
+            {liveUnit && liveUnit.class === 'general' && (() => {
+                const identityCardId = state.players[liveUnit.owner]?.selectedIdentity;
+                if (!identityCardId) return null;
+                const key = getIdentityKey(identityCardId);
+                const identityInfo = IDENTITY_INFO[key];
+                if (!identityInfo) return null;
+                const sections = identityInfo.descVerbose.split('\n\n').filter(s => s.trim());
+                const abilitySections = sections.slice(1); // skip flavor text
+                return (
+                    <div className="space-y-1">
+                        <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Identidad — {identityInfo.name}</div>
+                        <div className="space-y-2">
+                            {abilitySections.map((section, i) => {
+                                const lines = section.split('\n');
+                                const header = lines[0] ?? '';
+                                const desc = lines.slice(1).join(' ').trim();
+                                const isEspecial = header.startsWith('Especial');
+                                return (
+                                    <div key={i} className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 space-y-1.5">
+                                        <div className="flex items-center gap-2 text-xs">
+                                            <span className="text-[9px] font-mono text-zinc-500">👑</span>
+                                            <span className="font-semibold text-zinc-200">{header}</span>
+                                        </div>
+                                        <div className="text-[11px] text-zinc-300 leading-relaxed">{desc}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Abilities with clickable names (collapsed by default for generals) */}
             {(unit?.abilities && unit.abilities.length > 0) && (
-                <AbilityList abilities={unit.abilities} expandedAbility={expandedAbility} onToggle={setExpandedAbility} />
+                <AbilityList key={unit.id} abilities={unit.abilities} ownerPlayerId={unit.owner} startCollapsed={unit.class === 'general'} />
             )}
 
             {poolEntry && (
@@ -268,38 +300,46 @@ function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: s
     );
 }
 
-function AbilityList({ abilities, expandedAbility, onToggle }: { abilities: string[]; expandedAbility: string | null; onToggle: (id: string | null) => void }) {
+function AbilityList({ abilities, ownerPlayerId, startCollapsed }: { abilities: string[]; ownerPlayerId?: string; startCollapsed?: boolean }) {
+    const [expanded, setExpanded] = useState<Set<string>>(() => startCollapsed ? new Set() : new Set(abilities));
+
+    function toggleAbility(id: string) {
+        setExpanded(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }
+
     return (
         <div className="space-y-1">
             <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Habilidades</div>
-            <div className="space-y-1">
+            <div className="space-y-2">
                 {abilities.map(abId => {
                     const ab = ABILITIES[abId];
-                    const isExpanded = expandedAbility === abId;
+                    if (!ab) return null;
+                    const isOpen = expanded.has(abId);
+                    let description = ab.description;
+                    if (abId === 'blanco_facil' && ownerPlayerId?.startsWith('francotirador')) {
+                        description = description.replace('-1 dificultad', '-2 dificultad');
+                    }
                     return (
-                        <div key={abId}>
-                            <button
-                                onClick={() => onToggle(isExpanded ? null : abId)}
-                                className={[
-                                    'w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer',
-                                    isExpanded
-                                        ? 'border-blue-600 bg-blue-600/15'
-                                        : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-500',
-                                ].join(' ')}
-                            >
-                                <span className="text-[9px] text-zinc-500 font-mono">
-                                    {ab?.type === 'active' ? `⚡${ab.cost ?? '?'}PA` : '🔰'}
+                        <div key={abId} className="border border-zinc-700 bg-zinc-800/50 rounded-lg p-2.5 space-y-1.5">
+                            <div className="flex items-center gap-2 text-xs cursor-pointer select-none" onClick={() => toggleAbility(abId)}>
+                                <span className="text-[9px] font-mono text-zinc-500">
+                                    {ab.type === 'active' ? `⚡${ab.cost ?? '?'}PA` : '🔰'}
                                 </span>
-                                <span className="font-semibold text-zinc-200">{ab?.name ?? abId.replace(/_/g, ' ')}</span>
-                            </button>
-                            {isExpanded && ab && (
-                                <div className="ml-2 mt-1 border-l-2 border-blue-700/50 pl-3 py-1 space-y-1">
-                                    <div className="text-[11px] text-zinc-300 leading-relaxed">{ab.description}</div>
+                                <span className="font-semibold text-zinc-200">{ab.name}</span>
+                                <span className="ml-auto text-zinc-600 text-[10px]">{isOpen ? '▼' : '▶'}</span>
+                            </div>
+                            {isOpen && (
+                                <>
+                                    <div className="text-[11px] text-zinc-300 leading-relaxed">{description}</div>
                                     {ab.restrictions && (
                                         <div className="text-[10px] text-amber-400/80 italic">{ab.restrictions}</div>
                                     )}
                                     <div className="text-[9px] text-zinc-500">{ab.type === 'active' ? 'Activa' : 'Pasiva'}{ab.cost !== undefined ? ` · Coste: ${ab.cost} PA` : ''}</div>
-                                </div>
+                                </>
                             )}
                         </div>
                     );
@@ -360,6 +400,12 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         const stat = m.stat;
         if (stat === 'movementCost' && m.value === 0 && m.operator === 'SET') {
             if (!buffs.includes(stat)) buffs.push(stat);
+            continue;
+        }
+        if (stat === 'damage' && m.value < 0 && m.targetId) {
+            continue;
+        }
+        if (stat === 'attack' && m.value > 0 && m.targetId) {
             continue;
         }
         if (harmfulStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }

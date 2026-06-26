@@ -21,6 +21,7 @@ export function addModifier(
     const mod: ModifierInstance = {
         id: `mod_${id}`,
         sourcePlayerId: targetPlayerId ?? '',
+        targetId: targetUnitId ?? undefined,
         stat,
         value,
         operator,
@@ -37,7 +38,18 @@ export function getModifierSum(
     stat: string
 ): number {
     return state.activeModifiers
-        .filter(m => m.stat === stat && !isExpired(m))
+        .filter(m => {
+            if (m.stat !== stat || isExpired(m)) return false;
+            if (targetPlayerId !== null && m.sourcePlayerId !== targetPlayerId) return false;
+            if (targetUnitId !== null) {
+                // Buscando por unidad específica: incluir player-wide y unit-specific que coincida
+                if (m.targetId !== undefined && m.targetId !== targetUnitId) return false;
+            } else {
+                // Buscando player-wide: excluir modifiers unit-specific
+                if (m.targetId !== undefined) return false;
+            }
+            return true;
+        })
         .reduce((sum, m) => {
             if (m.operator === 'ADD') return sum + m.value;
             if (m.operator === 'MUL') return sum * (m.value);
@@ -54,10 +66,13 @@ export function consumeModifier(
     state: GameState,
     targetPlayerId: PlayerId | null,
     stat: string,
-    amount: number = 1
+    amount: number = 1,
+    targetUnitId?: string
 ): GameState {
     const idx = state.activeModifiers.findIndex(
         m => m.stat === stat && !isExpired(m) && (m.remainingUses === undefined || m.remainingUses > 0)
+            && (targetPlayerId === null || m.sourcePlayerId === targetPlayerId)
+            && (targetUnitId === undefined || m.targetId === targetUnitId)
     );
     if (idx === -1) return state;
 
