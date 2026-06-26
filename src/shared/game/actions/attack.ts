@@ -28,8 +28,13 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     if (unit.owner !== playerId) return state;
     if (target.owner === playerId) return state;
 
-    // Solo 1 ataque básico por turno por unidad
-    if (unit.attackedThisTurn) return state;
+    // Confusión (blocked con duración): unidad no puede atacar
+    if (state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === unit.id && m.remainingTurns > 0 && (m.remainingUses === undefined || m.remainingUses > 0))) return state;
+
+    // Ataque extra: permite atacar de nuevo aunque ya atacó
+    const ataqueExtraCharges = unit.ataqueExtraCharges ?? 0;
+    const ataqueExtra = ataqueExtraCharges > 0;
+    if (!ataqueExtra && unit.attackedThisTurn) return state;
 
     const distance = hexDistance(unit.position, target.position);
     const attackerIdentity = getIdentityKey(state.players[unit.owner]?.selectedIdentity ?? '');
@@ -44,24 +49,42 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         costResult
     );
     let cost = getAttackCost() + costResult.attackCost;
+    if (ataqueExtra) cost = 0;
     const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
-    if (hasSurcharge) cost += 1;
+    if (hasSurcharge && !ataqueExtra) cost += 1;
     if (ap < cost) return state;
 
+    // Bonos de carta por ataque básico (se consumen al atacar, acierte o no)
+    const precisionCharges = unit.precisionCharges ?? 0;
+    const precision = precisionCharges > 0;
+    let attackUnit = unit;
+    let clearFlags: string[] = [];
+    if (ataqueExtra) {
+        attackUnit = { ...attackUnit, attack: attackUnit.attack + 1, difficulty: attackUnit.difficulty + 2 };
+    }
+    if (precision) {
+        attackUnit = { ...attackUnit, difficulty: attackUnit.difficulty - 2 };
+    }
     const result: AttackResult = resolveAttack({
         state,
-        unit,
+        unit: attackUnit,
         target,
         from: unit.position,
         to: target.position,
         distance,
+        isExtraAttack: ataqueExtra,
     });
 
     let s = pipeState(
         result.state,
         (s) => consumeAP(s, playerId, cost),
-        (s) => updateUnit(s, action.unitId, (u) => ({ ...u, attackedThisTurn: true, performedActionThisTurn: true })),
-        (s) => hasSurcharge ? updateUnit(s, action.unitId, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
+        (s) => updateUnit(s, action.unitId, (u) => {
+            let updated = { ...u, attackedThisTurn: true, performedActionThisTurn: true };
+            if (ataqueExtra) updated.ataqueExtraCharges = Math.max(0, (updated.ataqueExtraCharges ?? 0) - 1);
+            if (precision) updated.precisionCharges = Math.max(0, (updated.precisionCharges ?? 0) - 1);
+            return updated;
+        }),
+        (s) => hasSurcharge && !ataqueExtra ? updateUnit(s, action.unitId, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
     );
 
     s = consumeModifier(s, playerId, 'attackCost', 1);

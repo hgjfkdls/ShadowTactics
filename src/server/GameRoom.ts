@@ -5,6 +5,8 @@ import {
 import type { GameAction, GameState } from '@shared';
 import { createInitialGameState } from '@shared/game/init';
 
+const DISCONNECT_TIMEOUT_MS = 60_000;
+
 export type PlayerSlot = {
     socketId: string;
     playerId: 'p1' | 'p2';
@@ -41,6 +43,11 @@ export class GameRoom {
     private spectators = new Set<string>();
 
     private currentState: GameState;
+
+    private disconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    private disconnectedPlayerId: 'p1' | 'p2' | null = null;
+
+    onDisconnectCallback: ((state: GameState) => void) | null = null;
 
     private actions: ActionRecord[] = [];
     private snapshots: StateSnapshot[] = [];
@@ -83,6 +90,63 @@ export class GameRoom {
         return this.players.some(
             p => p.socketId === socketId && p.playerId === playerId
         );
+    }
+
+    getPlayerIdBySocket(socketId: string): 'p1' | 'p2' | null {
+        return this.players.find(p => p.socketId === socketId)?.playerId ?? null;
+    }
+
+    onPlayerDisconnect(playerId: 'p1' | 'p2') {
+        this.disconnectedPlayerId = playerId;
+        this.currentState = {
+            ...this.currentState,
+            players: {
+                ...this.currentState.players,
+                [playerId]: { ...this.currentState.players[playerId], disconnectedAt: Date.now() },
+            },
+        };
+        this.disconnectTimeout = setTimeout(() => {
+            if (this.currentState.gamePhase !== 'GAME') return;
+            const winner = playerId === 'p1' ? 'p2' : 'p1';
+            this.currentState = applyAction(this.currentState, {
+                type: 'SURRENDER',
+                playerId,
+            });
+            this.currentState = {
+                ...this.currentState,
+                gameOverReason: 'disconnect',
+            };
+            this.onDisconnectCallback?.(this.currentState);
+        }, DISCONNECT_TIMEOUT_MS);
+    }
+
+    onPlayerReconnect(playerId: 'p1' | 'p2'): boolean {
+        if (this.disconnectedPlayerId !== playerId) return false;
+        this.disconnectedPlayerId = null;
+        if (this.disconnectTimeout) {
+            clearTimeout(this.disconnectTimeout);
+            this.disconnectTimeout = null;
+        }
+        this.currentState = {
+            ...this.currentState,
+            players: {
+                ...this.currentState.players,
+                [playerId]: { ...this.currentState.players[playerId], disconnectedAt: undefined },
+            },
+        };
+        return true;
+    }
+
+    isDisconnected(): boolean {
+        return this.disconnectedPlayerId !== null;
+    }
+
+    getDisconnectedPlayerId(): 'p1' | 'p2' | null {
+        return this.disconnectedPlayerId;
+    }
+
+    getPlayerCount(): number {
+        return this.players.length;
     }
 
     getCurrentState(): GameState {

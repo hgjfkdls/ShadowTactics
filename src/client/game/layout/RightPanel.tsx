@@ -2,9 +2,10 @@ import { useState } from 'react';
 import type { GameState, GameAction, Unit, ModifierInstance } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
 import { ABILITIES } from '@shared/game/data/abilities';
+import { BASE_STATS } from '@shared/game/units';
 import { getCardName, getCardType, getCardDescription } from '@shared/game/actions/card';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
 
 type Props = {
     state: GameState;
@@ -31,7 +32,7 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
             return <UnitDetail state={state} unitId={selectedInfo.unitId} myPlayerId={playerId} />;
         }
         if (selectedInfo?.type === 'card') {
-            return <CardDetail cardId={selectedInfo.cardId} playerId={playerId} state={state} sendAction={sendAction} />;
+            return <CardDetail cardId={selectedInfo.cardId} />;
         }
         if (selectedInfo?.type === 'effect') {
             return <EffectDetail stat={selectedInfo.stat} label={selectedInfo.label} description={selectedInfo.description} />;
@@ -107,11 +108,8 @@ function IdentityDetail({ state, targetPlayerId, myPlayerId }: { state: GameStat
     );
 }
 
-function CardDetail({ cardId, playerId, state, sendAction }: { cardId: string; playerId: string; state: GameState; sendAction?: (action: GameAction) => void }) {
+function CardDetail({ cardId }: { cardId: string }) {
     const ctype = getCardType(cardId);
-    const isMyTurn = state.activePlayer === playerId && state.turnPhase !== 'COUNTER';
-    const isCounterWindow = state.turnPhase === 'COUNTER' && state.activePlayer !== playerId;
-    const canPlay = isMyTurn || (isCounterWindow && ctype === 'COUNTER');
 
     const TYPE_LABELS: Record<string, string> = {
         BUFF: 'Mejora',
@@ -146,15 +144,6 @@ function CardDetail({ cardId, playerId, state, sendAction }: { cardId: string; p
             <div className={['rounded-lg border p-3 text-xs text-zinc-300 leading-relaxed', ctype ? TYPE_BG[ctype] ?? '' : 'bg-zinc-800/30 border-zinc-700'].join(' ')}>
                 {getCardDescription(cardId) || 'Sin descripción'}
             </div>
-
-            {canPlay && sendAction && (
-                <button
-                    onClick={() => sendAction({ type: 'USE_CARD', playerId, cardId })}
-                    className="w-full text-xs font-semibold py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition cursor-pointer text-white"
-                >
-                    {isCounterWindow ? 'Contrarrestar' : 'Usar carta'}
-                </button>
-            )}
         </div>
     );
 }
@@ -205,7 +194,7 @@ function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: s
                 <div className="text-3xl">{poolEntry ? '📦' : isAlive ? '⚔️' : '💀'}</div>
                 <div>
                     <div className={`text-lg font-bold ${CLASS_COLORS[unitClass]}`}>
-                        {CLASS_DISPLAY[unitClass] ?? unitClass}
+                        {unit?.id ? `[${unit.id}]` : ''}{CLASS_DISPLAY[unitClass] ?? unitClass}
                     </div>
                     <div className={`text-xs font-semibold mt-1 ${isMine ? 'text-blue-400' : 'text-red-400'}`}>
                         {isMine ? 'ALIADA' : 'ENEMIGA'}
@@ -375,20 +364,13 @@ function StatBox({ label, value, bar }: { label: string; value: string; bar?: nu
 }
 
 function getMaxHp(cls: string): number {
-    switch (cls) {
-        case 'general': return 15;
-        case 'infantry': return 12;
-        case 'cavalry': return 10;
-        case 'archer': return 8;
-        case 'lancer': return 10;
-        default: return 10;
-    }
+    return BASE_STATS[cls as keyof typeof BASE_STATS]?.hp ?? 10;
 }
 
 function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: string[]; debuffs: string[] } {
     const buffs: string[] = [];
     const debuffs: string[] = [];
-    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'blocked'];
+    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
     const helpfulStats = ['attack', 'damage', 'ap', 'dotOnHit'];
     const passiveStats = ['passiveDamage'];
     for (const m of modifiers) {
@@ -408,6 +390,10 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (stat === 'attack' && m.value > 0 && m.targetId) {
             continue;
         }
+        if (stat === 'ap' && m.value < 0) {
+            if (!debuffs.includes(stat)) debuffs.push(stat);
+            continue;
+        }
         if (harmfulStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
         else if (helpfulStats.includes(stat)) { if (!buffs.includes(stat)) buffs.push(stat); }
         else if (passiveStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
@@ -425,7 +411,8 @@ function statusLabel(stat: string): string {
         case 'difficulty': return 'Dificultad modificada';
         case 'damage': return 'Daño alterado';
         case 'attackCost': return 'Coste ataque aumentado';
-        case 'blocked': return 'Bloqueado';
+        case 'bloqueo': return 'Bloqueado';
+        case 'inmovil': return 'Inmovilizado';
         case 'dotOnHit': return 'Daño pasivo preparado';
         case 'ap': return 'PA modificados';
         case 'passiveDamage': return 'Recibiendo daño pasivo';

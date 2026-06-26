@@ -9,8 +9,10 @@ import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
 import { KeyBindingsProvider, useKeyBindings } from './game/KeyBindingsContext';
 import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
+import { GameOverModal } from './game/layout/GameOverModal';
+import { DisconnectModal } from './game/layout/DisconnectModal';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
 
 export function App() {
     const {
@@ -24,11 +26,13 @@ export function App() {
         connected,
         lastBlockedReason,
         clearBlockedReason,
+        opponentDisconnectedAt,
     } = useGameState();
 
     const [gameIdInput, setGameIdInput] = useState('');
     const [prepDone, setPrepDone] = useState(false);
     const [selectedInfo, setSelectedInfo] = useState<SelectedInfo>(null);
+    const [confirmLeave, setConfirmLeave] = useState(false);
     const { alerts, addAlert, removeAlert } = useAlerts();
 
     useEffect(() => {
@@ -74,6 +78,28 @@ export function App() {
         }
     }, [state?.lastIdentityHeal]);
 
+    const lastCaminoRef = useRef<boolean>(false);
+    useEffect(() => {
+        if (state?.lastCaminoDelGuerrero && !lastCaminoRef.current) {
+            lastCaminoRef.current = true;
+            addAlert('⚔️ Jugador: Camino del guerrero — +1 PA por kill a rango 1', 'success');
+        }
+        if (!state?.lastCaminoDelGuerrero) {
+            lastCaminoRef.current = false;
+        }
+    }, [state?.lastCaminoDelGuerrero]);
+
+    const lastMeditacionRef = useRef<boolean>(false);
+    useEffect(() => {
+        if (state?.lastMeditacion && !lastMeditacionRef.current) {
+            lastMeditacionRef.current = true;
+            addAlert('🧘 El Monje Shaolin ha recuperado 3 HP con Meditación', 'success');
+        }
+        if (!state?.lastMeditacion) {
+            lastMeditacionRef.current = false;
+        }
+    }, [state?.lastMeditacion]);
+
     return (
         <KeyBindingsProvider>
         <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
@@ -85,8 +111,33 @@ export function App() {
                         {role?.role === 'player' && ` (${role.playerId})`}]
                     </div>
                     <div className="ml-auto">
-                        <HamburgerMenu onLeaveGame={leaveGame} />
+                        <HamburgerMenu
+                            onLeaveGame={() => setConfirmLeave(true)}
+                            onSurrender={state && state.gamePhase === 'GAME' && role?.role === 'player' ? () => sendAction({ type: 'SURRENDER', playerId }) : undefined}
+                        />
                     </div>
+                    {confirmLeave && (
+                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setConfirmLeave(false)}>
+                            <div className="bg-zinc-900 border-2 border-zinc-700 rounded-xl px-8 py-6 shadow-2xl min-w-72 text-center space-y-4" onClick={e => e.stopPropagation()}>
+                                <div className="text-base text-zinc-200 font-semibold">Abandonar partida</div>
+                                <div className="text-sm text-zinc-400">Si abandonas la partida, se contará como rendición.</div>
+                                <div className="flex gap-3 justify-center pt-2">
+                                    <button
+                                        onClick={() => { setConfirmLeave(false); leaveGame(); }}
+                                        className="bg-red-600 hover:bg-red-500 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
+                                    >
+                                        Abandonar
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmLeave(false)}
+                                        className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </>}
             </header>
 
@@ -125,17 +176,26 @@ export function App() {
                                 state={state}
                                 sendAction={sendAction}
                                 playerId={playerId}
+                                selectedInfo={selectedInfo}
                                 onInfoSelect={setSelectedInfo}
                                 addAlert={addAlert}
+                                disableInput={!!opponentDisconnectedAt}
                             />
                             {role?.role === 'player' && state.gamePhase === 'GAME' && (
                                 <EndTurnBtn role={role} state={state} sendAction={sendAction} />
                             )}
                             <AlertPanel alerts={alerts} removeAlert={removeAlert} />
+                            {state?.gamePhase !== 'GAME_OVER' && opponentDisconnectedAt && (
+                                <DisconnectModal disconnectedAt={opponentDisconnectedAt} />
+                            )}
+                            {state?.gamePhase === 'GAME_OVER' && (
+                                <GameOverModal state={state} playerId={playerId} onLeaveGame={leaveGame} />
+                            )}
                             {state && (state.gamePhase === 'GAME' || state.gamePhase === 'GAME_OVER') && (
                                 <TurnTimer
                                     activePlayer={state.activePlayer}
                                     turnPhase={state.turnPhase ?? ''}
+                                    paused={!!opponentDisconnectedAt}
                                 />
                             )}
                         </main>

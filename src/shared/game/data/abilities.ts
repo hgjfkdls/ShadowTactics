@@ -92,8 +92,8 @@ export const ABILITIES: Record<string, UnitAbility> = {
     },
     torbellino: {
         id: 'torbellino', name: 'Torbellino', type: 'active', cost: 3,
-        description: 'Inflige 2 de daño a todos los enemigos adyacentes y 1 de daño a los aliados adyacentes. Ignora defensas.',
-        restrictions: '1 vez por turno. Afecta a todas las casillas a rango 1.',
+        description: 'Dificultad 6. Inflige 2 de daño a todos los enemigos adyacentes. Fallo: 1 de daño a todos los adyacentes (excepto generales). No puede ser crítico.',
+        restrictions: '1 vez por turno. No puede ser crítico (11-12 hacen daño normal). Afecta a todas las casillas a rango 1.',
     },
     a_la_carga: {
         id: 'a_la_carga', name: 'A la carga', type: 'active',
@@ -102,7 +102,7 @@ export const ABILITIES: Record<string, UnitAbility> = {
     },
     rayo_celestial: {
         id: 'rayo_celestial', name: 'Rayo celestial', type: 'active', cost: 1,
-        description: 'Elige un aliado a rango ≤ 2 que tenga rango 1. Su siguiente ataque hace +X daño (X: 3/2/1 según usos)',
+        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque hace +X daño (X: 3/2/1 según usos)',
         restrictions: 'Cada uso reduce el daño en 1. Se desactiva tras el tercer uso.',
         requiresTarget: true,
     },
@@ -131,6 +131,41 @@ export const ABILITIES: Record<string, UnitAbility> = {
         id: 'meditacion', name: 'Meditación', type: 'active', cost: 2,
         description: 'Recupera 3 HP a tu General. Sin límite de usos por turno.',
         restrictions: 'El General debe tener al menos 2 PA disponibles.',
+    },
+
+    // ── IDENTIDAD: SAMURÁI ──
+    desenvainado_veloz: {
+        id: 'desenvainado_veloz', name: 'Desenvainado veloz', type: 'active', cost: 1,
+        description: '-1 dificultad. Si acierta, el objetivo no puede moverse en su siguiente turno (puede atacar). Se resetea si elimina al objetivo.',
+        restrictions: '1 vez por turno. Si el hex detrás del objetivo está vacío, puedes ocuparlo al impactar.',
+        requiresTarget: true,
+    },
+    camino_del_guerrero: {
+        id: 'camino_del_guerrero', name: 'Camino del guerrero', type: 'passive',
+        description: 'Una vez por turno, cuando un aliado elimina a un enemigo a rango 1, recuperas 1 PA.',
+    },
+
+    // ── IDENTIDAD: ESCUDO DEL COMANDANTE ──
+    angel_guardian: {
+        id: 'angel_guardian', name: 'Ángel Guardián', type: 'active', cost: 2,
+        description: 'Todos los aliados reciben un escudo de 2 HP hasta tu siguiente turno.',
+    },
+    proteger: {
+        id: 'proteger', name: 'Proteger', type: 'active', cost: 0,
+        description: 'Un aliado a rango ≤ 3 recibe -1 daño hasta tu siguiente turno. Se acumula con otras defensas (Resistencia, Línea defensiva). Si no se usa, el efecto va al General.',
+        requiresTarget: true,
+    },
+
+    // ── IDENTIDAD: FURIA DEL TIRANO ──
+    sacrificar: {
+        id: 'sacrificar', name: 'Sacrificar', type: 'active', cost: 1,
+        description: 'Un aliado a rango 1 pierde 2 HP. El General recupera 3 HP. Si el aliado muere, recupera 5 HP.',
+        restrictions: 'No puede usarse si el General está a full HP.',
+        requiresTarget: true,
+    },
+    terror: {
+        id: 'terror', name: 'Terror', type: 'passive',
+        description: 'Cuando un aliado elimina a un enemigo a rango 1, los enemigos adyacentes al atacante o al objetivo tienen dificultad +1 en su siguiente ataque.',
     },
 };
 

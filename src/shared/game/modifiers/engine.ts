@@ -108,7 +108,7 @@ export function modifierExists(state: GameState, stat: string): boolean {
 // Para Espejo: recordar quién puso el último debuff
 export function getLastDebuffSource(state: GameState): PlayerId | null {
     const debuffs = state.activeModifiers.filter(m =>
-        ['movementCost', 'damage', 'attackCost', 'blocked', 'ap'].includes(m.stat)
+        ['movementCost', 'damage', 'attackCost', 'bloqueo', 'ap'].includes(m.stat)
     );
     if (debuffs.length === 0) return null;
     return debuffs[debuffs.length - 1].sourcePlayerId;
@@ -148,16 +148,19 @@ export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId
         }
     }
 
-    // Aplicar daño pasivo (flechas_fuego) en turnos del jugador que aplicó el DoT
+    // Aplicar daño pasivo (flechas_fuego) al inicio del turno del jugador afectado
     let dotMods = newState.activeModifiers;
     const passiveIndices = dotMods
         .map((m, i) => ({ m, i }))
-        .filter(({ m }) =>
-            m.stat === 'passiveDamage' && m.sourcePlayerId === playerId &&
-            m.remainingUses !== undefined && m.remainingUses > 0 && m.targetUnitId
-        );
+        .filter(({ m }) => {
+            if (m.stat !== 'passiveDamage') return false;
+            if (m.remainingUses === undefined || m.remainingUses <= 0) return false;
+            if (!m.targetId) return false;
+            const targetUnit = newState.units[m.targetId];
+            return targetUnit && targetUnit.owner === playerId;
+        });
     for (const { m, i } of passiveIndices) {
-        newState = dealDamage(newState, m.targetUnitId!, m.value);
+        newState = dealDamage(newState, m.targetId!, m.value);
         const newUses = m.remainingUses! - 1;
         if (newUses <= 0) {
             dotMods = [...dotMods];
@@ -168,6 +171,12 @@ export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId
         }
         newState = { ...newState, activeModifiers: dotMods };
     }
+
+    // Limpiar modificadores de AP que ya se aplicaron este turno
+    newState = {
+        ...newState,
+        activeModifiers: newState.activeModifiers.filter(m => !(m.stat === 'ap' && m.remainingTurns === 0 && m.remainingUses === undefined))
+    };
 
     return newState;
 }

@@ -3,9 +3,10 @@ import { KeyBindingsModal } from './KeyBindingsModal';
 
 type Props = {
     onLeaveGame: () => void;
+    onSurrender?: () => void;
 };
 
-export function HamburgerMenu({ onLeaveGame }: Props) {
+export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
     const [open, setOpen] = useState(false);
     const [showKeyConfig, setShowKeyConfig] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -40,6 +41,14 @@ export function HamburgerMenu({ onLeaveGame }: Props) {
                         >
                             ⌨  Configurar teclas
                         </button>
+                        {onSurrender && (
+                            <button
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-yellow-700 transition cursor-pointer"
+                                onClick={() => { setOpen(false); onSurrender(); }}
+                            >
+                                🏳  Rendirse
+                            </button>
+                        )}
                         <button
                             className="w-full text-left px-4 py-2 text-sm hover:bg-red-700 transition cursor-pointer"
                             onClick={() => { setOpen(false); onLeaveGame(); }}

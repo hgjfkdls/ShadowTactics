@@ -44,7 +44,7 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     },
     anti_caballeria: {
         onDamage: (ctx, r) => {
-            if (ctx.defender.class === 'cavalry') r.damage += 1;
+            if (ctx.defender.class === 'cavalry' || (ctx.defender.class === 'general' && (ctx.state.players[ctx.defender.owner]?.selectedIdentity ?? '').match(/^(caballos_guerra|cazadores)/))) r.damage += 1;
         },
     },
     presion: {
@@ -201,11 +201,11 @@ export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult)
         result.damage = Math.max(1, result.damage - 1);
     }
 
-    // Muro espartano: lanceros adyacentes entre sí reciben -1 daño
+    // Muro espartano: lanceros y general (con identidad espartano) adyacentes reciben -1 daño
     const espartanoIdentity = ctx.state.players[ctx.defender.owner]?.selectedIdentity ?? '';
-    if (espartanoIdentity.startsWith('espartano') && ctx.defender.class === 'lancer') {
+    if (espartanoIdentity.startsWith('espartano') && (ctx.defender.class === 'lancer' || ctx.defender.class === 'general')) {
         const hasAdjacentLancer = Object.values(ctx.state.units)
-            .some(u => u.owner === ctx.defender.owner && u.class === 'lancer' && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
+            .some(u => u.owner === ctx.defender.owner && (u.class === 'lancer' || u.class === 'general') && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
         if (hasAdjacentLancer) {
             result.damage = Math.max(1, result.damage - 1);
         }

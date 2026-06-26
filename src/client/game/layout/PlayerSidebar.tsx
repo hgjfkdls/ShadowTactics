@@ -11,7 +11,7 @@ const CLASS_BORDER: Record<string, string> = {
     archer: 'border-amber-600/50', infantry: 'border-blue-600/50', cavalry: 'border-violet-600/50', lancer: 'border-red-600/50', general: 'border-yellow-500/50',
 };
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
 
 type Props = {
     state: GameState;
@@ -141,7 +141,11 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
         if (isDrawDiscard) return 'Descartar';
         if (isCounterWindow) {
             const ctype = getCardType(cardId);
-            if (ctype === 'COUNTER') return 'Contrarrestar';
+            if (ctype === 'COUNTER') {
+                // Espejo contra Confusión debe usar el CounterPrompt (necesita seleccionar objetivo)
+                if (cardId.startsWith('espejo') && state.lastCardAction?.cardId.startsWith('confusion')) return null;
+                return 'Contrarrestar';
+            }
             return null;
         }
         if (state.activePlayer === playerId && state.turnPhase !== 'COUNTER') return 'Usar';
@@ -151,8 +155,13 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
     function handleCardAction(cardId: string) {
         const actionLabel = getCardActionLabel(cardId);
         if (!actionLabel || !sendAction) return;
-        if (actionLabel === 'Descartar') sendAction({ type: 'DISCARD_CARD', playerId, cardId });
-        else sendAction({ type: 'USE_CARD', playerId, cardId });
+        if (actionLabel === 'Descartar') {
+            sendAction({ type: 'DISCARD_CARD', playerId, cardId });
+        } else if (actionLabel === 'Usar' && (cardId.startsWith('confusion') || cardId.startsWith('ataque_extra') || cardId.startsWith('precision')) && onInfoSelect) {
+            onInfoSelect({ type: 'cardTarget', cardId });
+        } else {
+            sendAction({ type: 'USE_CARD', playerId, cardId });
+        }
         setHoveredCard(null);
     }
 
@@ -227,7 +236,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                     return !m.targetId && m.sourcePlayerId === playerId;
                 });
                 if (playerMods.length === 0) return null;
-                const isDebuff = (s: string) => ['movementCost', 'difficulty', 'attackCost', 'blocked', 'passiveDamage'].includes(s);
+                const isDebuff = (m: { stat: string; value: number }) => ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil', 'passiveDamage'].includes(m.stat) || (m.stat === 'ap' && m.value < 0);
                 return (
                     <div className="px-3 py-1.5 space-y-1">
                         <div className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wide">Efectos</div>
@@ -238,12 +247,12 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                     onClick={() => onInfoSelect?.({ type: 'effect', stat: m.stat, label: statusLabel(m.stat), description: descriptionForStat(m.stat, m.value, m.operator) })}
                                     className={[
                                         'text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition',
-                                        isDebuff(m.stat)
+                                        isDebuff(m)
                                             ? 'bg-red-900/40 text-red-300 border border-red-800/50 hover:bg-red-900/60'
                                             : 'bg-green-900/40 text-green-300 border border-green-800/50 hover:bg-green-900/60',
                                     ].join(' ')}
                                 >
-                                    {isDebuff(m.stat) ? '🔴' : '🟢'} {statusLabel(m.stat)}
+                                    {isDebuff(m) ? '🔴' : '🟢'} {statusLabel(m.stat)}
                                 </button>
                             ))}
                         </div>
@@ -410,7 +419,8 @@ function statusLabel(stat: string): string {
         case 'difficulty': return 'Dificultad modificada';
         case 'damage': return 'Daño alterado';
         case 'attackCost': return 'Coste ataque aumentado';
-        case 'blocked': return 'Bloqueado';
+        case 'bloqueo': return 'Bloqueado';
+        case 'inmovil': return 'Inmovilizado';
         case 'dotOnHit': return 'Daño pasivo preparado';
         case 'ap': return 'PA modificados';
         case 'passiveDamage': return 'Recibiendo daño pasivo';

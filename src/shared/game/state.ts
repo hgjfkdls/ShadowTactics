@@ -54,6 +54,9 @@ export type Unit = {
     usedVozDeMando?: boolean;           // Comandante Supremo: consumió Voz de mando
     royalShieldSavedHp?: number;          // Inspiración Real: HP guardado antes del escudo
     usedEnNombreDelRey?: boolean;         // Inspiración Real: 1 vez por turno
+    usedDesenvainadoVeloz?: boolean;       // Samurái: se resetea si elimina al objetivo
+    ataqueExtraCharges?: number;             // Ataque extra: cargas acumulables
+    precisionCharges?: number;               // Precisión: cargas acumulables
 };
 
 export type GameState = {
@@ -63,6 +66,7 @@ export type GameState = {
 
     gamePhase: 'PREPARATION' | 'GAME' | 'GAME_OVER';
     winner?: PlayerId;
+    gameOverReason?: 'general_killed' | 'surrender' | 'disconnect';
 
     // Subfases
     preparationPhase:
@@ -115,7 +119,12 @@ export type GameState = {
         targetId?: UnitId;
     };
 
+    // Rechazo de carta (razón para mostrar al jugador)
+    lastCardRejectionReason?: string;
+
     // Ocupación pendiente tras Avance (pasiva)
+    gameStartTime?: number;  // Date.now() cuando la partida entra en fase GAME
+
     pendingOccupation?: {
         unitId: UnitId;
         position: HexCoord;
@@ -123,6 +132,12 @@ export type GameState = {
 
     // Robin Hood: curación por identidad
     lastIdentityHeal?: { unitId: UnitId };
+
+    // Samurái: Camino del guerrero activado este turno
+    lastCaminoDelGuerrero?: boolean;
+
+    // Monje Shaolin: Meditación usada este turno
+    lastMeditacion?: boolean;
 
     // Historial de resultados de ataque
     attackResults: Array<{
@@ -138,6 +153,11 @@ export type GameState = {
         attackerClass: string;
         targetClass: string;
         turn: number;
+        attackInTurn?: number;
+        targetKilled?: boolean;
+        attackerKilled?: boolean;
+        attackName?: string;
+        elapsed?: number;  // segundos desde gameStartTime
     }>;
 };
 
@@ -168,6 +188,14 @@ export type PlayerResources = {
     // COMANDANTE SUPREMO
     pendingPlanBatalla?: boolean;     // Plan de batalla: elección pendiente
     vozDeMandoReady?: boolean;        // Voz de mando: disponible tras mover general
+    caminoDelGuerreroUsedThisTurn?: boolean; // Samurái: 1 PA por kill a rango 1
+    protegerUsedThisTurn?: boolean;           // Escudo del Comandante: Proteger usado este turno
+
+    // INSPIRACIÓN DE TROPA
+    generalWasAttackedLastTurn?: boolean;     // el general fue atacado en el turno rival
+
+    // CONEXIÓN
+    disconnectedAt?: number;                  // timestamp de desconexión (para forfeit por timeout)
 
     // DESPLIEGUE
     unitsToDeploy?: { unitId: UnitId; unitClass: Unit['class'] }[];  // pool inicial con clase asignada

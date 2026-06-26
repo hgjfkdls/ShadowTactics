@@ -795,3 +795,80 @@ Implementar cartas de identidad: Robin Hood y Francotirador del Bosque como gene
 - Implementar cartas de efecto (BUFF/DEBUFF/COUNTER) desde la UI
 - Condición de victoria (muerte del general) y pantalla de Game Over
 - Balance general de stats y costos
+
+---
+
+# Sesión de trabajo — 26 Jun 2026
+
+## Objetivo
+Implementar game over (victoria/derrota), rendición, manejo de desconexión con countdown, corregir bugs de UI (ataque extra, movilidad, inspiración de tropa).
+
+---
+
+## Cambios
+
+### inspiracion_tropa: permitir usar con 8 PA
+- Se quitó el `Math.min(..., 8)` en `applyCardEffect` para que siempre sume +1 PA incluso si ya se está en 8 (va a 9 temporalmente, se normaliza al empezar el turno).
+
+### Ataque extra sin contraataque al fallar
+- Se agregó `isExtraAttack` a `AttackInput` en `resolver.ts`.
+- En miss, se salta el contraataque cuando `isExtraAttack` es true.
+- `attack.ts` pasa `isExtraAttack: ataqueExtra` en la llamada.
+
+### Movilidad: permitir mover con 0 PA
+- El atajo 'M' en HexBoard ahora calcula el coste efectivo de movimiento considerando modificadores `movementCost` (SET, ADD, MUL) de cartas como movilidad, no solo `unit.movementCost`.
+
+### Ataque extra con 0 PA y ya atacado
+- Se corrigió el atajo 'A' en HexBoard para permitir iniciar ataque cuando `ataqueExtraCharges > 0`, aunque `attackedThisTurn` sea true o `ap < 1`.
+
+### Game Over — Victoria/Derrota
+- Se agregó `gameOverReason?: 'general_killed' | 'surrender' | 'disconnect'` a `GameState`.
+- Se agregó `disconnectedAt?: number` a `PlayerResources`.
+- Se agregó `SURRENDER` a `GameAction`.
+- `reducer.ts`: `setGameOver()`, `checkGeneralKilled()`, handler para `SURRENDER`, y fallback para `gameOverReason` cuando `killUnit` en helpers.ts pone `GAME_OVER` sin razón.
+- `server/GameRoom.ts`: `onPlayerDisconnect()` (inicia timer 60s), `onPlayerReconnect()`, `getPlayerCount()`, `getPlayerIdBySocket()`.
+- `server/index.ts`: emite `OPPONENT_DISCONNECTED`/`OPPONENT_RECONNECTED`, maneja `SURRENDER` socket event, guarda `socket.data.gameId` para detectar desconexión (socket.rooms está vacío al hacer disconnect).
+- `useGameState.ts`: escucha `OPPONENT_DISCONNECTED`/`RECONNECTED`, expone `opponentDisconnectedAt`. Se permite SURRENDER en turno del rival y en DRAW phase.
+
+### UI de Game Over
+- `GameOverModal.tsx`: muestra VICTORIA/DERROTA grande, motivo específico según victoria/derrota ("El general enemigo ha sido eliminado" / "Tu general ha sido eliminado", etc.), tiempo total, turnos, botón "Volver al lobby".
+- `DisconnectModal.tsx`: modal con cuenta regresiva de 60s cuando el rival se desconecta.
+- `HamburgerMenu.tsx`: botón "🏳 Rendirse" (solo visible durante GAME).
+- `App.tsx`: renderiza `GameOverModal`, `DisconnectModal`, confirmación al abandonar ("Si abandonas la partida, se contará como rendición"), pasa `disableInput` a HexBoard.
+
+### Leave game = rendición
+- `leaveGame()` envía `SURRENDER` por socket antes de `LEAVE_GAME`.
+- Confirmación modal antes de abandonar.
+
+### Turn timer pausado en desconexión
+- `TurnTimer` acepta `paused?: boolean` — no decrementa cuando hay desconexión.
+- `App.tsx` pasa `paused={!!opponentDisconnectedAt}`.
+
+### Keybinds bloqueados en desconexión
+- `HexBoard` acepta `disableInput?: boolean` — el keydown handler retorna inmediatamente si está activo.
+- `App.tsx` pasa `disableInput={!!opponentDisconnectedAt}`.
+
+### Rendirse en turno del rival
+- Se eliminó el check `action.playerId !== state.activePlayer` del handler `SURRENDER` en el reducer.
+- Se agregó `action.type === 'SURRENDER'` a los permitidos en el guard de turno en `useGameState.ts`.
+
+---
+
+## Archivos modificados
+- `src/shared/game/state.ts` — gameOverReason, disconnectedAt
+- `src/shared/game/action-types.ts` — SURRENDER action
+- `src/shared/game/reducer.ts` — setGameOver, checkGeneralKilled, surrender handler, DRAW bypass, sin check activePlayer
+- `src/shared/game/actions/card.ts` — inspiracion_tropa sin cap
+- `src/shared/game/combat/resolver.ts` — isExtraAttack en AttackInput, skip counter en miss
+- `src/shared/game/actions/attack.ts` — pasa isExtraAttack
+- `src/client/App.tsx` — modals, confirmLeave, disableInput, paused
+- `src/client/game/useGameState.ts` — opponentDisconnectedAt, surrender on leave, turn guard bypass
+- `src/client/game/board/HexBoard.tsx` — ataque extra + movilidad checks, disableInput
+- `src/client/game/layout/HamburgerMenu.tsx` — onSurrender prop
+- `src/client/game/layout/TurnTimer.tsx` — paused prop
+- `src/server/GameRoom.ts` — disconnect tracking, timeout, reconnect
+- `src/server/index.ts` — SURRENDER event, socket.data.gameId, disconnect handling
+
+## Archivos creados
+- `src/client/game/layout/GameOverModal.tsx`
+- `src/client/game/layout/DisconnectModal.tsx`

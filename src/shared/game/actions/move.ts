@@ -4,7 +4,7 @@ import { hexDistance } from '../../hex';
 import { pipeState, isHexOccupied, isWithinBounds, updateUnit } from '../utils';
 import { getMovementCost } from '../movement';
 import { getPlayerAP, consumeAP, updateUnitPos } from './helpers';
-import { consumeModifier, modifierExists, addModifier } from '../modifiers/engine';
+import { consumeModifier, addModifier } from '../modifiers/engine';
 
 
 export function handleMove(state: GameState, action: GameAction): GameState {
@@ -16,8 +16,8 @@ export function handleMove(state: GameState, action: GameAction): GameState {
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== playerId) return state;
 
-    // Bloqueado por Confusión
-    if (modifierExists(state, 'blocked')) return state;
+    // Bloqueado por Confusión o Desenvainado veloz (por unidad específica)
+    if (state.activeModifiers.some(m => (m.stat === 'bloqueo' || m.stat === 'inmovil') && m.targetId === unit.id && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) return state;
 
     const to = action.to;
     const distance = hexDistance(unit.position, to);
@@ -49,14 +49,14 @@ export function handleMove(state: GameState, action: GameAction): GameState {
     const vozDeMando = identity.startsWith('comandante_supremo') && state.players[playerId]?.vozDeMandoReady;
     const useVozBonus = !isGeneral && vozDeMando;
     if (useVozBonus) {
-        cost = Math.max(0, cost - 1);
+        cost = 0;
     }
 
     let s = pipeState(
         state,
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnitPos(s, unit.id, to),
-        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, didMovePreviousTurn: true, performedActionThisTurn: true })),
+        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, performedActionThisTurn: true })),
         (s) => hasSurcharge ? updateUnit(s, unit.id, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
     );
 

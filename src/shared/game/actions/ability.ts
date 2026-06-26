@@ -1,14 +1,15 @@
 import type { GameState, Unit } from '../state';
 import type { GameAction } from '../action-types';
 import { hexDistance } from '../../hex';
-import { updateUnit, dealDamage } from '../utils';
+import { updateUnit, dealDamage, isHexOccupied, isWithinBounds } from '../utils';
 import { consumeAP } from './helpers';
 import { roll2d6 } from '../utils/rng';
 import { resolveAttack } from '../combat';
 import type { AttackResult } from '../combat';
+import { getDifficulty } from '../combat/hit';
 import { ABILITIES } from '../data/abilities';
 import { BASE_STATS } from '../units';
-import { isHexOccupied } from '../utils';
+import { addModifier } from '../modifiers/engine';
 
 function unitHasAbility(unit: Unit, abilityId: string): boolean {
     return unit.abilities?.includes(abilityId) ?? false;
@@ -26,8 +27,8 @@ function canAct(state: GameState, action: GameAction): boolean {
     if (action.playerId !== state.activePlayer) return false;
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== action.playerId) return false;
-    if (unit.usedCarga && action.abilityId !== 'rayo_celestial' && action.abilityId !== 'a_la_carga' && action.abilityId !== 'torbellino' && action.abilityId !== 'meditacion' && action.abilityId !== 'en_nombre_del_rey') return false;
-    if (unit.attackedThisTurn && action.abilityId !== 'patada_acrobatica' && action.abilityId !== 'doble_ataque' && action.abilityId !== 'fuego_cobertura' && action.abilityId !== 'accion_evasiva' && action.abilityId !== 'rayo_celestial' && action.abilityId !== 'a_la_carga' && action.abilityId !== 'torbellino' && action.abilityId !== 'meditacion' && action.abilityId !== 'en_nombre_del_rey') return false;
+    if (unit.usedCarga && action.abilityId !== 'rayo_celestial' && action.abilityId !== 'a_la_carga' && action.abilityId !== 'torbellino' && action.abilityId !== 'meditacion' && action.abilityId !== 'en_nombre_del_rey' && action.abilityId !== 'posicion_estrategica' && action.abilityId !== 'desenvainado_veloz' && action.abilityId !== 'sacrificar' && action.abilityId !== 'angel_guardian' && action.abilityId !== 'proteger') return false;
+    if (unit.attackedThisTurn && action.abilityId !== 'patada_acrobatica' && action.abilityId !== 'doble_ataque' && action.abilityId !== 'fuego_cobertura' && action.abilityId !== 'accion_evasiva' && action.abilityId !== 'rayo_celestial' && action.abilityId !== 'a_la_carga' && action.abilityId !== 'torbellino' && action.abilityId !== 'meditacion' && action.abilityId !== 'en_nombre_del_rey' && action.abilityId !== 'desenvainado_veloz' && action.abilityId !== 'posicion_estrategica' && action.abilityId !== 'sacrificar' && action.abilityId !== 'angel_guardian' && action.abilityId !== 'proteger') return false;
     if (unit.movedThisTurn && (action.abilityId === 'cabalgar' || action.abilityId === 'cabalgar_2' || action.abilityId === 'carga')) return false;
     return true;
 }
@@ -61,6 +62,10 @@ export function handleAbility(state: GameState, action: GameAction): GameState {
         case 'meditacion': result = handleMeditacion(state, unit, action); break;
         case 'posicion_estrategica': result = handlePosicionEstrategica(state, unit, action); break;
         case 'en_nombre_del_rey': result = handleEnNombreDelRey(state, unit, action); break;
+        case 'desenvainado_veloz': result = handleDesenvainadoVeloz(state, unit, action); break;
+        case 'sacrificar': result = handleSacrificar(state, unit, action); break;
+        case 'angel_guardian': result = handleAngelGuardian(state, unit, action); break;
+        case 'proteger': result = handleProteger(state, unit, action); break;
         default: return state;
     }
 
@@ -165,6 +170,128 @@ function handleMeditacion(state: GameState, unit: Unit, action: GameAction): Gam
 
     let s = consumeAP(state, unit.owner, 2);
     s = updateUnit(s, unit.id, (u) => ({ ...u, hp: Math.min(u.hp + 3, maxHp) }));
+    s = { ...s, lastMeditacion: true };
+    return s;
+}
+
+// ── Desenvainado veloz (Samurái) ──
+
+function handleDesenvainadoVeloz(state: GameState, unit: Unit, action: GameAction): GameState {
+    if (unit.class !== 'general') return state;
+    if (!action.targetId) return state;
+    if (unit.usedDesenvainadoVeloz) return state;
+    const target = state.units[action.targetId];
+    if (!target || target.owner === unit.owner) return state;
+    const distance = hexDistance(unit.position, target.position);
+    if (distance > unit.range) return state;
+
+    const result: AttackResult = resolveAttack({
+        state, unit, target,
+        from: unit.position, to: target.position, distance,
+        extraDifficulty: -1,
+    });
+
+    const targetDied = !!result.state.graveyard[target.id];
+    let s = updateUnit(result.state, unit.id, (u) => ({
+        ...u,
+        usedDesenvainadoVeloz: !targetDied,
+    }));
+    s = consumeAP(s, unit.owner, 1);
+    s = storeAttackResult(
+        { ...result, state: s },
+        unit.id, target.id, unit.class, target.class, 'Desenvainado veloz',
+    );
+
+    if (result.hit) {
+        s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', 0);
+
+        const dq = target.position.q - unit.position.q;
+        const dr = target.position.r - unit.position.r;
+        const steps = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(-dq - dr));
+        if (steps > 0) {
+            const behind = { q: target.position.q + Math.round(dq / steps), r: target.position.r + Math.round(dr / steps) };
+            if (isWithinBounds(behind, s.map.radius) && !isHexOccupied(s, behind)) {
+                s = { ...s, pendingOccupation: { unitId: unit.id, position: behind } };
+            }
+        }
+    }
+
+    return s;
+}
+
+// ── Sacrificar (Furia del Tirano) ──
+
+function handleSacrificar(state: GameState, unit: Unit, action: GameAction): GameState {
+    if (unit.class !== 'general') return state;
+    if (!action.targetId) return state;
+    const target = state.units[action.targetId];
+    if (!target || target.owner !== unit.owner) return state;
+    const distance = hexDistance(unit.position, target.position);
+    if (distance > 1) return state;
+
+    const maxHp = BASE_STATS[unit.class].hp;
+    if (unit.hp >= maxHp) return state;
+
+    let s = consumeAP(state, unit.owner, 1);
+    s = dealDamage(s, target.id, 2);
+
+    const allyDied = !!s.graveyard[target.id];
+    const healAmount = allyDied ? 5 : 3;
+
+    s = updateUnit(s, unit.id, (u) => ({
+        ...u,
+        hp: Math.min(u.hp + healAmount, maxHp),
+    }));
+
+    return s;
+}
+
+// ── Ángel Guardián (Escudo del Comandante) ──
+
+function handleAngelGuardian(state: GameState, unit: Unit, action: GameAction): GameState {
+    if (unit.class !== 'general') return state;
+
+    let s = consumeAP(state, unit.owner, 2);
+    for (const u of Object.values(s.units)) {
+        if (u.owner === unit.owner && u.class !== 'general') {
+            s = updateUnit(s, u.id, (unit) => ({
+                ...unit,
+                royalShieldSavedHp: unit.hp,
+                hp: unit.hp + 2,
+            }));
+        }
+    }
+    return s;
+}
+
+// ── Proteger (Escudo del Comandante) ──
+
+function handleProteger(state: GameState, unit: Unit, action: GameAction): GameState {
+    if (unit.class !== 'general') return state;
+    if (!action.targetId) return state;
+    const target = state.units[action.targetId];
+    if (!target || target.owner !== unit.owner) return state;
+    const distance = hexDistance(unit.position, target.position);
+    if (distance > 3) return state;
+
+    let s = addModifier(state, unit.owner, target.id, 'damage', -1, 'ADD', 0, 1);
+    // Marcar con ID único para identificar el shield de Proteger
+    const last = s.activeModifiers[s.activeModifiers.length - 1];
+    if (last) {
+        s = { ...s, activeModifiers: s.activeModifiers.map((m, i) =>
+            i === s.activeModifiers.length - 1 ? { ...m, id: `proteger_${target.id}` } : m
+        )};
+    }
+    s = {
+        ...s,
+        players: {
+            ...s.players,
+            [unit.owner]: {
+                ...s.players[unit.owner],
+                protegerUsedThisTurn: true,
+            },
+        },
+    };
     return s;
 }
 
@@ -410,7 +537,7 @@ function handleTorbellino(state: GameState, unit: Unit, action: GameAction): Gam
     if (targets.length === 0 && allies.length === 0) return state;
 
     const { total, seed: newSeed } = roll2d6(state.rngSeed);
-    const hit = total >= 7;
+    const hit = total >= 6;
 
     let s = { ...state, rngSeed: newSeed };
     s = consumeAP(s, unit.owner, 3);
@@ -431,7 +558,7 @@ function handleTorbellino(state: GameState, unit: Unit, action: GameAction): Gam
             attackerId: unit.id,
             targetId: unit.id,
             die1: 0, die2: 0, total,
-            difficulty: 7,
+            difficulty: 6,
             hit,
             damage: hitEnemies,
             counterDamage: hitAllies,
@@ -491,7 +618,6 @@ function handleRayoCelestial(state: GameState, unit: Unit, action: GameAction): 
     if (!action.targetId) return state;
     const target = state.units[action.targetId];
     if (!target || target.owner !== unit.owner) return state;
-    if (target.range !== 1) return state;
     const distance = hexDistance(unit.position, target.position);
     if (distance > 2) return state;
 

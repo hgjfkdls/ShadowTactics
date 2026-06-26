@@ -92,6 +92,19 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
                         role={role}
                         bothPlayersReady={bothPlayersReady}
                     />
+                </div>
+            );
+        case 'ROLL':
+            return (
+                <>
+                    <DiceRoll
+                        state={state}
+                        sendAction={sendAction}
+                        playerId={playerId}
+                        role={role}
+                        myIdentity={myIdentityInfo ? { name: myIdentityInfo.name, className: myIdentityInfo.className } : null}
+                        opponentIdentity={opponentIdentityInfo ? { name: opponentIdentityInfo.name, className: opponentIdentityInfo.className } : null}
+                    />
                     <div className="flex justify-center pb-4">
                         <button
                             onClick={() => sendAction({ type: 'SIMULATE_PREPARATION', playerId })}
@@ -100,18 +113,7 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
                             ⚡ Simular preparación y despliegue
                         </button>
                     </div>
-                </div>
-            );
-        case 'ROLL':
-            return (
-                <DiceRoll
-                    state={state}
-                    sendAction={sendAction}
-                    playerId={playerId}
-                    role={role}
-                    myIdentity={myIdentityInfo ? { name: myIdentityInfo.name, className: myIdentityInfo.className } : null}
-                    opponentIdentity={opponentIdentityInfo ? { name: opponentIdentityInfo.name, className: opponentIdentityInfo.className } : null}
-                />
+                </>
             );
         default:
             return null;

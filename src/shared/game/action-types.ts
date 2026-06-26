@@ -115,4 +115,10 @@ export type GameAction =
     | {
         type: 'CONTINUE_ATTACK_RESULT';
         playerId: PlayerId;
+    }
+
+    // RENDIRSE
+    | {
+        type: 'SURRENDER';
+        playerId: PlayerId;
     };

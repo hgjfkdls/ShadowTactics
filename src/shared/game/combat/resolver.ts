@@ -28,6 +28,7 @@ export type AttackInput = {
     fixedDamage?: number;
     bonusRange?: number;
     isCarga?: boolean;
+    isExtraAttack?: boolean;
 };
 
 export type AttackRoll = {
@@ -53,6 +54,7 @@ export function resolveAttack(input: AttackInput): AttackResult {
     let difficulty = getDifficulty(unit, distance);
     if (input.isCarga) difficulty -= 1;
     if (input.extraDifficulty) difficulty += input.extraDifficulty;
+
     const diffCtx = { state, attacker: unit, defender: target, distance, roll: 0, ctx: input };
     const diffResult: CombatResult = { difficulty, damage: 0, attackCost: 0, ignoresPassives: false };
     applyDifficultyAbilities(diffCtx, diffResult);
@@ -63,12 +65,12 @@ export function resolveAttack(input: AttackInput): AttackResult {
     const applyRNG = (s: GameState) => ({ ...s, rngSeed: newSeed });
     const rollResult: AttackRoll = { die1, die2, total, seed: newSeed };
 
-    if (total < finalDifficulty) {
+        if (total < finalDifficulty) {
         // MISS
         let cdmg = 0;
         let s = pipeState(state, applyRNG);
         s = applyPostHitAbilities({ state: s, attacker: unit, defender: target, distance, roll: total, ctx: input }, s, false);
-        if (canCounter) {
+        if (canCounter && !input.isExtraAttack) {
             cdmg = getCounterDamage();
             if (hasCapitanCounterattack(state, target, distance)) {
                 cdmg = 3;
@@ -119,8 +121,8 @@ export function resolveAttack(input: AttackInput): AttackResult {
     }
 
     // Consumir modificadores tras el ataque (por unidad específica)
+    s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id);
     s = consumeModifier(s, unit.owner, 'difficulty', 1);
-    s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
     s = consumeModifier(s, unit.owner, 'damage', 1);
     // Consumir modificadores defensivos del objetivo (por unidad específica)
     s = consumeModifier(s, target.owner, 'damage', 1, target.id);

@@ -420,7 +420,8 @@ function makeGameState(): GameState {
         ...state,
         players: {
             ...state.players,
-            p1: { ...state.players['p1'], cardsInHand: ['movilidad_1'] }
+            p1: { ...state.players['p1'], cardsInHand: ['movilidad_1'] },
+            p2: { ...state.players['p2'], cardsInHand: ['ladron_1'] },
         }
     };
 
@@ -476,7 +477,8 @@ function makeGameState(): GameState {
         ...state,
         players: {
             ...state.players,
-            p2: { ...state.players['p2'], cardsInHand: ['movilidad_1'] }
+            p1: { ...state.players['p1'], cardsInHand: ['movilidad_1'] },
+            p2: { ...state.players['p2'], cardsInHand: ['ladron_1'] },
         }
     };
 

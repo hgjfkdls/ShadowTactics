@@ -48,6 +48,9 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
     unitClassOverride: 'general',
     abilitiesOverride: ['meditacion'],
   },
+  comandante_supremo: {
+    unitClassOverride: 'general',
+  },
   corazon_estratega: {
     unitClassOverride: 'general',
     abilitiesOverride: ['posicion_estrategica'],
@@ -55,6 +58,18 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   inspiracion_real: {
     unitClassOverride: 'general',
     abilitiesOverride: ['en_nombre_del_rey'],
+  },
+  samurai: {
+    unitClassOverride: 'general',
+    abilitiesOverride: ['desenvainado_veloz', 'camino_del_guerrero'],
+  },
+  furia_tirano: {
+    unitClassOverride: 'general',
+    abilitiesOverride: ['sacrificar', 'terror'],
+  },
+  escudo_comandante: {
+    unitClassOverride: 'general',
+    abilitiesOverride: ['angel_guardian', 'proteger'],
   },
 };
 

@@ -37,16 +37,16 @@ type CardTemplate = {
 
 const CARD_TEMPLATES: Record<string, CardTemplate> = {
     movilidad:         { name: 'Movilidad',         type: 'BUFF',    description: 'El siguiente movimiento de una unidad cuesta 0 PA.' },
-    ataque_extra:      { name: 'Ataque extra',       type: 'BUFF',    description: '+1 ataque con +2 dificultad sin coste de PA para el próximo ataque de una unidad.' },
-    precision:         { name: 'Precisión',          type: 'BUFF',    description: '-2 dificultad al siguiente ataque que realice una unidad.' },
+    ataque_extra:      { name: 'Ataque extra',       type: 'BUFF',    description: 'Reinicia el ataque básico de una unidad aliada. El siguiente ataque básico no cuesta PA, tiene +1 de daño y +2 de dificultad. Los bonos se consumen al atacar (acierte o no). Si usa una habilidad, los bonos no se aplican.' },
+    precision:         { name: 'Precisión',          type: 'BUFF',    description: '-2 dificultad al siguiente ataque básico de una unidad aliada. Se consume al atacar (acierte o no). Si usa una habilidad, el bono no se aplica.' },
     flechas_fuego:     { name: 'Flechas de fuego',   type: 'BUFF',    description: 'El siguiente ataque del jugador inflige +1 de daño. Además, el objetivo recibe 1 de daño pasivo al inicio de los 2 siguientes turnos del jugador.' },
-    inspiracion_tropa: { name: 'Inspiración de tropa',type: 'BUFF',   description: '+1 PA al siguiente turno del jugador.' },
+    inspiracion_tropa: { name: 'Inspiración de tropa',type: 'BUFF',   description: '+1 PA.' },
     bajar_moral:       { name: 'Bajar la moral',     type: 'DEBUFF',  description: '-1 PA al oponente en su siguiente turno.' },
     pantano:           { name: 'Pantano',            type: 'DEBUFF',  description: 'El primer movimiento del oponente cuesta el doble de PA en su siguiente turno.' },
     mantenimiento:     { name: 'Mantenimiento de equipo', type: 'DEBUFF', description: 'El primer ataque del oponente hace -1 de daño en su siguiente turno.' },
     confusion:         { name: 'Confusión en la retaguardia', type: 'DEBUFF', description: 'Una unidad enemiga elegida no puede mover ni atacar en su próximo turno.' },
     miedo:             { name: 'Miedo',              type: 'DEBUFF',  description: 'El primer ataque del oponente cuesta +1 PA en su siguiente turno.' },
-    panacea:           { name: 'Panacea',            type: 'COUNTER', description: 'Elimina cualquier debuff activo sobre tus unidades.' },
+    panacea:           { name: 'Panacea',            type: 'COUNTER', description: 'Cancela el debuff que acaba de jugar el oponente.' },
     ladron:            { name: 'Ladrón',             type: 'COUNTER', description: 'Júgala cuando el rival juegue una carta. Roba esa carta y su efecto se aplica a ti en tu turno.' },
     espejo:            { name: 'Espejo',             type: 'COUNTER', description: 'Júgala cuando el rival juegue un debuff. El debuff se refleja y aplica al rival.' },
 };
@@ -142,17 +142,45 @@ function applyCardEffect(state: GameState, cardId: CardId, playerId: string, tar
     switch (key) {
         case 'movilidad':
             return addModifier(state, playerId, null, 'movementCost', 0, 'SET', 1, 1);
-        case 'ataque_extra':
-            return addModifier(addModifier(state, playerId, null, 'attack', 1, 'ADD', 0, 1), playerId, null, 'difficulty', 2, 'ADD', 0, 1);
-        case 'precision':
-            return addModifier(state, playerId, null, 'difficulty', -2, 'ADD', 0, 1);
+        case 'ataque_extra': {
+            if (!targetId) return state;
+            const u = state.units[targetId];
+            if (!u) return state;
+            return {
+                ...state,
+                units: {
+                    ...state.units,
+                    [targetId]: { ...u, attackedThisTurn: false, ataqueExtraCharges: (u.ataqueExtraCharges ?? 0) + 1 },
+                },
+            };
+        }
+        case 'precision': {
+            if (!targetId) return state;
+            const u = state.units[targetId];
+            if (!u) return state;
+            return {
+                ...state,
+                units: {
+                    ...state.units,
+                    [targetId]: { ...u, precisionCharges: (u.precisionCharges ?? 0) + 1 },
+                },
+            };
+        }
         case 'flechas_fuego': {
             let s = addModifier(state, playerId, null, 'damage', 1, 'ADD', 0, 1);
             s = addModifier(s, playerId, null, 'dotOnHit', 1, 'SET', 0, 1);
             return s;
         }
-        case 'inspiracion_tropa':
-            return addModifier(state, playerId, null, 'ap', 1, 'ADD', 1);
+        case 'inspiracion_tropa': {
+            const player = state.players[playerId];
+            return {
+                ...state,
+                players: {
+                    ...state.players,
+                    [playerId]: { ...player, actionPoints: (player?.actionPoints ?? 0) + 1 }
+                }
+            };
+        }
         case 'bajar_moral': {
             const other = playerId === 'p1' ? 'p2' : 'p1';
             return addModifier(state, other, null, 'ap', -1, 'ADD', 1);
@@ -168,7 +196,9 @@ function applyCardEffect(state: GameState, cardId: CardId, playerId: string, tar
         case 'confusion': {
             const other = playerId === 'p1' ? 'p2' : 'p1';
             if (!targetId) return state;
-            return addModifier(state, other, targetId, 'blocked', 1, 'SET', 1);
+            // No permitir aplicar confusión a una unidad que ya la tiene
+            if (state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === targetId && m.remainingTurns > 0)) return state;
+            return addModifier(state, other, targetId, 'bloqueo', 1, 'SET', 1);
         }
         case 'miedo': {
             const other = playerId === 'p1' ? 'p2' : 'p1';
@@ -190,6 +220,20 @@ function resolvePending(state: GameState, discarded: CardId[]): GameState {
     return s;
 }
 
+// ── Verificar si el rival tiene cartas counter válidas ──
+
+function hasValidCounterCards(state: GameState, playerId: string, pendingType: 'BUFF' | 'DEBUFF'): boolean {
+    const hand = state.players[playerId]?.cardsInHand ?? [];
+    for (const cardId of hand) {
+        const ckey = getKey(cardId);
+        const ctemplate = CARD_TEMPLATES[ckey];
+        if (!ctemplate || ctemplate.type !== 'COUNTER') continue;
+        if (pendingType === 'BUFF' && ckey === 'ladron') return true;
+        if (pendingType === 'DEBUFF' && (ckey === 'ladron' || ckey === 'espejo' || ckey === 'panacea')) return true;
+    }
+    return false;
+}
+
 // ── Handle principal ──
 
 export function handleCard(state: GameState, action: GameAction): GameState {
@@ -205,6 +249,14 @@ export function handleCard(state: GameState, action: GameAction): GameState {
     const key = getKey(action.cardId);
     const template = CARD_TEMPLATES[key];
     if (!template) return state;
+
+    // Inspiración de tropa: validar que el general no fue atacado el turno anterior
+    if (key === 'inspiracion_tropa' && state.players[action.playerId]?.generalWasAttackedLastTurn) {
+        return {
+            ...state,
+            lastCardRejectionReason: 'No puedes usar esta carta si tu general fue atacado el turno anterior',
+        };
+    }
 
     // Durante COUNTER, el rival puede jugar cartas COUNTER (Ladrón, Espejo, Panacea)
     // En cualquier otra fase, solo el jugador activo puede jugar cartas
@@ -233,7 +285,7 @@ export function handleCard(state: GameState, action: GameAction): GameState {
         if (key === 'panacea') {
             let s = { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
             s = removePlayerDebuffs(s, action.playerId);
-            s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId] };
+            s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId, pending.cardId], lastCardAction: undefined };
             return { ...s, turnPhase: 'MAIN' };
         }
 
@@ -273,7 +325,7 @@ export function handleCard(state: GameState, action: GameAction): GameState {
             // aplica el efecto al emisor.
             const reflectAs = emitter === 'p1' ? 'p2' : 'p1';
             const reflectedCardId = pending.cardId;
-            let s = { ...state, lastCardAction: undefined, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
+            let s: GameState = { ...state, lastCardAction: undefined, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
             s = applyCardEffect(s, reflectedCardId, reflectAs, action.targetId);
             s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId, reflectedCardId] };
             return { ...s, turnPhase: 'MAIN' };
@@ -283,7 +335,18 @@ export function handleCard(state: GameState, action: GameAction): GameState {
         return { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }, effectDiscard: [...state.effectDiscard, action.cardId], turnPhase: 'MAIN' };
     }
 
-    // ── BUFF / DEBUFF: ir a fase COUNTER si no es nuestro turno recién empezado ──
+    // ── BUFF / DEBUFF ──
+    const otherId = action.playerId === 'p1' ? 'p2' : 'p1';
+    if (!hasValidCounterCards(state, otherId, template.type)) {
+        // El rival no tiene cartas counter válidas → resolver inmediatamente
+        const s = {
+            ...state,
+            lastCardAction: { cardId: action.cardId, playerId: action.playerId, targetId: action.targetId },
+            players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }
+        };
+        return { ...resolvePending(s, []), turnPhase: 'MAIN' };
+    }
+
     // Guardar como pendiente, entrar a COUNTER phase
     return {
         ...state,

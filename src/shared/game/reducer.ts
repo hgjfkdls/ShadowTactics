@@ -1,4 +1,4 @@
-import type { GameState, HexCoord } from './state';
+import type { GameState, HexCoord, PlayerId } from './state';
 import type { GameAction } from './action-types';
 import { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
 import { handleMove, handleAttack, handleCard, handleAbility, handlePassCounter, handleDiscard, handleIdentityAbility } from './actions/index';
@@ -6,7 +6,25 @@ import { simulatePreparation } from './phases/simulate';
 import { updateUnit } from './utils';
 import { applyFormationModifiers } from './formations';
 import { addModifier } from './modifiers/engine';
-import type { PlayerId } from './state';
+
+function setGameOver(state: GameState, winner: PlayerId, reason: 'general_killed' | 'surrender' | 'disconnect'): GameState {
+    return {
+        ...state,
+        gamePhase: 'GAME_OVER',
+        winner,
+        gameOverReason: reason,
+    };
+}
+
+function checkGeneralKilled(state: GameState): GameState {
+    if (state.gamePhase !== 'GAME') return state;
+    const p1General = Object.values(state.units).find(u => u.owner === 'p1' && u.class === 'general');
+    const p2General = Object.values(state.units).find(u => u.owner === 'p2' && u.class === 'general');
+    if (!p1General && p2General) return setGameOver(state, 'p2', 'general_killed');
+    if (p1General && !p2General) return setGameOver(state, 'p1', 'general_killed');
+    if (!p1General && !p2General) return setGameOver(state, state.activePlayer === 'p1' ? 'p2' : 'p1', 'general_killed');
+    return state;
+}
 
 function refreshFormations(state: GameState): GameState {
     let s = state;
@@ -20,6 +38,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     let result = applyActionInner(state, action);
     if (result === state) return result;
 
+    const hadAttack = !!result.lastAttackResult;
+
     // Post-procesar resultado de ataque: agregar al historial si hay uno nuevo
     if (result.lastAttackResult) {
         const newR = result.lastAttackResult;
@@ -31,11 +51,26 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         if (!exists) {
             const turnNum = result.turn;
             const countThisTurn = (result.attackResults ?? []).filter(r => r.turn === turnNum).length;
+            const targetKilled = !!result.graveyard[newR.targetId];
+            const attackerKilled = !!result.graveyard[newR.attackerId];
+            const elapsed = result.gameStartTime ? Math.floor((Date.now() - result.gameStartTime) / 1000) : 0;
             result = {
                 ...result,
-                attackResults: [...(result.attackResults ?? []), { ...newR, turn: turnNum, attackInTurn: countThisTurn + 1 }],
+                attackResults: [...(result.attackResults ?? []), {
+                    ...newR, turn: turnNum, attackInTurn: countThisTurn + 1,
+                    targetKilled, attackerKilled, elapsed,
+                }],
             };
         }
+    }
+
+    if (result.gamePhase === 'GAME' && hadAttack) {
+        result = checkGeneralKilled(result);
+    }
+
+    // Si el juego terminó pero no hay razón (ej: killUnit en helpers), asignarla
+    if (result.gamePhase === 'GAME_OVER' && !result.gameOverReason) {
+        result = { ...result, gameOverReason: 'general_killed' };
     }
 
     if (result.gamePhase === 'GAME' && result.turnPhase === 'MAIN') {
@@ -62,10 +97,10 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
         }
     }
 
-    // Durante DRAW, si la mano excede 3, solo DISCARD_CARD está permitido
+    // Durante DRAW, si la mano excede 3, solo DISCARD_CARD o SURRENDER está permitido
     if (state.turnPhase === 'DRAW' && (state.players[state.activePlayer]?.cardsInHand?.length ?? 0) > 3) {
-        if (action.type !== 'DISCARD_CARD') return state;
-        return handleDiscard(state, action);
+        if (action.type !== 'DISCARD_CARD' && action.type !== 'SURRENDER') return state;
+        if (action.type === 'DISCARD_CARD') return handleDiscard(state, action);
     }
 
     // Bloquear acciones mientras hay un objetivo de identidad pendiente
@@ -128,6 +163,11 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                 ...u, position: state.pendingOccupation!.position, movedThisTurn: false, didMovePreviousTurn: false,
             }));
             return { ...s, pendingOccupation: undefined };
+        }
+        case 'SURRENDER': {
+            if (state.gamePhase !== 'GAME') return state;
+            const winner = action.playerId === 'p1' ? 'p2' : 'p1';
+            return setGameOver(state, winner, 'surrender');
         }
         default:             return state;
     }

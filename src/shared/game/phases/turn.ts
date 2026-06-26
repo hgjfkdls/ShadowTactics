@@ -27,19 +27,38 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
     for (const id of Object.keys(units)) {
         const u = units[id];
         if (u.owner === currentPlayer) {
-            units[id] = {
-                ...u,
-                didMovePreviousTurn: u.movedThisTurn ?? false,
-                movedThisTurn: false,
-                fuegoCoberturaCharges: undefined,
-                espartanoRangeBonus: false,
-            };
+                units[id] = {
+                    ...u,
+                    didMovePreviousTurn: u.movedThisTurn ?? false,
+                    movedThisTurn: false,
+                    fuegoCoberturaCharges: undefined,
+                    espartanoRangeBonus: false,
+                    ataqueExtraCharges: 0,
+                    precisionCharges: 0,
+                };
         }
     }
+
+    // Limpiar modificadores de cartas del jugador que termina su turno
+    const cleanExpired = state.activeModifiers.filter(m => {
+        if (m.sourcePlayerId !== currentPlayer) return true;
+        if (m.stat === 'ap') return true;
+        if (m.stat === 'movementCost') return false;
+        if (m.stat === 'damage' && !m.targetId) return false;
+        if (m.stat === 'attackCost') return false;
+        if (m.stat === 'bloqueo') return false;
+        if (m.stat === 'dotOnHit') return false;
+        return true;
+    });
+
+    // Inspiración de tropa: detectar si el general del siguiente jugador fue atacado
+    const nextGeneral = Object.values(state.units).find(u => u.owner === nextPlayer && u.class === 'general');
+    const generalWasAttacked = (nextGeneral?.timesDamagedThisTurn ?? 0) > 0;
 
     const newState: GameState = {
         ...state,
         units,
+        activeModifiers: cleanExpired,
         turn: state.turn + 1,
         activePlayer: nextPlayer,
         turnPhase: 'DRAW',
@@ -49,6 +68,10 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
                 ...state.players[currentPlayer],
                 carryOver,
                 globalPresionActive: false,
+            },
+            [nextPlayer]: {
+                ...state.players[nextPlayer],
+                generalWasAttackedLastTurn: generalWasAttacked,
             }
         }
     };
@@ -83,6 +106,7 @@ function resetUnitTracking(unit: Unit): Unit {
         usedPosicionEstrategica: false,
         usedVozDeMando: false,
         usedEnNombreDelRey: false,
+        usedDesenvainadoVeloz: false,
     };
 }
 
@@ -115,6 +139,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
                 pendingEspartanoChoice: false,
                 pendingPlanBatalla: false,
                 vozDeMandoReady: false,
+                caminoDelGuerreroUsedThisTurn: false,
             }
         }
     };
@@ -266,6 +291,36 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             players: {
                 ...newState.players,
                 [playerId]: { ...newState.players[playerId], pendingPlanBatalla: true },
+            },
+        };
+    }
+
+    // Escudo del Comandante: limpiar escudos del turno anterior
+    if (identity.startsWith('escudo_comandante')) {
+        let uu = { ...newState.units };
+        for (const id of Object.keys(uu)) {
+            const u = uu[id];
+            if (u.owner === playerId && u.royalShieldSavedHp !== undefined) {
+                if (u.hp > u.royalShieldSavedHp) {
+                    uu[id] = { ...u, hp: u.royalShieldSavedHp };
+                }
+                uu[id] = { ...uu[id], royalShieldSavedHp: undefined };
+            }
+        }
+        newState = { ...newState, units: uu };
+
+        // Proteger: si no se usó, el efecto va al General
+        if (!newState.players[playerId]?.protegerUsedThisTurn) {
+            const general = Object.values(newState.units).find(u => u.owner === playerId && u.class === 'general');
+            if (general) {
+                newState = addModifier(newState, playerId, general.id, 'damage', -1, 'ADD', 0, 1);
+            }
+        }
+        newState = {
+            ...newState,
+            players: {
+                ...newState.players,
+                [playerId]: { ...newState.players[playerId], protegerUsedThisTurn: false },
             },
         };
     }

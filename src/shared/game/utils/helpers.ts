@@ -1,5 +1,6 @@
 import type { GameState, Unit, UnitId, PlayerId, HexCoord } from '../state';
 import { hexDistance } from '../../hex';
+import { addModifier } from '../modifiers/engine';
 
 export function isHexOccupied(state: GameState, position: HexCoord, excludeUnitId?: string): boolean {
     return Object.values(state.units).some(
@@ -62,6 +63,46 @@ export function killUnit(state: GameState, unitId: string, killerId?: string): G
         const identity = state.players[unit.owner]?.selectedIdentity ?? '';
         if (identity.startsWith('monje_shaolin')) {
             newState = dealDamage(newState, killerId, 2);
+        }
+
+        // Camino del guerrero (Samurái): +1 PA si kill a distancia 1, 1 vez por turno
+        const killerUnit = state.units[killerId];
+        const killerOwner = killerUnit?.owner;
+        if (killerOwner && killerOwner !== unit.owner) {
+            const dist = hexDistance(killerUnit.position, unit.position);
+
+            // Camino del guerrero (Samurái): +1 PA si kill a distancia 1, 1 vez por turno
+            const samIdentity = state.players[killerOwner]?.selectedIdentity ?? '';
+            if (samIdentity.startsWith('samurai') && !state.players[killerOwner]?.caminoDelGuerreroUsedThisTurn && dist === 1) {
+                newState = {
+                    ...newState,
+                    lastCaminoDelGuerrero: true,
+                    players: {
+                        ...newState.players,
+                        [killerOwner]: {
+                            ...newState.players[killerOwner],
+                            actionPoints: (newState.players[killerOwner]?.actionPoints ?? 0) + 1,
+                            caminoDelGuerreroUsedThisTurn: true,
+                        },
+                    },
+                };
+            }
+
+            // Terror (Furia del Tirano): enemigos adyacentes al asesino reciben +1 dificultad
+            const tiranoIdentity = state.players[killerOwner]?.selectedIdentity ?? '';
+            if (tiranoIdentity.startsWith('furia_tirano') && dist === 1) {
+                const terrorTargets = new Set<string>();
+                for (const u of Object.values(newState.units)) {
+                    if (u.owner === killerOwner) continue;
+                    if (hexDistance(killerUnit.position, u.position) === 1 || hexDistance(unit.position, u.position) === 1) {
+                        terrorTargets.add(u.id);
+                    }
+                }
+                for (const uid of terrorTargets) {
+                    const u = newState.units[uid];
+                    if (u) newState = addModifier(newState, u.owner, u.id, 'difficulty', 1, 'ADD', 0, 1);
+                }
+            }
         }
     }
     return newState;

@@ -4,6 +4,7 @@ type Props = {
     activePlayer: string;
     turnPhase: string;
     onTimeUp?: () => void;
+    paused?: boolean;
 };
 
 const TURN_LIMIT = 60;
@@ -14,7 +15,7 @@ function fmtTime(s: number): string {
     return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function TurnTimer({ activePlayer, turnPhase, onTimeUp }: Props) {
+export function TurnTimer({ activePlayer, turnPhase, onTimeUp, paused }: Props) {
     const [remaining, setRemaining] = useState(TURN_LIMIT);
     const totalRef = useRef(TURN_LIMIT);
     const onTimeUpRef = useRef(onTimeUp);
@@ -30,6 +31,7 @@ export function TurnTimer({ activePlayer, turnPhase, onTimeUp }: Props) {
     useEffect(() => {
         const id = setInterval(() => {
             setRemaining(prev => {
+                if (paused) return prev;
                 const next = prev - 1;
                 if (next <= 0) {
                     if (!firedRef.current) {
@@ -42,7 +44,7 @@ export function TurnTimer({ activePlayer, turnPhase, onTimeUp }: Props) {
             });
         }, 1000);
         return () => clearInterval(id);
-    }, []);
+    }, [paused]);
 
     const urgent = remaining <= 10;
     return (

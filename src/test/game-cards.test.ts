@@ -63,27 +63,26 @@ function getMod(state: GameState, stat: string) {
     assert(result.effectDiscard.includes('movilidad_1'), 'Movilidad — descartada');
 }
 
-// ── 2. Ataque extra ──
+// ── 2. Ataque extra (acumula cargas en la unidad objetivo) ──
 {
     const state = makeState();
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['ataque_extra_1'] } } };
-    const result = playCard(withCard, 'ataque_extra_1');
+    const result = playCard(withCard, 'ataque_extra_1', 'u1');
 
-    const atk = result.activeModifiers.filter(m => m.stat === 'attack');
-    assert(atk.length > 0 && atk.some(m => m.value === 1), 'Ataque extra — attack +1');
-    const diff = result.activeModifiers.filter(m => m.stat === 'difficulty');
-    assert(diff.length > 0 && diff.some(m => m.value === 2), 'Ataque extra — difficulty +2');
+    const u = result.units['u1'];
+    assert(u.ataqueExtraCharges === 1, 'Ataque extra — 1 carga en u1');
+    assert(u.attackedThisTurn === false, 'Ataque extra — attackedThisTurn reseteado');
     assert(result.effectDiscard.includes('ataque_extra_1'), 'Ataque extra — descartada');
 }
 
-// ── 3. Precisión ──
+// ── 3. Precisión (acumula cargas en la unidad objetivo) ──
 {
     const state = makeState();
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['precision_1'] } } };
-    const result = playCard(withCard, 'precision_1');
+    const result = playCard(withCard, 'precision_1', 'u1');
 
-    const mod = getMod(result, 'difficulty');
-    assert(mod?.value === -2, 'Precisión — difficulty -2');
+    const u = result.units['u1'];
+    assert(u.precisionCharges === 1, 'Precisión — 1 carga en u1');
     assert(result.effectDiscard.includes('precision_1'), 'Precisión — descartada');
 }
 
@@ -105,16 +104,20 @@ function getMod(state: GameState, stat: string) {
     assert(result.effectDiscard.includes('flechas_fuego_1'), 'Flechas fuego — descartada');
 }
 
-// ── 5. Inspiración de tropa ──
+// ── 5. Inspiración de tropa (PA directo, sin modifier) ──
 {
     const state = makeState();
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['inspiracion_tropa_1'] } } };
     const result = playCard(withCard, 'inspiracion_tropa_1');
 
-    const mod = getMod(result, 'ap');
-    assert(mod?.value === 1, 'Inspiración — ap +1');
-    assert(mod?.remainingTurns === 1, 'Inspiración — 1 turno');
+    assert(result.players['p1'].actionPoints === 11, 'Inspiración — ap 10+1 = 11');
     assert(result.effectDiscard.includes('inspiracion_tropa_1'), 'Inspiración — descartada');
+
+    // Rechazada si el general fue atacado el turno anterior
+    const attacked: GameState = { ...withCard, players: { ...withCard.players, p1: { ...withCard.players['p1'], generalWasAttackedLastTurn: true, cardsInHand: ['inspiracion_tropa_1'] } } } as GameState;
+    const rejected = applyAction(attacked, { type: 'USE_CARD', playerId: 'p1', cardId: 'inspiracion_tropa_1' });
+    assert(rejected.lastCardRejectionReason !== undefined, 'Inspiración — rechazada si general atacado');
+    assert(rejected.players['p1'].cardsInHand?.includes('inspiracion_tropa_1'), 'Inspiración — carta no se consume');
 }
 
 // ── 6. Bajar moral (DEBUFF al oponente) ──
@@ -160,9 +163,10 @@ function getMod(state: GameState, stat: string) {
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['confusion_1'] } } };
     const result = playCard(withCard, 'confusion_1', 'u3');
 
-    const mod = getMod(result, 'blocked');
-    assert(mod?.value === 1, 'Confusión — blocked 1');
+    const mod = getMod(result, 'bloqueo');
+    assert(mod?.value === 1, 'Confusión — bloqueo 1');
     assert(mod?.remainingTurns === 1, 'Confusión — 1 turno');
+    assert(mod?.targetId === 'u3', 'Confusión — target u3');
     assert(result.effectDiscard.includes('confusion_1'), 'Confusión — descartada');
 }
 
@@ -389,6 +393,7 @@ function getMod(state: GameState, stat: string) {
         players: {
             ...state.players,
             p1: { ...state.players['p1'], cardsInHand: ['movilidad_1', 'panacea_1'] },
+            p2: { ...state.players['p2'], cardsInHand: ['ladron_1'] },
         }
     };
     const afterBuff = applyAction(withCard, {
@@ -446,7 +451,7 @@ function getMod(state: GameState, stat: string) {
         players: {
             ...state.players,
             p1: { ...state.players['p1'], cardsInHand: ['movilidad_1'] },
-            p2: { ...state.players['p2'], cardsInHand: ['espejo_1'] },
+            p2: { ...state.players['p2'], cardsInHand: ['ladron_1', 'espejo_1'] },
         }
     };
     const afterBuff = applyAction(withCard, {
@@ -470,7 +475,7 @@ function getMod(state: GameState, stat: string) {
         players: {
             ...state.players,
             p1: { ...state.players['p1'], cardsInHand: ['movilidad_1'] },
-            p2: { ...state.players['p2'], cardsInHand: ['panacea_1'] },
+            p2: { ...state.players['p2'], cardsInHand: ['ladron_1', 'panacea_1'] },
         }
     };
     const afterBuff = applyAction(withCard, {

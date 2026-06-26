@@ -14,20 +14,20 @@ Juego de estrategia por turnos sobre un tablero hexagonal de radio 5 casillas.
 | 15 | cartas de identidad |
 | 52 | cartas de efecto |
 | 2 | generales |
-| 8 | arqueros |
-| 8 | caballería |
-| 8 | lanceros |
-| 8 | infantería |
+| 6 | arqueros |
+| 6 | caballería |
+| 6 | lanceros |
+| 6 | infantería |
 | 2 | dados |
 
 ## Fase de preparación
 
-Cada jugador recibe:
+Cada jugador recibe **13 unidades** (elige 11 para desplegar):
 - 1 general
-- 4 arqueros
-- 4 caballería
-- 4 lanceros
-- 4 infantería
+- 3 arqueros
+- 3 caballería
+- 3 lanceros
+- 3 infantería
 
 ### Sorteo de prioridad
 Se revuelven ambos mazos (identidad y efecto). Ambos jugadores lanzan los 2 dados; el que obtenga el número mayor tiene prioridad en el despliegue (**jugador 1**).
@@ -53,6 +53,7 @@ Los jugadores despliegan sus unidades alternadamente hasta tener 11 unidades cad
 1. La primera unidad de cada jugador debe estar a **rango 2** de la casilla central.
 2. Cada unidad siguiente debe estar a **rango ≤ 2** de cualquier unidad aliada.
 3. Máximo **3 unidades** del mismo tipo por jugador.
+4. De las 13 unidades disponibles, cada jugador despliega 11 (2 quedan en reserva sin usar).
 
 ## Fase de turnos
 

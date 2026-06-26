@@ -18,6 +18,11 @@ export function createInitialGameState(seed?: number): GameState {
     const p2Identity = identityDeck.slice(3, 6);
     const remainingDeck = identityDeck.slice(6);  // 9 cartas restantes
 
+    // Dar 2 cartas efecto a cada jugador al inicio (para testear interacciones)
+    const p1Cards = effectDeck.slice(0, 2);
+    const p2Cards = effectDeck.slice(2, 4);
+    const remainingEffectDeck = effectDeck.slice(4);
+
     return {
         // FLUJO
         turn: 1,
@@ -45,7 +50,7 @@ export function createInitialGameState(seed?: number): GameState {
                 carryOver: 0,
                 lastAcknowledgedIndex: -1,
 
-                cardsInHand: [],
+                cardsInHand: p1Cards,
 
                 // IDENTIDAD — 3 cartas del mazo barajado
                 identityCards: p1Identity,
@@ -75,7 +80,7 @@ export function createInitialGameState(seed?: number): GameState {
                 carryOver: 0,
                 lastAcknowledgedIndex: -1,
 
-                cardsInHand: [],
+                cardsInHand: p2Cards,
 
                 // IDENTIDAD — 3 cartas del mazo barajado
                 identityCards: p2Identity,
@@ -113,7 +118,7 @@ export function createInitialGameState(seed?: number): GameState {
         deploymentStep: 0,
         deploymentCount: 0,
 
-        effectDeck,
+        effectDeck: remainingEffectDeck,
         effectDiscard: [],
         identityDeck: remainingDeck,
 

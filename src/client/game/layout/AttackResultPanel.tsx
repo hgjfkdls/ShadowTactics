@@ -13,6 +13,9 @@ type AttackResult = {
     turn: number;
     attackInTurn?: number;
     targetKilled?: boolean;
+    attackerKilled?: boolean;
+    attackName?: string;
+    elapsed?: number;
 };
 
 const CLASS_LABELS: Record<string, string> = {
@@ -50,17 +53,37 @@ export function AttackResultPanel({ attackResults, onClear }: { attackResults: A
     );
 }
 
+function getKillLabels(result: AttackResult): string[] {
+    const labels: string[] = [];
+    if (result.targetKilled) labels.push('objetivo eliminado');
+    if (result.attackerKilled) labels.push('atacante eliminado (contra)');
+    return labels;
+}
+
 function AttackResultCard({ result }: { result: AttackResult }) {
     const isTorbellino = result.attackerClass === 'torbellino';
     const isCritical = result.total >= 11;
-    const isKilled = (result as any).targetKilled === true;
+    const killLabels = getKillLabels(result);
 
     if (isTorbellino) {
         return (
-            <div className="bg-zinc-800/60 rounded px-2 py-1.5 text-[11px] space-y-0.5">
-                <div className="text-zinc-500">🌀 Torbellino</div>
-                <div className="text-zinc-400">Dif: <span className="text-zinc-200">{result.difficulty}</span> · Tirada: <span className="text-zinc-200">{result.total}</span></div>
-                <div className="text-zinc-400">Enemigos: <span className="text-zinc-200">{result.damage}</span> · Aliados: <span className="text-zinc-200">{result.hit ? 0 : result.counterDamage}</span></div>
+            <div className="bg-zinc-700/40 border border-zinc-600/60 rounded px-2 py-1.5 text-[11px] leading-tight space-y-0.5">
+                <div className="text-zinc-500 flex justify-between">
+                    <span>Turno {result.turn} - {result.attackInTurn ?? '?'}</span>
+                    <span className="text-zinc-600">{formatTime(result.elapsed ?? 0)}</span>
+                </div>
+                <div className="text-zinc-300 font-semibold">⚔️ Torbellino</div>
+                {result.hit ? (
+                    <div className="text-zinc-400">n° enemigos: <span className="text-zinc-200">{result.damage}</span></div>
+                ) : (
+                    <>
+                        <div className="text-zinc-400">n° enemigos: <span className="text-zinc-200">{result.damage}</span></div>
+                        <div className="text-zinc-400">n° aliados: <span className="text-zinc-200">{result.counterDamage}</span></div>
+                    </>
+                )}
+                <div className="text-zinc-400">Dif: <span className="text-zinc-200">{result.difficulty}</span></div>
+                <div className="text-zinc-300">dados = <span className="font-bold text-white">{result.total}</span></div>
+                <ResultLabel hit={result.hit} critical={false} killLabels={[]} />
             </div>
         );
     }
@@ -69,9 +92,9 @@ function AttackResultCard({ result }: { result: AttackResult }) {
         <div className="bg-zinc-700/40 border border-zinc-600/60 rounded px-2 py-1.5 text-[11px] leading-tight space-y-0.5">
             <div className="text-zinc-500 flex justify-between">
                 <span>Turno {result.turn} - {result.attackInTurn ?? '?'}</span>
-                <span className="text-zinc-600">{formatTime((result.turn - 1) * 60)}</span>
+                <span className="text-zinc-600">{formatTime(result.elapsed ?? 0)}</span>
             </div>
-            <div className="text-zinc-300 font-semibold">⚔️ {(result as any).attackName ?? 'Ataque básico'}</div>
+            <div className="text-zinc-300 font-semibold">⚔️ {result.attackName ?? 'Ataque básico'}</div>
             <div className="text-zinc-300 flex items-center gap-1">
                 <span className="text-blue-400">⚔</span>
                 <span className="text-zinc-200">[{result.attackerId}]{CLASS_LABELS[result.attackerClass] ?? result.attackerClass}</span>
@@ -95,20 +118,15 @@ function AttackResultCard({ result }: { result: AttackResult }) {
                 <span className="font-bold text-white">{result.total}</span>
                 {isCritical && <span className="text-yellow-400 font-bold ml-1">CRÍTICO</span>}
             </div>
-            <ResultLabel hit={result.hit} critical={isCritical && result.hit} killed={isKilled} />
+            <ResultLabel hit={result.hit} critical={isCritical && result.hit} killLabels={killLabels} />
         </div>
     );
 }
 
-function ResultLabel({ hit, critical, killed }: { hit: boolean; critical: boolean; killed: boolean }) {
-    if (critical) {
-        const txt = killed ? ' ¡Golpe crítico! (unidad eliminada)' : ' ¡Golpe crítico!';
-        return <span className="text-yellow-400 font-bold">✅{txt}</span>;
-    }
-    if (hit) {
-        const txt = killed ? ' Acierta (unidad eliminada)' : ' Acierta';
-        return <span className="text-green-400 font-bold">✅{txt}</span>;
-    }
+function ResultLabel({ hit, critical, killLabels }: { hit: boolean; critical: boolean; killLabels: string[] }) {
+    const suffix = killLabels.length > 0 ? ` (${killLabels.join(', ')})` : '';
+    if (critical) return <span className="text-yellow-400 font-bold">✅ ¡Golpe crítico!{suffix}</span>;
+    if (hit) return <span className="text-green-400 font-bold">✅ Acierta{suffix}</span>;
     return <span className="text-red-400 font-bold">❌ Fallo</span>;
 }
 

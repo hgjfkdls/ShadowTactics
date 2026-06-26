@@ -13,6 +13,7 @@ export function useGameState() {
 
     const [state, setState] = useState<GameState | null>(null);
     const [lastBlockedReason, setLastBlockedReason] = useState<string | null>(null);
+    const [opponentDisconnectedAt, setOpponentDisconnectedAt] = useState<number | null>(null);
 
     useEffect(() => {
         function onConnect() {
@@ -54,12 +55,22 @@ export function useGameState() {
             setBothPlayersReady(true);
         }
 
+        function onOpponentDisconnected(payload: { playerId: string }) {
+            setOpponentDisconnectedAt(Date.now());
+        }
+
+        function onOpponentReconnected() {
+            setOpponentDisconnectedAt(null);
+        }
+
         socket.on('connect', onConnect);
         socket.on('disconnect', onDisconnect);
         socket.on('ROLE', onRole);
         socket.on('STATE', onState);
         socket.on('LEFT_GAME', onLeftGame);
         socket.on('BOTH_PLAYERS_READY', onBothPlayersReady);
+        socket.on('OPPONENT_DISCONNECTED', onOpponentDisconnected);
+        socket.on('OPPONENT_RECONNECTED', onOpponentReconnected);
 
         return () => {
             socket.off('connect', onConnect);
@@ -68,6 +79,8 @@ export function useGameState() {
             socket.off('STATE', onState);
             socket.off('LEFT_GAME', onLeftGame);
             socket.off('BOTH_PLAYERS_READY', onBothPlayersReady);
+            socket.off('OPPONENT_DISCONNECTED', onOpponentDisconnected);
+            socket.off('OPPONENT_RECONNECTED', onOpponentReconnected);
         };
     }, []);
 
@@ -84,6 +97,12 @@ export function useGameState() {
     function leaveGame() {
         if (!gameId) return;
 
+        // Si el juego está en curso, enviar rendición primero
+        if (state && state.gamePhase === 'GAME') {
+            const pid = role?.role === 'player' ? role.playerId : 'p1';
+            socket.emit('SURRENDER', { gameId, playerId: pid });
+        }
+
         socket.emit('LEAVE_GAME', { gameId });
 
         setGameId(null);
@@ -99,19 +118,23 @@ export function useGameState() {
 
 
         // Durante PREPARATION no se aplica el guard de activePlayer
-        // (ambos jugadores deben poder seleccionar identidad y tirar dados)
+        // Durante COUNTER, el rival puede jugar cartas COUNTER o pasar
         if (state.gamePhase !== 'PREPARATION' && state.activePlayer !== role.playerId) {
-            setLastBlockedReason('No es tu turno');
-            console.warn(
-                `Acción bloqueada: no es tu turno (${role.playerId})`
-            );
-            return;
+            if (state.turnPhase === 'COUNTER' && (action.type === 'USE_CARD' || action.type === 'PASS_COUNTER')) {
+                // permitir
+            } else if (action.type === 'SURRENDER') {
+                // permitir rendirse en cualquier turno
+            } else {
+                setLastBlockedReason('No es tu turno');
+                console.warn(`Acción bloqueada: no es tu turno (${role.playerId})`);
+                return;
+            }
         }
 
-        // DRAW phase: mano llena, solo se permite descartar
+        // DRAW phase: mano llena, solo se permite descartar (o rendirse)
         if (state.turnPhase === 'DRAW' && state.gamePhase === 'GAME') {
             const handSize = state.players[state.activePlayer]?.cardsInHand?.length ?? 0;
-            if (handSize > 3 && action.type !== 'DISCARD_CARD') {
+            if (handSize > 3 && action.type !== 'DISCARD_CARD' && action.type !== 'SURRENDER') {
                 setLastBlockedReason('Debes descartar 1 carta antes de realizar cualquier acción');
                 return;
             }
@@ -140,6 +163,7 @@ export function useGameState() {
         playerId: role?.role === 'player' ? role.playerId : null,
 
         state,
+        opponentDisconnectedAt,
 
         joinGame,
         leaveGame,

@@ -16,6 +16,7 @@ io.on('connection', socket => {
     socket.on('JOIN_GAME', ({ gameId }) => {
         const room = getRoom(gameId);
         socket.join(gameId);
+        socket.data.gameId = gameId;
 
         const joinResult = room.join(socket.id);
 
@@ -24,6 +25,15 @@ io.on('connection', socket => {
                 role: 'player',
                 playerId: joinResult.playerId,
             });
+
+            // Reconnection check: si el jugador se había desconectado, restaurar
+            const disconnectedId = room.getDisconnectedPlayerId();
+            if (disconnectedId === joinResult.playerId) {
+                const reconnected = room.onPlayerReconnect(joinResult.playerId);
+                if (reconnected) {
+                    io.to(gameId).emit('OPPONENT_RECONNECTED', { playerId: joinResult.playerId });
+                }
+            }
         } else {
             socket.emit('ROLE', {
                 role: 'spectator',
@@ -33,7 +43,7 @@ io.on('connection', socket => {
         socket.emit('STATE', room.getCurrentState());
 
         // Cuando ambos jugadores están conectados, notificar a todos
-        if (room.players.length === 2) {
+        if (room.getPlayerCount() === 2) {
             io.to(gameId).emit('BOTH_PLAYERS_READY');
         }
 
@@ -50,6 +60,13 @@ io.on('connection', socket => {
         io.to(gameId).emit('STATE', newState);
     });
 
+    socket.on('SURRENDER', ({ gameId, playerId }) => {
+        const room = getRoom(gameId);
+        if (!room.isPlayer(socket.id, playerId)) return;
+        const newState = room.handleAction({ type: 'SURRENDER', playerId }, playerId);
+        io.to(gameId).emit('STATE', newState);
+    });
+
     socket.on('LEAVE_GAME', ({ gameId }) => {
         const room = getRoom(gameId);
         socket.leave(gameId);
@@ -63,13 +80,24 @@ io.on('connection', socket => {
     socket.on('disconnect', () => {
         console.log('Cliente desconectado:', socket.id);
 
-        for (const gameId of socket.rooms) {
-            if (gameId === socket.id) continue;
+        const gameId = socket.data.gameId as string | undefined;
+        if (gameId) {
             const room = getRoom(gameId);
+            const playerId = room.getPlayerIdBySocket(socket.id);
+
+            if (playerId && room.getCurrentState().gamePhase === 'GAME') {
+                room.onPlayerDisconnect(playerId);
+                io.to(gameId).emit('OPPONENT_DISCONNECTED', { playerId });
+                io.to(gameId).emit('STATE', room.getCurrentState());
+
+                room.onDisconnectCallback = (finalState) => {
+                    io.to(gameId).emit('STATE', finalState);
+                };
+            }
+
             room.leave(socket.id);
             removeRoomIfEmpty(gameId);
         }
-
     });
 });
 
