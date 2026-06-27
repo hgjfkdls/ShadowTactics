@@ -35,6 +35,14 @@ export function App() {
     const [confirmLeave, setConfirmLeave] = useState(false);
     const { alerts, addAlert, removeAlert } = useAlerts();
 
+    // Auto-join desde URL: /game/<id>
+    useEffect(() => {
+        const match = window.location.pathname.match(/^\/game\/([a-zA-Z0-9_-]+)$/);
+        if (match && !gameId) {
+            joinGame(match[1]);
+        }
+    }, []);
+
     useEffect(() => {
         if (state?.gamePhase === 'PREPARATION') {
             setPrepDone(false);
