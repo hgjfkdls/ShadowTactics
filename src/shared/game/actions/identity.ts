@@ -15,8 +15,33 @@ export function handleIdentityAbility(state: GameState, action: GameAction): Gam
 
     let s = dealDamage(state, action.targetId, 1);
 
+    const general = Object.values(s.units).find(u => u.owner === action.playerId && u.class === 'general');
     s = {
         ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: action.playerId,
+            type: 'attack' as const,
+            attackerId: general?.id ?? '',
+            targetId: action.targetId,
+            die1: 0,
+            die2: 0,
+            total: 0,
+            difficulty: 0,
+            baseDifficulty: 0,
+            hit: true,
+            damage: 1,
+            baseAttack: general?.attack ?? 0,
+            counterDamage: 0,
+            attackerClass: 'general',
+            targetClass: target.class,
+            attackName: 'En la mira',
+            modifiers: ['Sin coste PA'],
+            paCost: 0,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
         players: {
             ...s.players,
             [action.playerId]: {

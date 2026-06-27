@@ -132,6 +132,25 @@ function handlePosicionEstrategica(state: GameState, unit: Unit, action: GameAct
         position: action.to!,
         usedPosicionEstrategica: true,
     }));
+    const pathStr = `(${unit.position.q},${unit.position.r}) → (${action.to.q},${action.to.r})`;
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'card' as const,
+            cardId: 'posicion_estrategica',
+            cardName: 'Posición estratégica',
+            cardType: 'BUFF' as const,
+            details: pathStr,
+            paCost: 0,
+            sourceClass: unit.class,
+            sourceIdentity: 'Corazón de Estratega',
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -148,13 +167,32 @@ function handleEnNombreDelRey(state: GameState, unit: Unit, action: GameAction):
 
     let s = consumeAP(state, unit.owner, 2);
     s = updateUnit(s, unit.id, (u) => ({ ...u, usedEnNombreDelRey: true }));
-    // Objetivo: guardar HP actual, ataque 5, +3 HP temporal
     s = updateUnit(s, target.id, (u) => ({
         ...u,
         attack: 5,
         royalShieldSavedHp: u.hp,
         hp: u.hp + 3,
     }));
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'card' as const,
+            cardId: 'en_nombre_del_rey',
+            cardName: 'En nombre del rey',
+            cardType: 'BUFF' as const,
+            targetId: action.targetId,
+            targetClass: target.class,
+            details: 'Ataque 5 · Escudo +3 HP',
+            paCost: 2,
+            sourceClass: unit.class,
+            sourceIdentity: 'Inspiración Real',
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -169,8 +207,28 @@ function handleMeditacion(state: GameState, unit: Unit, action: GameAction): Gam
     if (unit.hp >= maxHp) return state;
 
     let s = consumeAP(state, unit.owner, 2);
+    const healed = Math.min(3, maxHp - unit.hp);
     s = updateUnit(s, unit.id, (u) => ({ ...u, hp: Math.min(u.hp + 3, maxHp) }));
     s = { ...s, lastMeditacion: true };
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'card' as const,
+            cardId: 'meditacion',
+            cardName: 'Meditación',
+            cardType: 'BUFF' as const,
+            details: `Recuperó ${healed} HP`,
+            paCost: 2,
+            sourceClass: unit.class,
+            sourceIdentity: 'Monje Shaolin',
+            healAmount: healed,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -199,7 +257,7 @@ function handleDesenvainadoVeloz(state: GameState, unit: Unit, action: GameActio
     s = consumeAP(s, unit.owner, 1);
     s = storeAttackResult(
         { ...result, state: s },
-        unit.id, target.id, unit.class, target.class, 'Desenvainado veloz',
+        unit.id, target.id, unit.class, target.class, 'Desenvainado veloz', 1,
     );
 
     if (result.hit) {
@@ -243,6 +301,30 @@ function handleSacrificar(state: GameState, unit: Unit, action: GameAction): Gam
         hp: Math.min(u.hp + healAmount, maxHp),
     }));
 
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'attack' as const,
+            attackerId: unit.id,
+            targetId: action.targetId,
+            die1: 0, die2: 0, total: 0,
+            difficulty: 0, baseDifficulty: 0,
+            hit: true,
+            damage: 2,
+            baseAttack: unit.attack,
+            counterDamage: 0,
+            attackerClass: unit.class,
+            targetClass: target.class,
+            attackName: 'Sacrificar',
+            modifiers: [`General recupera ${allyDied ? '5' : '3'} HP`],
+            paCost: 1,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -252,8 +334,10 @@ function handleAngelGuardian(state: GameState, unit: Unit, action: GameAction): 
     if (unit.class !== 'general') return state;
 
     let s = consumeAP(state, unit.owner, 2);
+    const shielded: string[] = [];
     for (const u of Object.values(s.units)) {
         if (u.owner === unit.owner && u.class !== 'general') {
+            shielded.push(`[${u.id}]${u.class}`);
             s = updateUnit(s, u.id, (unit) => ({
                 ...unit,
                 royalShieldSavedHp: unit.hp,
@@ -261,6 +345,24 @@ function handleAngelGuardian(state: GameState, unit: Unit, action: GameAction): 
             }));
         }
     }
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'card' as const,
+            cardId: 'angel_guardian',
+            cardName: 'Ángel Guardián',
+            cardType: 'BUFF' as const,
+            details: `Escudo +2 HP a ${shielded.length} aliados`,
+            paCost: 2,
+            sourceClass: unit.class,
+            sourceIdentity: 'Escudo del Comandante',
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -291,6 +393,23 @@ function handleProteger(state: GameState, unit: Unit, action: GameAction): GameS
                 protegerUsedThisTurn: true,
             },
         },
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'card' as const,
+            cardId: 'proteger',
+            cardName: 'Proteger',
+            cardType: 'BUFF' as const,
+            targetId: action.targetId,
+            targetClass: target.class,
+            details: '-1 daño recibido',
+            paCost: 0,
+            sourceClass: unit.class,
+            sourceIdentity: 'Escudo del Comandante',
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
     };
     return s;
 }
@@ -315,7 +434,7 @@ function handleFuegoCobertura(state: GameState, unit: Unit, action: GameAction):
         fixedDamage: 2,
     });
 
-    let afterState = storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Fuego de cobertura');
+    let afterState = storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Fuego de cobertura', 2);
 
     const dead = afterState.graveyard[target.id];
     if (dead) return afterState;
@@ -347,6 +466,26 @@ function handleAccionEvasiva(state: GameState, unit: Unit, action: GameAction): 
         movedThisTurn: true,
         usedAccionEvasiva: true,
     }));
+    const pathStr = `(${unit.position.q},${unit.position.r}) → (${action.to.q},${action.to.r})`;
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'move' as const,
+            unitId: unit.id,
+            unitClass: unit.class,
+            from: unit.position,
+            to: action.to!,
+            path: pathStr,
+            cost: 1,
+            baseCost: 1,
+            modifiers: ['Acción evasiva'],
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -394,6 +533,26 @@ function handleCabalgar(state: GameState, unit: Unit, action: GameAction): GameS
         ...u, position: action.to!, usedCabalgar: true,
         cabalgarDir: dir, aLaCargaActive: false,
     }));
+    const pathStr = [unit.position, ...hexes, action.to].map((h: any) => `(${h.q},${h.r})`).join(' → ');
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'move' as const,
+            unitId: unit.id,
+            unitClass: unit.class,
+            from: unit.position,
+            to: action.to!,
+            path: pathStr,
+            cost: 1,
+            baseCost: 1,
+            modifiers: ['Cabalgar'],
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -436,6 +595,26 @@ function handleCabalgar2(state: GameState, unit: Unit, action: GameAction): Game
     s = updateUnit(s, unit.id, (u) => ({
         ...u, position: last, usedCabalgar: true, cabalgarDir: dir,
     }));
+    const pathStr = [unit.position, ...action.path].map((h: any) => `(${h.q},${h.r})`).join(' → ');
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'move' as const,
+            unitId: unit.id,
+            unitClass: unit.class,
+            from: unit.position,
+            to: last,
+            path: pathStr,
+            cost: isALaCarga ? 1 + (state.players[unit.owner]?.aLaCargaCost ?? 0) : 1,
+            baseCost: 1,
+            modifiers: [isALaCarga ? `A la carga (coste extra +${state.players[unit.owner]?.aLaCargaCost ?? 0})` : 'Cabalgar'],
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
     return s;
 }
 
@@ -466,7 +645,7 @@ function handleCarga(state: GameState, unit: Unit, action: GameAction): GameStat
         from: s.units[unit.id].position, to: target.position, distance,
         isCarga: true,
     });
-    return storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Carga');
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Carga', 1);
 }
 
 
@@ -491,7 +670,7 @@ function handleDobleAtaque(state: GameState, unit: Unit, action: GameAction): Ga
         from: unit.position, to: target.position, distance,
         damagePenalty: 1,
     });
-    return storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Doble ataque');
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Doble ataque', 1);
 }
 
 // ── Ventaja de alcance ──
@@ -516,7 +695,7 @@ function handleVentajaAlcance(state: GameState, unit: Unit, action: GameAction):
         from: unit.position, to: target.position, distance,
         bonusRange: 1,
     });
-    return storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Ventaja de alcance');
+    return storeAttackResult(result, unit.id, target.id, unit.class, target.class, 'Ventaja de alcance', 1);
 }
 
 // ── Torbellino (Punta de Lanza) ──
@@ -566,6 +745,28 @@ function handleTorbellino(state: GameState, unit: Unit, action: GameAction): Gam
             targetClass: 'torbellino',
             attackName: 'Torbellino',
         },
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'attack' as const,
+            attackerId: unit.id,
+            targetId: unit.id,
+            die1: 0, die2: 0, total,
+            difficulty: 6,
+            baseDifficulty: 6,
+            hit,
+            damage: hitEnemies,
+            baseAttack: unit.attack,
+            counterDamage: hitAllies,
+            attackerClass: 'torbellino',
+            targetClass: 'torbellino',
+            attackName: 'Torbellino',
+            modifiers: [],
+            paCost: 3,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
     };
     return s;
 }
@@ -592,9 +793,81 @@ function handleALaCarga(state: GameState, unit: Unit, action: GameAction): GameS
 
 // ── Helpers ──
 
-function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string): GameState {
+function buildAttackModifiers(s: GameState, attackerId: string, targetId: string): string[] {
+    const mods: string[] = [];
+    const attacker = s.units[attackerId];
+    const target = s.units[targetId];
+    if (!attacker || !target) return mods;
+
+    const abils = attacker.abilities ?? [];
+
+    // Activos (activeModifiers con source)
+    for (const m of s.activeModifiers) {
+        if (m.remainingTurns < 0) continue;
+        if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
+        const isAttackerMod = !m.targetId && m.sourcePlayerId === attacker.owner;
+        const isTargetMod = (m.targetId === target.id || (!m.targetId && m.sourcePlayerId === target.owner));
+        if (!isAttackerMod && !isTargetMod) continue;
+        if (m.source && m.sourceName) {
+            mods.push(`${m.stat}: ${m.value > 0 ? '+' : ''}${m.value} (${m.source}: ${m.sourceName})`);
+        }
+    }
+
+    // Anti-caballería
+    if (abils.includes('anti_caballeria') && target.class === 'cavalry') {
+        mods.push('Anti-caballería: +1 daño');
+    }
+
+    // Blanco fácil
+    if (abils.includes('blanco_facil') && target.didMovePreviousTurn === false) {
+        const identity = s.players[attacker.owner]?.selectedIdentity ?? '';
+        const bonus = identity.startsWith('francotirador') ? 2 : 1;
+        mods.push(`Blanco fácil: -${bonus} dificultad`);
+    }
+
+    // Presión
+    if (abils.includes('presion') && attacker.lastTargetId === target.id) {
+        mods.push('Presión: +1 daño');
+    }
+
+    // Romper filas
+    if (abils.includes('romper_filas')) {
+        mods.push('Romper filas: ignora defensas');
+    }
+
+    // Formación defensiva (target)
+    const tAbils = target.abilities ?? [];
+    if (tAbils.includes('formacion_defensiva') && attacker.class === 'cavalry') {
+        mods.push('Formación defensiva: anula Carga, +1 contra');
+    }
+
+    // Resistencia / Línea defensiva (target)
+    if (tAbils.includes('resistencia') && !target.timesDamagedThisTurn) {
+        mods.push('Resistencia: -1 daño');
+    }
+    if (tAbils.includes('linea_defensiva') && target.didMovePreviousTurn === false) {
+        mods.push('Línea defensiva: -1 daño');
+    }
+
+    // Contraataque (Capitán de la Guardia o básico)
+    if (target?.usedCounterattack) {
+        const identity = s.players[target.owner]?.selectedIdentity ?? '';
+        if (identity.startsWith('capitan_guardia')) {
+            mods.push('Contraataque (Capitán de la Guardia): +1 daño');
+        } else {
+            mods.push('Contraataque: +2 daño');
+        }
+    }
+
+    return mods;
+}
+
+function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[]): GameState {
+    const s = result.state;
+    const mods = buildAttackModifiers(s, attackerId, targetId);
+    const atkUnit = s.units[attackerId];
     return {
-        ...result.state,
+        ...s,
         lastAttackResult: {
             attackerId,
             targetId,
@@ -609,6 +882,31 @@ function storeAttackResult(result: AttackResult, attackerId: string, targetId: s
             attackerClass,
             targetClass,
         },
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: s.activePlayer,
+            type: 'attack' as const,
+            attackerId,
+            targetId,
+            die1: result.roll.die1,
+            die2: result.roll.die2,
+            total: result.roll.total,
+            difficulty: result.difficulty,
+            baseDifficulty: atkUnit && (atkUnit.abilities ?? []).includes('blanco_facil') ? 5 : (atkUnit?.difficulty ?? result.difficulty),
+            hit: result.hit,
+            damage: result.damage,
+            baseAttack: atkUnit ? atkUnit.attack : 0,
+            counterDamage: result.counterDamage,
+            attackerClass,
+            targetClass,
+            attackName: attackName ?? 'Ataque básico',
+            modifiers: mods,
+            paCost,
+            paModifiers,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
     };
 }
 
@@ -632,6 +930,21 @@ function handleRayoCelestial(state: GameState, unit: Unit, action: GameAction): 
             ...s.players,
             [unit.owner]: { ...s.players[unit.owner], celestialRayBonus: bonus - 1 },
         },
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner,
+            type: 'card' as const,
+            cardId: 'rayo_celestial',
+            cardName: 'Rayo celestial',
+            cardType: 'BUFF' as const,
+            targetId: action.targetId,
+            targetClass: target.class,
+            details: `+${bonus} daño al siguiente ataque`,
+            paCost: 1,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
     };
     return s;
 }

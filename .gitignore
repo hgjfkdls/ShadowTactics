@@ -38,3 +38,5 @@ logs/
 .env.*.local
 
 # ========================
+# ngrok config
+ngrok.yml

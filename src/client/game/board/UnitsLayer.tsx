@@ -65,7 +65,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                 const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
                 const attackingUnit = attackingUnitId ? state.units[attackingUnitId] : null;
-                const identityBonus = (state.players[attackingUnit?.owner ?? '']?.selectedIdentity ?? '').startsWith('francotirador') ? 1 : 0;
+                const isArcher = (attackingUnit?.class === 'archer' || attackingUnit?.class === 'general');
+                const identityBonus = isArcher && (state.players[attackingUnit?.owner ?? '']?.selectedIdentity ?? '').startsWith('francotirador') ? 1 : 0;
                 const espartanoRangeBonus = attackingUnit?.espartanoRangeBonus ? 1 : 0;
                 const attackRange = (attackingUnit?.range ?? 0) + identityBonus + espartanoRangeBonus;
                 const isAttackTarget = attackingUnit !== null && unit.owner !== playerId && hexDistance(attackingUnit.position, unit.position) <= attackRange;
@@ -639,7 +640,7 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const debuffs: string[] = [];
 
     const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
-    const helpfulStats = ['attack', 'damage', 'ap', 'dotOnHit'];
+    const helpfulStats = ['attack', 'ap', 'dotOnHit'];
     const passiveStats = ['passiveDamage'];
 
     for (const m of modifiers) {
@@ -667,7 +668,10 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (stat === 'difficulty' && m.value > 0 && m.targetId) {
             continue;
         }
-        if (harmfulStats.includes(stat)) {
+        if (stat === 'damage') {
+            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
+            else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
+        } else if (harmfulStats.includes(stat)) {
             if (!debuffs.includes(stat)) debuffs.push(stat);
         } else if (helpfulStats.includes(stat)) {
             if (!buffs.includes(stat)) buffs.push(stat);

@@ -63,6 +63,30 @@ export function killUnit(state: GameState, unitId: string, killerId?: string): G
         const identity = state.players[unit.owner]?.selectedIdentity ?? '';
         if (identity.startsWith('monje_shaolin')) {
             newState = dealDamage(newState, killerId, 2);
+            newState = {
+                ...newState,
+                gameHistory: [...newState.gameHistory, {
+                    id: `h${newState.nextHistoryId}`,
+                    turn: newState.turn,
+                    actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+                    playerId: unit.owner,
+                    type: 'attack' as const,
+                    attackerId: unit.id,
+                    targetId: killerId,
+                    die1: 0, die2: 0, total: 0,
+                    difficulty: 0, baseDifficulty: 0,
+                    hit: true,
+                    damage: 2,
+                    baseAttack: 0,
+                    counterDamage: 0,
+                    attackerClass: unit.class,
+                    targetClass: newState.units[killerId]?.class ?? 'general',
+                    attackName: 'Karma',
+                    modifiers: ['Monje Shaolin: daño reflejado al asesino'],
+                    paCost: 0,
+                }],
+                nextHistoryId: newState.nextHistoryId + 1,
+            };
         }
 
         // Camino del guerrero (Samurái): +1 PA si kill a distancia 1, 1 vez por turno

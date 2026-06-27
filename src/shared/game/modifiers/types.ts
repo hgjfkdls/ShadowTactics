@@ -7,4 +7,6 @@ export type ModifierInstance = {
     operator: 'ADD' | 'MUL' | 'SET';
     remainingTurns: number;
     remainingUses?: number;
+    source?: string;        // "card" | "ability" | "formation" | "identity"
+    sourceName?: string;     // "Movilidad", "Resistencia", "Proteger", etc.
 };

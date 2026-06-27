@@ -159,10 +159,32 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             if (action.playerId !== state.activePlayer) return state;
             if (!state.pendingOccupation) return state;
             if (!action.accept) return { ...state, pendingOccupation: undefined };
-            const s = updateUnit(state, state.pendingOccupation.unitId, (u) => ({
-                ...u, position: state.pendingOccupation!.position, movedThisTurn: false, didMovePreviousTurn: false,
+            const occ = state.pendingOccupation;
+            const unit = state.units[occ.unitId];
+            const s = updateUnit(state, occ.unitId, (u) => ({
+                ...u, position: occ.position, movedThisTurn: false, didMovePreviousTurn: false,
             }));
-            return { ...s, pendingOccupation: undefined };
+            const pathStr = `(${unit.position.q},${unit.position.r}) → (${occ.position.q},${occ.position.r})`;
+            return {
+                ...s,
+                pendingOccupation: undefined,
+                gameHistory: [...s.gameHistory, {
+                    id: `h${s.nextHistoryId}`,
+                    turn: s.turn,
+                    actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                    playerId: action.playerId,
+                    type: 'move' as const,
+                    unitId: occ.unitId,
+                    unitClass: unit?.class ?? 'general',
+                    from: unit.position,
+                    to: occ.position,
+                    path: pathStr,
+                    cost: 0,
+                    baseCost: 0,
+                    modifiers: [unit?.abilities?.includes('avance') ? 'Avance' : 'Desenvainado veloz'],
+                }],
+                nextHistoryId: s.nextHistoryId + 1,
+            };
         }
         case 'SURRENDER': {
             if (state.gamePhase !== 'GAME') return state;

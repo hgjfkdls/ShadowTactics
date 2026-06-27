@@ -139,6 +139,67 @@ export type GameState = {
     // Monje Shaolin: Meditación usada este turno
     lastMeditacion?: boolean;
 
+    // Historial de la partida
+    gameHistory: Array<{
+        id: string;
+        turn: number;
+        actionNumber: number;
+        playerId: string;
+        type: 'attack';
+        attackerId: string;
+        targetId: string;
+        die1: number;
+        die2: number;
+        total: number;
+        difficulty: number;
+        baseDifficulty: number;
+        hit: boolean;
+        damage: number;
+        baseAttack: number;
+        counterDamage: number;
+        attackerClass: string;
+        targetClass: string;
+        targetKilled?: boolean;
+        attackerKilled?: boolean;
+        attackName?: string;
+        modifiers: string[];
+        paCost?: number;
+        paModifiers?: string[];
+    } | {
+        id: string;
+        turn: number;
+        actionNumber: number;
+        playerId: string;
+        type: 'move';
+        unitId: string;
+        unitClass: string;
+        from: { q: number; r: number };
+        to: { q: number; r: number };
+        path?: string;
+        cost: number;
+        baseCost: number;
+        modifiers: string[];
+    } | {
+        id: string;
+        turn: number;
+        actionNumber: number;
+        playerId: string;
+        type: 'card';
+        cardId: string;
+        cardName: string;
+        cardType: 'BUFF' | 'DEBUFF' | 'COUNTER';
+        targetId?: string;
+        targetClass?: string;
+        counterCardId?: string;
+        counterCardName?: string;
+        details?: string;
+        paCost?: number;
+        sourceClass?: string;
+        sourceIdentity?: string;
+        healAmount?: number;
+    }>;
+    nextHistoryId: number;
+
     // Historial de resultados de ataque
     attackResults: Array<{
         attackerId: UnitId;

@@ -18,10 +18,9 @@ export function createInitialGameState(seed?: number): GameState {
     const p2Identity = identityDeck.slice(3, 6);
     const remainingDeck = identityDeck.slice(6);  // 9 cartas restantes
 
-    // Dar 2 cartas efecto a cada jugador al inicio (para testear interacciones)
-    const p1Cards = effectDeck.slice(0, 2);
-    const p2Cards = effectDeck.slice(2, 4);
-    const remainingEffectDeck = effectDeck.slice(4);
+    const p1Cards: string[] = [];
+    const p2Cards: string[] = [];
+    const remainingEffectDeck = effectDeck;
 
     return {
         // FLUJO
@@ -125,6 +124,8 @@ export function createInitialGameState(seed?: number): GameState {
         activeModifiers: [],
         nextModifierId: 1,
         lastCardAction: undefined,
+        gameHistory: [],
+        nextHistoryId: 1,
         attackResults: [],
 
     };

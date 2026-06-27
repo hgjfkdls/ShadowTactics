@@ -5,7 +5,7 @@ import { UnitsLayer } from './UnitsLayer';
 import { useBoardInteraction } from './useBoardInteraction';
 import { useViewport } from './useViewport';
 import { getMoveRange } from './movementRange';
-import { AttackResultPanel } from '../layout/AttackResultPanel';
+import { HistoryPanel } from '../layout/AttackResultPanel';
 import { PendingOccupationPanel } from '../layout/PendingOccupationPanel';
 import { ActionPanel } from '../layout/ActionPanel';
 import type { GameAction, GameState, HexCoord, UnitId } from '@shared';
@@ -25,7 +25,7 @@ type Props = {
     playerId?: string;
     selectedDeployUnitId?: string | null;
     selectedInfo?: { type: string; [key: string]: any } | null;
-    onInfoSelect?: (info: { type: 'unit'; unitId: string } | null) => void;
+    onInfoSelect?: (info: any) => void;
     addAlert?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
     disableInput?: boolean;
 };
@@ -84,6 +84,37 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         ? state.currentDeployingPlayer === myPlayerId
         : state.activePlayer === myPlayerId || true;
 
+    useEffect(() => {
+        if (!selectedInfo || selectedInfo.type !== 'unit') {
+            setSelectedUnitId(null);
+            setMovingUnitId(null);
+            setAttackingUnitId(null);
+            setPendingAbility(null);
+            setCabalgarPath([]);
+            setCabalgarIsLaCarga(false);
+            setPendingTorbellino(false);
+        }
+    }, [selectedInfo]);
+
+    function clearAllSelections() {
+        setSelectedUnitId(null);
+        setMovingUnitId(null);
+        setAttackingUnitId(null);
+        setPendingAbility(null);
+        setPendingIdentityTargetId(null);
+        setPendingPatadaTargetId(null);
+        setCabalgarPath([]);
+        setCabalgarIsLaCarga(false);
+        setPendingTorbellino(false);
+        setPendingAngelGuardian(false);
+        setPendingCounterEspejoCard(null);
+        setAnimUnitId(null);
+        setAnimPath(null);
+        setAnimStartPos(null);
+        setAnimStep(0);
+        onInfoSelect?.(null);
+    }
+
     const { bindings } = useKeyBindings();
 
     useEffect(() => {
@@ -94,15 +125,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             const key = e.key.toLowerCase();
 
             if (key === bindings.DESELECT) {
-                setSelectedUnitId(null);
-                setMovingUnitId(null);
-                setAttackingUnitId(null);
-                setPendingAbility(null);
-                setPendingIdentityTargetId(null);
-                setPendingPatadaTargetId(null);
-                setCabalgarPath([]);
-                setCabalgarIsLaCarga(false);
-                onInfoSelect?.(null);
+                clearAllSelections();
                 e.preventDefault();
                 return;
             }
@@ -224,21 +247,45 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
 
     const isIdentityTargetMode = mode === 'GAME' && state.players[myPlayerId]?.pendingIdentityTarget;
 
-    const isCardTargetMode = mode === 'GAME' && selectedInfo?.type === 'cardTarget' && state.activePlayer === myPlayerId && state.turnPhase !== 'COUNTER';
-    const isCardTargetAlly = isCardTargetMode && getCardType(selectedInfo?.cardId ?? '') === 'BUFF';
-    const isCardTargetEnemy = isCardTargetMode && !isCardTargetAlly;
+    const noAtaqueTargetAlerted = useRef(false);
+    const cardTargetInfo = (() => {
+        const isMode = mode === 'GAME' && selectedInfo?.type === 'cardTarget' && state.activePlayer === myPlayerId && state.turnPhase !== 'COUNTER';
+        if (!isMode) {
+            noAtaqueTargetAlerted.current = false;
+            return { isCardTargetMode: false, isCardTargetAlly: false, isCardTargetEnemy: false, cardTargets: [] as HexCoord[], hasNoAtaqueExtraTargets: false };
+        }
+        const cardId = selectedInfo?.cardId ?? '';
+        const isAlly = getCardType(cardId) === 'BUFF';
+        const raw = isAlly
+            ? Object.values(state.units).filter(u => {
+                if (u.owner !== myPlayerId) return false;
+                if (cardId.startsWith('ataque_extra') && !u.attackedThisTurn) return false;
+                return true;
+            }).map(u => u.position)
+            : Object.values(state.units).filter(u => u.owner !== myPlayerId).map(u => u.position);
+        const noTargets = cardId.startsWith('ataque_extra') && raw.length === 0;
+        if (noTargets && !noAtaqueTargetAlerted.current) {
+            noAtaqueTargetAlerted.current = true;
+            setTimeout(() => {
+                addAlert?.('No hay unidades que hayan atacado este turno', 'warning');
+                onInfoSelect?.(null);
+            }, 0);
+        }
+        return {
+            isCardTargetMode: !noTargets,
+            isCardTargetAlly: isAlly,
+            isCardTargetEnemy: !isAlly,
+            cardTargets: raw,
+            hasNoAtaqueExtraTargets: noTargets,
+        };
+    })();
+    const { isCardTargetMode, isCardTargetAlly, isCardTargetEnemy, cardTargets } = cardTargetInfo;
 
     const identityTargets = isIdentityTargetMode
         ? Object.values(state.units)
             .filter(u => u.owner !== myPlayerId && u.class !== 'general')
             .map(u => u.position)
         : [];
-
-    const cardTargets = isCardTargetAlly
-        ? Object.values(state.units).filter(u => u.owner === myPlayerId).map(u => u.position)
-        : isCardTargetEnemy
-            ? Object.values(state.units).filter(u => u.owner !== myPlayerId).map(u => u.position)
-            : [];
 
     const attackTargets = mode === 'GAME' && attackingUnitId
         ? getAttackTargets(state, attackingUnitId, myPlayerId)
@@ -282,6 +329,30 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         ? { [animUnitId]: animStep === 0 ? animStartPos : animPath[Math.min(animStep - 1, animPath.length - 1)] }
         : {};
 
+    const highlightedHexes = (() => {
+        if (selectedInfo?.type === 'historyAttack') {
+            const e = selectedInfo.entry;
+            return Object.values(state.units)
+                .filter(u => u.id === e.attackerId || u.id === e.targetId)
+                .map(u => u.position);
+        }
+        if (selectedInfo?.type === 'historyMove') {
+            const e = selectedInfo.entry;
+            const u = Object.values(state.units).find(u => u.id === e.unitId);
+            if (u) return [u.position, e.from, e.to];
+            return [e.from, e.to];
+        }
+        if (selectedInfo?.type === 'historyCard') {
+            const e = selectedInfo.entry;
+            if (e.targetId) {
+                const t = Object.values(state.units).find(u => u.id === e.targetId);
+                if (t) return [t.position];
+            }
+            return [];
+        }
+        return [];
+    })();
+
     const angelGuardianHexes = pendingAngelGuardian
         ? Object.values(state.units)
             .filter(u => u.owner === myPlayerId && u.class !== 'general')
@@ -299,9 +370,9 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             .map(u => u.position)
         : [];
 
-    const deployValidHexes = mode === 'DEPLOYMENT' && selectedDeployUnitId
-        ? getDeployableHexes(state, myPlayerId)
-        : [];
+    const currentDeployerId = mode === 'DEPLOYMENT' ? state.currentDeployingPlayer : undefined;
+    const deployHexes = currentDeployerId ? getDeployableHexes(state, currentDeployerId) : [];
+    const isMyDeployTurn = currentDeployerId === myPlayerId;
 
     const cabalgarMaxSteps = cabalgarIsLaCarga ? 3 : 2;
     const cabalgarNextHexes = pendingAbility?.abilityId === 'cabalgar_2' && cabalgarPath.length < cabalgarMaxSteps
@@ -337,7 +408,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     }
 
     function isDeployable(hex: HexCoord) {
-        return deployValidHexes.some(h => h.q === hex.q && h.r === hex.r);
+        return deployHexes.some(h => h.q === hex.q && h.r === hex.r);
     }
 
     function isAbilityTarget(hex: HexCoord) {
@@ -386,7 +457,6 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         setSelectedHex(hex);
 
         if (movingUnitId && isReachable(hex)) {
-            onInfoSelect?.(null);
             const action: GameAction = {
                 type: 'MOVE_UNIT',
                 playerId: myPlayerId,
@@ -396,16 +466,16 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             sendAction(action);
             setMovingUnitId(null);
             const movedId = movingUnitId;
-            setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: movedId }), 150);
+            setTimeout(() => setSelectedUnitId(movedId), 50);
         } else if (movingUnitId && !isReachable(hex)) {
             addAlert?.('No puedes moverte a esa casilla', 'warning');
         } else if (attackingUnitId && isAttackTarget(hex)) {
             const target = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
             if (target && target.owner !== myPlayerId) {
-                onInfoSelect?.(null);
-                setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: attackingUnitId }), 150);
                 sendAction({ type: 'ATTACK_UNIT', playerId: myPlayerId, unitId: attackingUnitId, targetId: target.id });
                 setAttackingUnitId(null);
+                const atkId = attackingUnitId;
+                setTimeout(() => setSelectedUnitId(atkId), 50);
             }
         } else if (attackingUnitId && !isAttackTarget(hex)) {
             addAlert?.('No hay enemigos en esa posición', 'warning');
@@ -507,7 +577,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             if (target && (isCardTargetAlly ? target.owner === myPlayerId : target.owner !== myPlayerId)) {
                 const cardId = selectedInfo?.cardId ?? '';
                 sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId: target.id });
-                onInfoSelect?.(null);
+                onInfoSelect?.({ type: 'unit', unitId: target.id });
+                setSelectedUnitId(target.id);
             }
         } else if (isCardTargetMode && !isCardTarget(hex)) {
             addAlert?.(isCardTargetAlly ? 'Selecciona una unidad aliada' : 'Selecciona una unidad enemiga', 'warning');
@@ -521,8 +592,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             addAlert?.('Selecciona un enemigo que no sea el general', 'warning');
         } else {
             // Click on empty hex with no action → deselect
-            setSelectedUnitId(null);
-            onInfoSelect?.(null);
+            clearAllSelections();
         }
     }
 
@@ -545,7 +615,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             }
                             selected={false}
                             reachable={
-                                mode === 'DEPLOYMENT' ? isDeployable(hex)
+                                mode === 'DEPLOYMENT' && isMyDeployTurn ? isDeployable(hex)
                                 : mode === 'GAME' && pendingAbility?.abilityId === 'cabalgar_2' ? cabalgarNextHexes.some(h => h.q === hex.q && h.r === hex.r)
                                 : mode === 'GAME' && pendingAbility?.abilityId === 'patada_acrobatica' && pendingPatadaTargetId ? patadaDestHexes.some(h => h.q === hex.q && h.r === hex.r)
                                 : mode === 'GAME' && angelGuardianHexes.length > 0 ? angelGuardianHexes.some(h => h.q === hex.q && h.r === hex.r)
@@ -568,6 +638,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                 ? isInRange(hex)
                                 : false
                             }
+                            enemyDeployable={mode === 'DEPLOYMENT' && !isMyDeployTurn && isDeployable(hex)}
+                            highlighted={highlightedHexes.some(h => h.q === hex.q && h.r === hex.r)}
                             onHover={setHoveredHex}
                             onClick={onHexClick}
                         />
@@ -598,26 +670,28 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                 if (unit && (isCardTargetAlly ? unit.owner === myPlayerId : unit.owner !== myPlayerId)) {
                                     const cardId = selectedInfo?.cardId ?? '';
                                     sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId: unit.id });
-                                    onInfoSelect?.(null);
+                                    setSelectedUnitId(unitId);
                                 }
                                 return;
                             }
-                            if (!isMyTurn || mode === 'DEPLOYMENT') return;
+                            if (mode === 'DEPLOYMENT') {
+                                if (selectedUnitId === unitId) {
+                                    setSelectedUnitId(null);
+                                    onInfoSelect?.(null);
+                                } else {
+                                    setSelectedUnitId(unitId);
+                                    onInfoSelect?.({ type: 'unit', unitId });
+                                }
+                                return;
+                            }
+                            if (!isMyTurn) return;
                             const blkUnit = state.units[unitId];
                             if (blkUnit && blkUnit.owner === myPlayerId && state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === unitId && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) {
                                 addAlert?.('Unidad bloqueada: 1 turno', 'warning');
                                 return;
                             }
                             if (selectedUnitId === unitId) {
-                                setSelectedUnitId(null);
-                    setMovingUnitId(null);
-                    setAttackingUnitId(null);
-                setPendingAbility(null);
-                setPendingPatadaTargetId(null);
-                setCabalgarIsLaCarga(false);
-                setCabalgarPath([]);
-                setPendingTorbellino(false);
-                onInfoSelect?.(null);
+                                clearAllSelections();
                             } else {
                                 setSelectedUnitId(unitId);
                                 setMovingUnitId(null);
@@ -668,11 +742,20 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                     />
                 </g>
             </svg>
-            <AttackResultPanel
-                attackResults={state.attackResults ?? []}
-                onClear={() => sendAction({ type: 'CONTINUE_ATTACK_RESULT', playerId: myPlayerId })}
+            <HistoryPanel
+                gameHistory={state.gameHistory ?? []}
+                selectedInfo={selectedInfo}
+                onSelectEntry={entry => {
+                    clearAllSelections();
+                    if (!entry) return;
+                    setTimeout(() => {
+                        if (entry.type === 'attack') onInfoSelect?.({ type: 'historyAttack', entry: entry as any });
+                        else if (entry.type === 'move') onInfoSelect?.({ type: 'historyMove', entry: entry as any });
+                        else if (entry.type === 'card') onInfoSelect?.({ type: 'historyCard', entry: entry as any });
+                    }, 0);
+                }}
             />
-            <PendingOccupationPanel pendingOccupation={state.pendingOccupation} playerId={myPlayerId} sendAction={sendAction} />
+            <PendingOccupationPanel pendingOccupation={state.pendingOccupation} playerId={myPlayerId} sendAction={sendAction} state={state} />
             <ActionPanel
                 state={state}
                 unitId={selectedUnitId}
@@ -1047,7 +1130,8 @@ function getDeployableHexes(state: GameState, playerId: string): HexCoord[] {
 function getBasicAttackRange(unit: Unit, state: GameState): number {
     const identity = state.players[unit.owner]?.selectedIdentity ?? '';
     const bonus = unit.espartanoRangeBonus ? 1 : 0;
-    return (identity.startsWith('francotirador') ? unit.range + 1 : unit.range) + bonus;
+    const isArcher = unit.class === 'archer' || unit.class === 'general';
+    return (identity.startsWith('francotirador') && isArcher ? unit.range + 1 : unit.range) + bonus;
 }
 
 function getAllyAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, playerId: string): HexCoord[] {

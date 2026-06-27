@@ -10,6 +10,8 @@ type Props = {
     identityTarget: boolean;
     allyTarget: boolean;
     inRange: boolean;
+    enemyDeployable: boolean;
+    highlighted: boolean;
     onHover: (hex: HexCoord | null) => void;
     onClick: (hex: HexCoord) => void;
 };
@@ -23,6 +25,8 @@ export function HexTile({
     identityTarget,
     allyTarget,
     inRange,
+    enemyDeployable,
+    highlighted,
     onHover,
     onClick,
 }: Props) {
@@ -68,6 +72,14 @@ export function HexTile({
                 />
             )}
 
+            {enemyDeployable && (
+                <polygon
+                    points={points}
+                    fill="rgba(59, 130, 246, 0.12)"
+                    pointerEvents="none"
+                />
+            )}
+
             {inRange && !reachable && !attackable && (
                 <polygon
                     points={points}
@@ -98,6 +110,10 @@ export function HexTile({
                     fill="rgba(20, 184, 166, 0.25)"
                     pointerEvents="none"
                 />
+            )}
+
+            {highlighted && (
+                <polygon points={points} fill="rgba(250, 204, 21, 0.2)" pointerEvents="none" />
             )}
 
         </>

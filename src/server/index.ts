@@ -1,12 +1,62 @@
+import 'dotenv/config';
 import { createServer } from 'http';
+import { readFileSync, existsSync } from 'fs';
+import { extname, join } from 'path';
 import { Server } from 'socket.io';
 import { getRoom, removeRoomIfEmpty } from './rooms';
 
-const httpServer = createServer();
+const isOnline = process.env.MODE === 'online';
+const SERVER_PORT = parseInt(process.env.SERVER_PORT || '3000');
+const LOCAL_URL = process.env.LOCAL_URL || 'http://localhost';
+
+const clientUrl = isOnline
+    ? process.env.CLIENT_URL || `${LOCAL_URL}:${SERVER_PORT}`
+    : `${LOCAL_URL}:5173`;
+
+const serverHost = isOnline ? '0.0.0.0' : 'localhost';
+const serverUrl = isOnline
+    ? process.env.SERVER_URL || `${LOCAL_URL}:${SERVER_PORT}`
+    : `${LOCAL_URL}:${SERVER_PORT}`;
+
+const MIME: Record<string, string> = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon',
+};
+
+const httpServer = createServer((req, res) => {
+    if (!isOnline) {
+        res.writeHead(404);
+        res.end();
+        return;
+    }
+    let path = req.url === '/' ? '/index.html' : req.url!;
+    const filePath = join(process.cwd(), 'dist', path);
+    if (!existsSync(filePath)) {
+        // SPA fallback
+        const fallback = join(process.cwd(), 'dist', 'index.html');
+        if (existsSync(fallback)) {
+            const html = readFileSync(fallback, 'utf-8');
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(html);
+            return;
+        }
+        res.writeHead(404);
+        res.end();
+        return;
+    }
+    const ext = extname(filePath);
+    const content = readFileSync(filePath);
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(content);
+});
 
 const io = new Server(httpServer, {
     cors: {
-        origin: 'http://localhost:5173'
+        origin: clientUrl
     }
 });
 
@@ -101,6 +151,6 @@ io.on('connection', socket => {
     });
 });
 
-httpServer.listen(3000, () => {
-    console.log('Socket.IO server corriendo en http://localhost:3000');
+httpServer.listen(SERVER_PORT, serverHost, () => {
+    console.log(`Socket.IO server corriendo en ${serverUrl}`);
 });

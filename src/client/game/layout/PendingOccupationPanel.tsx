@@ -1,13 +1,16 @@
-import type { PlayerId } from '@shared';
+import type { PlayerId, GameState } from '@shared';
 
 type Props = {
     pendingOccupation: { unitId: string; position: { q: number; r: number } } | undefined;
     playerId: PlayerId;
     sendAction: (action: any) => void;
+    state: GameState;
 };
 
-export function PendingOccupationPanel({ pendingOccupation, playerId, sendAction }: Props) {
+export function PendingOccupationPanel({ pendingOccupation, playerId, sendAction, state }: Props) {
     if (!pendingOccupation) return null;
+    const unit = state.units[pendingOccupation.unitId];
+    if (!unit || unit.owner !== playerId) return null;
 
     return (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">

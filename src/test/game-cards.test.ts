@@ -66,7 +66,11 @@ function getMod(state: GameState, stat: string) {
 // ── 2. Ataque extra (acumula cargas en la unidad objetivo) ──
 {
     const state = makeState();
-    const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['ataque_extra_1'] } } };
+    const withCard: GameState = {
+        ...state,
+        players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['ataque_extra_1'] } },
+        units: { ...state.units, u1: { ...state.units['u1'], attackedThisTurn: true } },
+    };
     const result = playCard(withCard, 'ataque_extra_1', 'u1');
 
     const u = result.units['u1'];

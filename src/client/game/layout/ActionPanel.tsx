@@ -31,6 +31,22 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     const unit = (unitId && state.units[unitId]?.owner === playerId && canAct) ? state.units[unitId] : null;
 
     const ap = unit ? getPlayerAP(state, playerId) : 0;
+    const extraCharges = unit?.ataqueExtraCharges ?? 0;
+
+    const effectiveMoveCost = unit ? (() => {
+        let cost = unit.movementCost;
+        const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
+        if (hasSurcharge) cost += 1;
+        const moveMods = state.activeModifiers.filter(
+            m => m.stat === 'movementCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
+        );
+        for (const m of moveMods) {
+            if (m.operator === 'SET') cost = m.value;
+            else if (m.operator === 'ADD') cost += m.value;
+            else if (m.operator === 'MUL') cost *= m.value;
+        }
+        return Math.max(0, cost);
+    })() : 0;
 
     const activeAbilities = unit
         ? (unit.abilities ?? []).map(id => ({ id, def: ABILITIES[id] })).filter(a => a.def?.type === 'active')
@@ -43,12 +59,12 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     const basicActions = unit ? [
         {
             id: '__attack__',
-            label: unit.attackedThisTurn ? 'Ya atacó' : 'Ataque básico',
-            cost: 1,
-            disabled: !!unit.attackedThisTurn,
+            label: (unit.attackedThisTurn && !extraCharges) ? 'Ya atacó' : 'Ataque básico',
+            cost: extraCharges > 0 ? 0 : 1,
+            disabled: unit.attackedThisTurn && !extraCharges,
             binding: bindings.BASIC_ATTACK,
         },
-        { id: '__move__', label: 'Movimiento', cost: unit.movementCost, disabled: ap < unit.movementCost, binding: bindings.MOVE },
+        { id: '__move__', label: 'Movimiento', cost: effectiveMoveCost, disabled: ap < effectiveMoveCost, binding: bindings.MOVE },
     ] : [];
 
     const aLaCargaCost = state.players[playerId]?.aLaCargaCost ?? 0;
@@ -88,15 +104,16 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     function handleClick(actionId: string) {
         if (!unit) return;
         if (actionId === '__attack__') {
-            if (unit.attackedThisTurn) {
+            const ec = unit.ataqueExtraCharges ?? 0;
+            if (unit.attackedThisTurn && !ec) {
                 addAlert?.('Ya has atacado este turno', 'warning');
-            } else if (ap < 1) {
+            } else if (ap < 1 && !ec) {
                 addAlert?.('No tienes PA suficientes', 'warning');
             } else {
                 onRequestAttack?.(unit.id);
             }
         } else if (actionId === '__move__') {
-            if (ap < unit.movementCost) {
+            if (ap < effectiveMoveCost) {
                 addAlert?.('No tienes PA suficientes', 'warning');
             } else {
                 onRequestMove?.(unit.id);
@@ -118,7 +135,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     }
 
     return (
-        <div className="absolute bottom-4 right-4 bg-zinc-800/95 border border-zinc-600 rounded-lg p-3 shadow-xl z-30 w-[260px] h-[230px] flex flex-col">
+        <div className="absolute bottom-4 right-4 bg-zinc-800/95 border border-zinc-600 rounded-lg p-3 shadow-xl z-30 w-[300px] h-[253px] flex flex-col">
             <div className="text-xs font-semibold text-zinc-400 mb-2">⚡ Acciones</div>
             {unit ? (
                 <div className="flex flex-col gap-1 flex-1">
