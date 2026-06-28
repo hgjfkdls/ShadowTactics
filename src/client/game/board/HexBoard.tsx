@@ -8,6 +8,7 @@ import { getMoveRange } from './movementRange';
 import { HistoryPanel } from '../layout/AttackResultPanel';
 import { GameModals } from '../layout/modals/GameModals';
 import { useHexClick } from './handlers/useHexClick';
+import { useAnimation } from '../animation/AnimationContext';
 import { PendingOccupationPanel } from '../layout/PendingOccupationPanel';
 import { ActionPanel } from '../layout/ActionPanel';
 import type { GameAction, GameState, HexCoord, UnitId } from '@shared';
@@ -34,6 +35,7 @@ type Props = {
 export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedDeployUnitId, selectedInfo, onInfoSelect, addAlert, disableInput }: Props) {
     const hexes = generateHexMap(state.map);
     const sel = useSelection();
+    const { animPositions, enqueue, enqueueMultiple } = useAnimation();
     const {
         hoveredHex, selectedHex, selectedUnitId,
         movingUnitId, attackingUnitId, pendingAbility,
@@ -47,32 +49,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         setPendingTorbellino, setPendingAngelGuardian, setPendingCounterEspejoCard,
         clearAll,
     } = sel;
-    const [animPath, setAnimPath] = useState<HexCoord[] | null>(null);
-    const [animStartPos, setAnimStartPos] = useState<HexCoord | null>(null);
-    const [animUnitId, setAnimUnitId] = useState<UnitId | null>(null);
-    const [animStep, setAnimStep] = useState(0);
-    const animStepRef = useRef(0);
-    const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => {
-        if (!animPath || !animStartPos) return;
-        const totalSteps = animPath.length + 1;
-        if (animStep >= totalSteps) {
-            setAnimPath(null);
-            setAnimStartPos(null);
-            if (animUnitId) onInfoSelect?.({ type: 'unit', unitId: animUnitId });
-            setAnimUnitId(null);
-            setAnimStep(0);
-            animStepRef.current = 0;
-            return;
-        }
-        animTimerRef.current = setTimeout(() => {
-            const next = animStepRef.current + 1;
-            animStepRef.current = next;
-            setAnimStep(next);
-        }, 700);
-        return () => { if (animTimerRef.current) clearTimeout(animTimerRef.current); };
-    }, [animPath, animStartPos, animStep, animUnitId, onInfoSelect]);
 
     const { scale, x, y, zoom, pan } = useViewport();
 
@@ -95,10 +72,6 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
 
     function clearAllSelections() {
         clearAll();
-        setAnimUnitId(null);
-        setAnimPath(null);
-        setAnimStartPos(null);
-        setAnimStep(0);
         onInfoSelect?.(null);
     }
 
@@ -315,10 +288,6 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 ? getRangeHexes(state, attackingUnitId, pendingAbility)
                 : [];
 
-    const animPositions = animPath && animStartPos && animUnitId
-        ? { [animUnitId]: animStep === 0 ? animStartPos : animPath[Math.min(animStep - 1, animPath.length - 1)] }
-        : {};
-
     const highlightedHexes = (() => {
         if (selectedInfo?.type === 'historyAttack') {
             const e = selectedInfo.entry;
@@ -383,7 +352,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         return moveRange.some(h => h.q === hex.q && h.r === hex.r);
     }
 
-    const occupationHex = state.pendingOccupation?.position;
+    const occUnit = state.pendingOccupation ? state.units[state.pendingOccupation.unitId] : undefined;
+    const occupationHex = (occUnit && occUnit.owner === myPlayerId) ? state.pendingOccupation!.position : undefined;
 
     function isAttackTarget(hex: HexCoord) {
         return attackTargets.some(h => h.q === hex.q && h.r === hex.r);
@@ -429,12 +399,12 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             isReachable, isAttackTarget, isDeployable,
             isAbilityTarget, isAbilityMoveTarget, isAllyTarget,
             isCardTarget, isIdentityTarget,
-            sendAction, addAlert, onInfoSelect,
+            sendAction, addAlert, onInfoSelect, enqueue,
         },
         {
             setSelectedHex, setSelectedUnitId, setMovingUnitId, setAttackingUnitId,
             setPendingAbility, setPendingPatadaTargetId, setPendingCounterEspejoCard,
-            setCabalgarPath, setAnimPath, setAnimStartPos, setAnimUnitId, setAnimStep,
+            setCabalgarPath,
             clearAll,
         },
     );
@@ -662,6 +632,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 pendingAngelGuardian={pendingAngelGuardian}
                 cabalgarPath={cabalgarPath}
                 cabalgarMaxSteps={cabalgarMaxSteps}
+                enqueue={enqueue}
                 onInfoSelect={onInfoSelect}
                 sendAction={sendAction}
                 setPendingIdentityTargetId={setPendingIdentityTargetId}
@@ -672,10 +643,6 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 setCabalgarIsLaCarga={setCabalgarIsLaCarga}
                 setPendingTorbellino={setPendingTorbellino}
                 setPendingAngelGuardian={setPendingAngelGuardian}
-                setAnimPath={setAnimPath}
-                setAnimStartPos={setAnimStartPos}
-                setAnimUnitId={setAnimUnitId}
-                setAnimStep={setAnimStep}
             />
 
         </>

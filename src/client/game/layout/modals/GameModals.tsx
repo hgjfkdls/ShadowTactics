@@ -22,6 +22,7 @@ type Props = {
     cabalgarMaxSteps: number;
     onInfoSelect?: (info: any) => void;
     sendAction: (action: any) => void;
+    enqueue: (anim: any) => void;
     setPendingIdentityTargetId: (id: UnitId | null) => void;
     setPendingPatadaTargetId: (id: UnitId | null) => void;
     setPendingCounterEspejoCard: (id: string | null) => void;
@@ -30,10 +31,6 @@ type Props = {
     setCabalgarIsLaCarga: (v: boolean) => void;
     setPendingTorbellino: (v: boolean) => void;
     setPendingAngelGuardian: (v: boolean) => void;
-    setAnimPath: (path: HexCoord[] | null) => void;
-    setAnimStartPos: (pos: HexCoord | null) => void;
-    setAnimUnitId: (id: UnitId | null) => void;
-    setAnimStep: (step: number) => void;
 };
 
 export function GameModals(props: Props) {
@@ -44,12 +41,11 @@ export function GameModals(props: Props) {
         pendingAbility, pendingIdentityTargetId, pendingPatadaTargetId,
         pendingCounterEspejoCard, pendingTorbellino, pendingAngelGuardian,
         cabalgarPath, cabalgarMaxSteps,
-        onInfoSelect, sendAction,
+        onInfoSelect, sendAction, enqueue,
         setPendingIdentityTargetId, setPendingPatadaTargetId,
         setPendingCounterEspejoCard, setPendingAbility,
         setCabalgarPath, setCabalgarIsLaCarga,
         setPendingTorbellino, setPendingAngelGuardian,
-        setAnimPath, setAnimStartPos, setAnimUnitId, setAnimStep,
     } = props;
 
     return (
@@ -136,10 +132,9 @@ export function GameModals(props: Props) {
                                 onInfoSelect?.(null);
                                 sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: pendingAbility!.unitId, abilityId: 'cabalgar_2', path: cabalgarPath });
                                 const startPos = state.units[pendingAbility!.unitId]?.position;
-                                setAnimPath(cabalgarPath);
-                                setAnimStartPos(startPos ?? null);
-                                setAnimUnitId(pendingAbility!.unitId);
-                                setAnimStep(0);
+                                if (startPos) {
+                                    enqueue({ id: `cabalgar2_${pendingAbility!.unitId}_${Date.now()}`, type: 'move', unitId: pendingAbility!.unitId, path: [startPos, ...cabalgarPath], duration: 700 * cabalgarPath.length });
+                                }
                                 setPendingAbility(null);
                                 setCabalgarPath([]);
                                 setCabalgarIsLaCarga(false);

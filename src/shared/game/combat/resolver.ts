@@ -78,6 +78,10 @@ export function resolveAttack(input: AttackInput): AttackResult {
             }
             s = dealDamage(s, unit.id, cdmg);
         }
+        // Consumir modificadores incluso en fallo (flechas de fuego, etc.)
+        s = consumeModifier(s, unit.owner, 'damage', 1);
+        s = consumeModifier(s, target.owner, 'damage', 1, target.id);
+        s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
         return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg };
     }
 

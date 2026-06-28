@@ -36,6 +36,7 @@ type ClickDeps = {
     sendAction: (action: any) => void;
     addAlert?: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
     onInfoSelect?: (info: any) => void;
+    enqueue: (anim: any) => void;
 };
 
 type ClickSetters = {
@@ -47,10 +48,6 @@ type ClickSetters = {
     setPendingPatadaTargetId: (id: UnitId | null) => void;
     setPendingCounterEspejoCard: (id: string | null) => void;
     setCabalgarPath: (path: HexCoord[]) => void;
-    setAnimPath: (path: HexCoord[] | null) => void;
-    setAnimStartPos: (pos: HexCoord | null) => void;
-    setAnimUnitId: (id: UnitId | null) => void;
-    setAnimStep: (v: number) => void;
     clearAll: () => void;
 };
 
@@ -66,13 +63,13 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
         isReachable, isAttackTarget, isDeployable,
         isAbilityTarget, isAbilityMoveTarget, isAllyTarget,
         isCardTarget, isIdentityTarget,
-        sendAction, addAlert, onInfoSelect,
+        sendAction, addAlert, onInfoSelect, enqueue,
     } = deps;
 
     const {
         setSelectedHex, setSelectedUnitId, setMovingUnitId, setAttackingUnitId,
         setPendingAbility, setPendingPatadaTargetId, setPendingCounterEspejoCard,
-        setCabalgarPath, setAnimPath, setAnimStartPos, setAnimUnitId, setAnimStep,
+        setCabalgarPath,
         clearAll,
     } = setters;
 
@@ -150,12 +147,10 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
                 if (u) {
                     const dq = hex.q - u.position.q;
                     const dr = hex.r - u.position.r;
-                    const path = [{ q: u.position.q + dq / 2, r: u.position.r + dr / 2 }, hex];
+                    const mid = { q: u.position.q + dq / 2, r: u.position.r + dr / 2 };
+                    const animPath = [u.position, mid, hex];
                     sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: pendingAbility.unitId, abilityId: 'cabalgar', to: hex });
-                    setAnimPath(path);
-                    setAnimStartPos(u.position);
-                    setAnimUnitId(pendingAbility.unitId);
-                    setAnimStep(0);
+                    enqueue({ id: `cabalgar_${pendingAbility.unitId}_${Date.now()}`, type: 'move', unitId: pendingAbility.unitId, path: animPath, duration: 700 * 2 });
                 }
             } else {
                 sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: pendingAbility.unitId, abilityId: pendingAbility.abilityId, to: hex });

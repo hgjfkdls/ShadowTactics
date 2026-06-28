@@ -4,10 +4,10 @@ import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
 import { ABILITIES, CLASS_ABILITIES } from '@shared/game/data/abilities';
 import { IDENTITY_EFFECTS } from '@shared/game/data/identities';
 import { BASE_STATS } from '@shared/game/units';
-import { getCardName, getCardType, getCardDescription } from '@shared/game/actions/card';
+import { getCardName, getCardType, getCardDescription, getCardDescriptionBySourceName } from '@shared/game/actions/card';
 import { l } from '@shared/i18n';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | null;
 
 type Props = {
     state: GameState;
@@ -35,7 +35,7 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
             return <CardDetail cardId={selectedInfo.cardId} />;
         }
         if (selectedInfo?.type === 'effect') {
-            return <EffectDetail stat={selectedInfo.stat} label={selectedInfo.label} description={selectedInfo.description} />;
+            return <EffectDetail stat={selectedInfo.stat} label={selectedInfo.label} description={selectedInfo.description} source={selectedInfo.source} sourceName={selectedInfo.sourceName} value={selectedInfo.value} />;
         }
         if (selectedInfo?.type === 'attackResult') {
             const r = state.attackResults?.[selectedInfo.resultIndex];
@@ -456,8 +456,9 @@ function HistoryCardDetail({ entry }: { entry: any }) {
     );
 }
 
-function EffectDetail({ stat, label, description, source, sourceName }: { stat: string; label: string; description: string; source?: string; sourceName?: string }) {
-    const isDebuff = ['movementCost', 'difficulty', 'attackCost', 'blocked', 'damage', 'passiveDamage', 'movementPenalty'].includes(stat);
+function EffectDetail({ stat, label, description, source, sourceName, value }: { stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number }) {
+    const isDebuff = ['movementCost', 'difficulty', 'attackCost', 'blocked', 'passiveDamage', 'movementPenalty'].includes(stat) || (stat === 'damage' && value !== undefined && value < 0);
+    const cardDesc = source === 'card' && sourceName ? getCardDescriptionBySourceName(sourceName) : null;
     return (
         <div className="space-y-4">
             <div className="flex items-start gap-3">
@@ -473,6 +474,9 @@ function EffectDetail({ stat, label, description, source, sourceName }: { stat: 
                 {description}
                 {source && sourceName && (
                     <div className="text-[10px] text-zinc-500 mt-1">({source}: {sourceName})</div>
+                )}
+                {cardDesc && (
+                    <div className="text-[10px] text-zinc-400 mt-2 italic">{cardDesc}</div>
                 )}
             </div>
         </div>
@@ -790,8 +794,8 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const buffs: string[] = [];
     const debuffs: string[] = [];
     const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
-    const helpfulStats = ['attack', 'ap', 'dotOnHit'];
-    const passiveStats = ['passiveDamage'];
+    const helpfulStats = ['attack', 'dotOnHit'];
+    const passiveStats: string[] = [];
     for (const m of modifiers) {
         if (m.remainingTurns < 0) continue;
         if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
@@ -809,15 +813,17 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (stat === 'attack' && m.value > 0 && m.targetId) {
             continue;
         }
+        if (stat === 'passiveDamage') {
+            const label = `${l('unit.status.passiveDamage')} (${m.value} HP, ${m.remainingUses ?? '?'} turnos)`;
+            if (!debuffs.includes(label)) debuffs.push(label);
+            continue;
+        }
         if (stat === 'damage') {
             if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
             else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
             continue;
         }
-        if (stat === 'ap' && m.value < 0) {
-            if (!debuffs.includes(stat)) debuffs.push(stat);
-            continue;
-        }
+        if (stat === 'ap') continue;
         if (harmfulStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
         else if (helpfulStats.includes(stat)) { if (!buffs.includes(stat)) buffs.push(stat); }
         else if (passiveStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }

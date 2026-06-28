@@ -142,8 +142,8 @@ export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult):
         ABILITY_EFFECTS[ability]?.onDamage?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
-    // Ataque saliente: attack modifiers + damage modifiers positivos (Flechas de fuego)
-    result.damage += mods.attackMod + Math.max(0, mods.damageMod);
+    // Ataque saliente: attack modifiers + damage modifiers (Flechas de fuego, Mantenimiento de equipo)
+    result.damage += mods.attackMod + mods.damageMod;
 
     // Furia berserker (Dios del Trueno) — general e infantería +1 daño si HP ≤ 50%
     const identity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';

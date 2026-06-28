@@ -79,7 +79,7 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
     // Monje Shaolin: si el General no actuó este turno, recibe -1 daño en el turno del rival
     const identity = state.players[currentPlayer]?.selectedIdentity ?? '';
     if (identity.startsWith('monje_shaolin') && !generalActedThisTurn && general) {
-        const afterMod = addModifier(newState, currentPlayer, general.id, 'damage', -1, 'ADD', 1, 1);
+        const afterMod = addModifier(newState, currentPlayer, general.id, 'damage', -1, 'ADD', 1, 1, 'identity', 'Meditación');
         return applyTurnStart(afterMod, nextPlayer);
     }
 
@@ -240,7 +240,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             for (const u of Object.values(newState.units)) {
                 if (u.owner !== playerId || u.class === 'general') continue;
                 if (hexDistance(general.position, u.position) === 1) {
-                    newState = addModifier(newState, playerId, u.id, 'attack', 1, 'ADD', 0, 1);
+                    newState = addModifier(newState, playerId, u.id, 'attack', 1, 'ADD', 0, 1, 'identity', 'Inspiración Real');
                     const last = newState.activeModifiers[newState.activeModifiers.length - 1];
                     if (last) {
                         newState = { ...newState, activeModifiers: newState.activeModifiers.map((m, i) =>
@@ -261,7 +261,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             for (const u of Object.values(newState.units)) {
                 if (u.owner !== otherPlayerId || u.class === 'general') continue;
                 if (hexDistance(otherGeneral.position, u.position) === 1) {
-                    newState = addModifier(newState, otherPlayerId, u.id, 'damage', -1, 'ADD', 0, 1);
+                    newState = addModifier(newState, otherPlayerId, u.id, 'damage', -1, 'ADD', 0, 1, 'identity', 'Inspiración Real');
                     const last = newState.activeModifiers[newState.activeModifiers.length - 1];
                     if (last) {
                         newState = { ...newState, activeModifiers: newState.activeModifiers.map((m, i) =>
@@ -313,7 +313,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
         if (!newState.players[playerId]?.protegerUsedThisTurn) {
             const general = Object.values(newState.units).find(u => u.owner === playerId && u.class === 'general');
             if (general) {
-                newState = addModifier(newState, playerId, general.id, 'damage', -1, 'ADD', 0, 1);
+                newState = addModifier(newState, playerId, general.id, 'damage', -1, 'ADD', 0, 1, 'identity', 'Escudo del Comandante');
             }
         }
         newState = {

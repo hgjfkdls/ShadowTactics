@@ -99,6 +99,13 @@ export function buildEffectDeck(seed: number): { deck: CardId[]; seed: number } 
     return { deck: result.shuffled, seed: result.seed };
 }
 
+export function getCardDescriptionBySourceName(name: string): string | undefined {
+    for (const [key, tmpl] of Object.entries(CARD_TEMPLATES)) {
+        if (tmpl.name === name) return tmpl.description;
+    }
+    return undefined;
+}
+
 export function shuffleArray<T>(arr: T[], seed: number): { shuffled: T[]; seed: number } {
     const shuffled = [...arr];
     let s = seed;

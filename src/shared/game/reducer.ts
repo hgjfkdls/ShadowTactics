@@ -130,9 +130,9 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             const allies = Object.values(s.units).filter(u => u.owner === action.playerId);
             for (const u of allies) {
                 if (action.choice === 'attack') {
-                    s = addModifier(s, action.playerId, u.id, 'attack', 1, 'ADD', 0, 1);
+                    s = addModifier(s, action.playerId, u.id, 'attack', 1, 'ADD', 0, 1, 'ability', 'Avanzar');
                 } else {
-                    s = addModifier(s, action.playerId, u.id, 'damage', -1, 'ADD', 0, 1);
+                    s = addModifier(s, action.playerId, u.id, 'damage', -1, 'ADD', 0, 1, 'ability', 'Reagruparse');
                 }
             }
             return s;

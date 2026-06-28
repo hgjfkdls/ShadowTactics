@@ -61,12 +61,13 @@ export function HistoryPanel({ gameHistory, selectedInfo, onSelectEntry }: {
 function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: boolean }) {
     const borderCls = selected ? 'border-blue-500 bg-blue-600/15' : 'border-zinc-600/60';
     const bgCls = selected ? 'bg-blue-600/15' : 'bg-zinc-700/40';
+    const playerBorder = entry.playerId === 'p1' ? 'border-l-green-700' : 'border-l-red-700';
 
     if (entry.type === 'attack') {
         const isCritical = entry.total >= 11;
         const isTorbellino = entry.attackName === 'Torbellino';
         return (
-            <div className={`${borderCls} ${bgCls} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+            <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
                     <div className="text-zinc-500 flex justify-between">
                         <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
@@ -77,11 +78,9 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                     {isTorbellino ? (
                         <div className="text-zinc-300 font-semibold text-[10px]">🌪️ Torbellino</div>
                     ) : entry.attackName === 'Sacrificar' ? (
-                        <div className="text-zinc-300 text-[10px]">
-                            <span className="text-red-400">{l('ability.sacrificar.name')}</span>
-                            <span className="text-zinc-400"> [{entry.targetId}]{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass}</span>
-                            <span className="text-zinc-500"> · </span>
-                            <span className="text-green-400">{l('unit.class.general')} +{entry.modifiers?.[0]?.includes('5') ? '5' : '3'} HP</span>
+                        <div className="text-zinc-300 text-[10px] leading-relaxed">
+                            <div><span className="text-red-400"> [{entry.targetId}]{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} -2 HP</span></div>
+                            <div><span className="text-green-400"> {l('unit.class.general')} +{entry.modifiers?.[0]?.includes('5') ? '5' : '3'} HP</span></div>
                         </div>
                     ) : (
                         <div className="flex items-center gap-1 text-zinc-300">
@@ -120,7 +119,7 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
 
     if (entry.type === 'move') {
         return (
-            <div className={`${borderCls} ${bgCls} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+            <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
                     <div className="text-zinc-500 flex justify-between">
                         <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
@@ -157,7 +156,7 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
         if (entry.details && entry.healAmount === undefined) detailParts.push(entry.details);
         const detailText = detailParts.join(' · ');
         return (
-            <div className={`${borderCls} ${bgCls} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+            <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
                     <div className="text-zinc-500 flex justify-between">
                         <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>

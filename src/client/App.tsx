@@ -7,13 +7,14 @@ import { PlayerSidebar } from './game/layout/PlayerSidebar';
 import { RightPanel } from './game/layout/RightPanel';
 import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
 import { KeyBindingsProvider, useKeyBindings } from './game/KeyBindingsContext';
+import { AnimationProvider } from './game/animation/AnimationContext';
 import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
 import { DisconnectModal } from './game/layout/DisconnectModal';
 import { l } from '@shared/i18n';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
 
 export function App() {
     const [localeKey, setLocaleKey] = useState(0);
@@ -121,6 +122,7 @@ export function App() {
 
     return (
         <KeyBindingsProvider>
+        <AnimationProvider>
         <div key={localeKey} className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
@@ -256,6 +258,7 @@ export function App() {
                 </main>
             )}
         </div>
+        </AnimationProvider>
         </KeyBindingsProvider>
     );
 }

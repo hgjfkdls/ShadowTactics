@@ -872,3 +872,200 @@ Implementar game over (victoria/derrota), rendición, manejo de desconexión con
 ## Archivos creados
 - `src/client/game/layout/GameOverModal.tsx`
 - `src/client/game/layout/DisconnectModal.tsx`
+
+---
+
+# Sesión de trabajo — 27 Jun 2026 (tarde) y 28 Jun 2026
+
+## Objetivo
+Desacople arquitectónico por capas, finalizar migración i18n, implementar sistema de animaciones, y múltiples correcciones de juego.
+
+---
+
+## 1. Plan de desacople — 6 capas
+
+### Documentación creada
+- `docs/arquitectura/layers/00-idea.md` — Idea original (5 capas)
+- `docs/arquitectura/layers/01-estrategia.md` — Estrategia general y orden de implementación
+- `docs/arquitectura/layers/02-labels.md` — i18n: función `l()`, recursos, migración progresiva
+- `docs/arquitectura/layers/03-modifiers.md` — Sistematizar source/sourceName, unificar ciclo de vida
+- `docs/arquitectura/layers/04-board.md` — Separar damage/kill/collision/queries de utils/helpers
+- `docs/arquitectura/layers/05-actions.md` — Refactor de HexBoard: useSelection, GameModals, handlers
+- `docs/arquitectura/layers/06-animation.md` — Sistema agnóstico al motor gráfico (SVG/WebGL)
+
+---
+
+## 2. Labels (i18n) — migración completa
+
+### Sistema base
+- `@shared/i18n/index.ts` — función `l(key, params?)` con resolución por puntos e interpolación
+- `@shared/i18n/resources/es.ts` — ~450 strings en español
+- `@shared/i18n/resources/en.ts` — ~450 strings traducidos al inglés
+- Persistencia en localStorage + evento `locale-changed` para SPA sin recarga
+
+### Archivos migrados (~20 archivos)
+`App.tsx` · `HexBoard.tsx` · `RightPanel.tsx` · `PlayerSidebar.tsx` · `UnitsLayer.tsx` · `AttackResultPanel.tsx` · `ActionPanel.tsx` · `GameOverModal.tsx` · `DisconnectModal.tsx` · `HamburgerMenu.tsx` · `PendingOccupationPanel.tsx` · `DeploymentPanel.tsx` · `DeploymentUnitPool.tsx` · `IdentitySelection.tsx` · `DiceRoll.tsx` · `RollResults.tsx` · `RevealScreen.tsx` · `PreparationScreen.tsx` · `TurnTimer.tsx` · `KeyBindingsModal.tsx`
+
+### Identidades
+- `descVerbose` añadido a recursos ES/EN para las 15 identidades
+- Panel de información dividido en 3 secciones: reseña, especial, global
+- Misma vista al clickear carta identidad o general en tablero
+
+### Selector de idioma
+- Botón en HamburgerMenu: `🌐 Language: Español / English`
+- `setLocale()` + evento `locale-changed` + `key` en div raíz para re-render completo
+
+---
+
+## 3. Board — desacople completado
+
+### Archivos creados
+| Archivo | Contenido |
+|---------|-----------|
+| `@shared/game/board/collision.ts` | `isHexOccupied`, `isWithinBounds` |
+| `@shared/game/units/queries.ts` | `countPlayerClasses`, `isNearAnyAlliedUnit` |
+| `@shared/game/combat/kill.ts` | `dealDamage`, `killUnit` (juntos por dep. circular) |
+
+### Re-exports mantenidos
+`utils/index.ts` y `utils.ts` redirigen a las nuevas ubicaciones. `helpers.ts` quedó solo con `updateUnit`.
+
+---
+
+## 4. Actions — desacople completado (HexBoard de ~1300 a ~700 líneas)
+
+### Fase 1: useSelection
+- `useSelection.ts` — hook central con 13 estados + `clearAll()`
+- Reemplaza `useBoardInteraction.ts` + 12 `useState` dispersos
+
+### Fase 2: GameModals
+- `layout/modals/GameModals.tsx` — 14 modales extraídos (~300 líneas)
+- Identity target, card target, cabalgar, patada, torbellino, ángel guardián, counter, espartano, plan batalla
+
+### Fase 3: useHexClick
+- `handlers/useHexClick.ts` — 6 sub-handlers (deploy, move, attack, ability, card, counter)
+- `onHexClick` bajó de ~170 líneas inline a ~30
+
+### Fase 4: UnitTooltip + unitLabels
+- `UnitTooltip.tsx` — tooltip extraído de UnitsLayer
+- `unitLabels.ts` — `statusLabel()`, `classLabel()`, `hitPercent()`
+
+---
+
+## 5. Modifiers — source/sourceName completado
+
+11 llamadas a `addModifier` actualizadas con `source`/`sourceName`:
+
+| Archivo | source | sourceName |
+|---------|--------|------------|
+| `formations.ts` | formation | Línea, Triángulo |
+| `reducer.ts` | ability | Avanzar, Reagruparse |
+| `turn.ts` | identity | Meditación, Inspiración Real (×2), Escudo del Comandante |
+| `kill.ts` | ability | Terror |
+| `ability.ts` | ability | Desenvainado veloz, Proteger |
+
+---
+
+## 6. Animation — capa implementada
+
+### Arquitectura graphics-agnostic
+```
+AnimationEngine (timing/colas) → solo requestAnimationFrame, sin imports de render
+AnimationRenderer (interfaz)   → métodos abstractos
+SvgRenderer (implementación)   → actualiza animPositions → UnitsLayer
+```
+
+### Archivos creados
+| Archivo | Propósito |
+|---------|-----------|
+| `animation/types.ts` | Tipos `Animation` (datos puros) |
+| `animation/render/AnimationRenderer.ts` | Interfaz abstracta |
+| `animation/render/SvgRenderer.ts` | Implementación SVG |
+| `animation/AnimationEngine.ts` | Cola FIFO + timing con rAF |
+| `animation/AnimationContext.tsx` | Provider + hook `useAnimation()` |
+
+### Integración
+- `App.tsx` envuelto con `<AnimationProvider>`
+- `HexBoard.tsx` eliminó ~60 líneas de animación inline (animPath, animStep, etc.)
+- Cabalgar y cabalgar_2 usan `enqueue()` en vez de setters manuales
+
+---
+
+## 7. Correcciones de juego
+
+### Flechas de fuego
+- Buff `damage +1` ahora se consume también en fallo (antes solo en acierto)
+- `dotOnHit` también se consume en fallo
+- `Math.max(0, mods.damageMod)` → `mods.damageMod` para que Mantenimiento de equipo funcione
+
+### Mantenimiento de equipo
+- Bug: `Math.max(0, mods.damageMod)` en `applyDamageAbilities` ignoraba valores negativos
+- Corregido: ahora `3 (base) + 1 (crítico) - 1 (mantenimiento) = 3` ✅
+
+### Avance (pasiva de infantería)
+- Hex de ocupación ya no se muestra en verde para el rival
+- `occupationHex` filtra por `occUnit.owner === myPlayerId`
+
+### AP player-wide
+- Modificadores `ap` (Bajar la moral, Inspiración de tropa) ya no se muestran en tooltips de unidad
+- Se mantienen en panel de efectos del jugador (PlayerSidebar)
+
+### PassiveDamage tooltip
+- Muestra `"Recibiendo daño pasivo (1 HP, 2 turnos)"` con valor y usos restantes
+
+### Historial
+- Tarjetas con borde lateral del color del jugador (verde P1, rojo P2)
+- Sacrificar muestra `[id] Clase -2 HP` y `General +3 HP` en dos líneas
+
+### Efectos en panel de información
+- `EffectDetail` ahora recibe `source`, `sourceName` y `value`
+- Muestra `(card: Flechas de fuego)` y descripción de la carta cuando aplica
+- `damage` se evalúa por valor: positivo → buff, negativo → debuff
+
+### Modo despliegue
+- Unidades en pool muestran stats y habilidades proyectadas según identidad
+- General muestra habilidades de identidad antes del despliegue
+- Pool visible para ambos jugadores, ordenado por clase
+- Solo el jugador activo puede desplegar; el rival solo ve info
+
+---
+
+## 8. Archivos creados en esta sesión
+
+### i18n
+- `src/shared/i18n/index.ts`
+- `src/shared/i18n/types.ts`
+- `src/shared/i18n/resources/es.ts`
+- `src/shared/i18n/resources/en.ts`
+
+### Board
+- `src/shared/game/board/collision.ts`
+- `src/shared/game/units/queries.ts`
+- `src/shared/game/combat/kill.ts`
+
+### Actions
+- `src/client/game/board/useSelection.ts`
+- `src/client/game/board/handlers/useHexClick.ts`
+- `src/client/game/board/UnitTooltip.tsx`
+- `src/client/game/board/unitLabels.ts`
+- `src/client/game/layout/modals/GameModals.tsx`
+
+### Animation
+- `src/client/game/animation/types.ts`
+- `src/client/game/animation/AnimationEngine.ts`
+- `src/client/game/animation/AnimationContext.tsx`
+- `src/client/game/animation/render/AnimationRenderer.ts`
+- `src/client/game/animation/render/SvgRenderer.ts`
+
+### Documentación
+- `docs/arquitectura/layers/00-idea.md`
+- `docs/arquitectura/layers/01-estrategia.md`
+- `docs/arquitectura/layers/02-labels.md`
+- `docs/arquitectura/layers/03-modifiers.md`
+- `docs/arquitectura/layers/04-board.md`
+- `docs/arquitectura/layers/05-actions.md`
+- `docs/arquitectura/layers/06-animation.md`
+
+---
+
+## Tests
+Resultado final: **~270/276 passed, ~6 failed** (fallos preexistentes no relacionados)

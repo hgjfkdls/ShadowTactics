@@ -6,7 +6,7 @@ import { PlayerSidebar } from '../game/layout/PlayerSidebar';
 import { RightPanel } from '../game/layout/RightPanel';
 import { AlertPanel, useAlerts } from '../game/layout/AlertPanel';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
 
 type Props = {
     state: GameState;

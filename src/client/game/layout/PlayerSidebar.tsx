@@ -8,7 +8,7 @@ const CLASS_BORDER: Record<string, string> = {
     archer: 'border-amber-600/50', infantry: 'border-blue-600/50', cavalry: 'border-violet-600/50', lancer: 'border-red-600/50', general: 'border-yellow-500/50',
 };
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
 
 type Props = {
     state: GameState;
@@ -251,7 +251,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                             {playerMods.map((m, i) => (
                                 <button
                                     key={i}
-                                    onClick={() => onInfoSelect?.({ type: 'effect', stat: m.stat, label: statusLabel(m.stat), description: descriptionForStat(m.stat, m.value, m.operator), source: m.source, sourceName: m.sourceName })}
+                                    onClick={() => onInfoSelect?.({ type: 'effect', stat: m.stat, label: statusLabel(m.stat), description: descriptionForStat(m.stat, m.value, m.operator), source: m.source, sourceName: m.sourceName, value: m.value })}
                                     className={[
                                         'text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition',
                                         isDebuff(m)

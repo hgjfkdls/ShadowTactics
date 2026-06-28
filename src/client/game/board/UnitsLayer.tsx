@@ -503,8 +503,8 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const debuffs: string[] = [];
 
     const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
-    const helpfulStats = ['attack', 'ap', 'dotOnHit'];
-    const passiveStats = ['passiveDamage'];
+    const helpfulStats = ['attack', 'dotOnHit'];
+    const passiveStats: string[] = [];
 
     for (const m of modifiers) {
         if (m.remainingTurns < 0) continue;
@@ -529,6 +529,12 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
             continue;
         }
         if (stat === 'difficulty' && m.value > 0 && m.targetId) {
+            continue;
+        }
+        if (stat === 'ap') continue; // AP es global del jugador, no por unidad
+        if (stat === 'passiveDamage') {
+            const label = `${l('unit.status.passiveDamage')} (${m.value} HP, ${m.remainingUses ?? '?'} turnos)`;
+            if (!debuffs.includes(label)) debuffs.push(label);
             continue;
         }
         if (stat === 'damage') {
