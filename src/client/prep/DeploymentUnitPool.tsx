@@ -1,8 +1,5 @@
 import type { GameState } from '@shared';
-
-const CLASS_DISPLAY: Record<string, string> = {
-    archer: 'Arquero', infantry: 'Infantería', cavalry: 'Caballería', lancer: 'Lancero', general: 'General',
-};
+import { l } from '@shared/i18n';
 
 type Props = {
     state: GameState;
@@ -59,7 +56,7 @@ export function DeploymentUnitPool({ state, playerId, selectedUnitId, onSelectUn
                             >
                                 <ClassSvg cls={entry.unitClass} />
                                 <span className="text-[9px] font-mono text-zinc-500">{entry.unitId}</span>
-                                <span className="text-[9px] font-semibold leading-tight">{CLASS_DISPLAY[entry.unitClass]}</span>
+                                <span className="text-[9px] font-semibold leading-tight">{l(`unit.class.${entry.unitClass}`)}</span>
                             </button>
                         );
                     })}

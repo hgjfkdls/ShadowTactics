@@ -60,7 +60,7 @@ export const ABILITIES: Record<string, UnitAbility> = {
     // ── LANCERO ──
     anti_caballeria: {
         id: 'anti_caballeria', name: 'Anti-caballería', type: 'passive',
-        description: 'Al atacar caballería, +2 daño',
+        description: 'Al atacar caballería, +1 daño',
     },
     formacion_defensiva: {
         id: 'formacion_defensiva', name: 'Formación defensiva', type: 'passive',

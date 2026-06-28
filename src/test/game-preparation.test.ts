@@ -276,10 +276,10 @@ function prepDeployment() {
     s = deployNext(s, other, -2, -1);
     s = deployNext(s, other, -2, -2);
 
-    // Only 3 archers exist per player. The 4th deploy picks u4(infantry) for deployer
+    // Only 3 cavalry exist per player. The 4th deploy picks the next class
     const entry4 = s.players[deployer].unitsToDeploy![0];
-    assertEqual(entry4.unitClass, 'infantry',
-        'DEPLOY_UNIT — 4ª unidad del pool no es archer (solo hay 3)');
+    assertEqual(entry4.unitClass, 'lancer',
+        'DEPLOY_UNIT — 4ª unidad del pool (después de 3 cavalry) es lancer');
 }
 
 {

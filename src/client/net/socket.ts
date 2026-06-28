@@ -1,7 +1,5 @@
 import { io } from 'socket.io-client';
 
-export const socket = io('http://localhost:3000',
-    {
-        autoConnect: true
-    }
-);
+declare var __WS_URL__: string;  // Inyectado por Vite define
+
+export const socket = io(__WS_URL__, { autoConnect: true });

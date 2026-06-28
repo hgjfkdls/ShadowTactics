@@ -15,7 +15,9 @@ export function addModifier(
     value: number,
     operator: 'ADD' | 'MUL' | 'SET',
     remainingTurns: number,
-    remainingUses?: number
+    remainingUses?: number,
+    source?: string,
+    sourceName?: string,
 ): GameState {
     const { id, state: s } = nextId(state);
     const mod: ModifierInstance = {
@@ -27,6 +29,8 @@ export function addModifier(
         operator,
         remainingTurns,
         remainingUses,
+        source,
+        sourceName,
     };
     return { ...s, activeModifiers: [...s.activeModifiers, mod] };
 }

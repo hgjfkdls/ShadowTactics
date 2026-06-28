@@ -10,6 +10,7 @@
         "test": "tsx src/test/main.ts"
     },
     "dependencies": {
+        "dotenv": "^17.4.2",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "socket.io": "^4.8.3",

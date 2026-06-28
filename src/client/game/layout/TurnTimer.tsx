@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { l } from '@shared/i18n';
 
 type Props = {
     activePlayer: string;
@@ -52,7 +53,7 @@ export function TurnTimer({ activePlayer, turnPhase, onTimeUp, paused }: Props) 
             urgent ? 'bg-red-900/80 border-red-500' : 'bg-zinc-800/80 border-zinc-600'
         }`}>
             <span className={`text-[10px] font-bold uppercase ${urgent ? 'text-red-200' : 'text-zinc-500'}`}>
-                Límite
+{l('board.timeLimit')}
             </span>
             <span className={`font-bold text-sm ${urgent ? 'text-red-200' : 'text-zinc-200'}`}>
                 {fmtTime(remaining)}

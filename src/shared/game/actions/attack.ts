@@ -38,8 +38,9 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
 
     const distance = hexDistance(unit.position, target.position);
     const attackerIdentity = getIdentityKey(state.players[unit.owner]?.selectedIdentity ?? '');
+    const isArcher = unit.class === 'archer' || unit.class === 'general';
     const espartanoRangeBonus = unit.espartanoRangeBonus ? 1 : 0;
-    const basicRangeBonus = (attackerIdentity === 'francotirador' ? 1 : 0) + espartanoRangeBonus;
+    const basicRangeBonus = (attackerIdentity === 'francotirador' && isArcher ? 1 : 0) + espartanoRangeBonus;
     if (distance > unit.range + basicRangeBonus) return state;
 
     const ap = getPlayerAP(state, playerId);
@@ -114,6 +115,45 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         }
     }
 
+    const histMods: string[] = [];
+    const isArcherFormula = (unit.abilities ?? []).includes('blanco_facil');
+    const diffBase = isArcherFormula ? 5 : unit.difficulty;
+    const raw = diffBase + distance;
+    const diffMods: string[] = [`base ${diffBase}`, `distancia +${distance} → ${raw}`];
+    if (result.difficulty !== raw) {
+        const diff = result.difficulty - raw;
+        if (diff < 0) diffMods.push(`${diff} = ${result.difficulty}`);
+        else diffMods.push(`+${diff} = ${result.difficulty}`);
+    }
+    histMods.push(`Dificultad: ${diffMods.join(', ')}`);
+    if (ataqueExtra) histMods.push('Ataque extra: +1 daño, +2 dificultad, 0 PA');
+    if (precision) histMods.push('Precisión: -2 dificultad');
+    const dmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0 && !m.targetId && m.sourcePlayerId === unit.owner);
+    for (const m of dmgMods) {
+        histMods.push(`Daño: ${m.value > 0 ? '+' : ''}${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
+    }
+    const defDmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0 && (!m.targetId || m.targetId === target.id) && m.sourcePlayerId === target.owner);
+    for (const m of defDmgMods) {
+        if (m.value < 0) histMods.push(`Reducción daño: ${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
+    }
+    const rangeBonus = (attackerIdentity === 'francotirador' && isArcher ? 1 : 0) + (unit.espartanoRangeBonus ? 1 : 0);
+    if (rangeBonus > 0) histMods.push(`Bonificación rango: +${rangeBonus}`);
+    if (unit.celestialRayDamageBonus) {
+        histMods.push(`Rayo celestial: +${unit.celestialRayDamageBonus} daño`);
+    }
+    // Contraataque (Capitán de la Guardia)
+    if (s.units[action.targetId]?.usedCounterattack) {
+        const targetIdentity = state.players[target.owner]?.selectedIdentity ?? '';
+        if (targetIdentity.startsWith('capitan_guardia')) {
+            histMods.push('Contraataque (Capitán de la Guardia): daño reflejado');
+        }
+    }
+
+    const paMods: string[] = [];
+    if (costResult.attackCost > 0) paMods.push(`+${costResult.attackCost} PA (coste ataque)`);
+    if (hasSurcharge && !ataqueExtra) paMods.push('+1 PA (fuego cobertura)');
+    if (cost === 0 && ataqueExtra) paMods.push('0 PA (ataque extra)');
+
     s = {
         ...s,
         lastAttackResult: {
@@ -131,6 +171,32 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             targetKilled: killed(s, action.targetId).dead,
             attackName: 'Ataque básico',
         },
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId,
+            type: 'attack' as const,
+            paCost: cost,
+            paModifiers: paMods,
+            attackerId: action.unitId,
+            targetId: action.targetId,
+            die1: result.roll.die1,
+            die2: result.roll.die2,
+            total: result.roll.total,
+            difficulty: result.difficulty,
+            baseDifficulty: (unit.abilities ?? []).includes('blanco_facil') ? 5 : unit.difficulty,
+            hit: result.hit,
+            damage: result.damage,
+            baseAttack: unit.attack,
+            counterDamage: result.counterDamage,
+            attackerClass: unit.class,
+            targetClass: target.class,
+            targetKilled: killed(s, action.targetId).dead,
+            attackName: `Ataque básico${ataqueExtra ? ' (extra)' : ''}`,
+            modifiers: histMods,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
     };
 
     // Proyección (Punta de Lanza): primer ataque de lancero hace 1 daño a 2 hex detrás

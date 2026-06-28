@@ -5,6 +5,9 @@ import type { Unit } from '@shared/game/state';
 import { axialToPixel } from './hexMath';
 import { ABILITIES } from '@shared/game/data/abilities';
 import { BASE_STATS } from '@shared/game/units';
+import { l } from '@shared/i18n';
+import { UnitTooltip } from './UnitTooltip';
+import { statusLabel, classLabel, hitPercent } from './unitLabels';
 
 type Props = {
     state: GameState;
@@ -65,7 +68,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                 const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
                 const attackingUnit = attackingUnitId ? state.units[attackingUnitId] : null;
-                const identityBonus = (state.players[attackingUnit?.owner ?? '']?.selectedIdentity ?? '').startsWith('francotirador') ? 1 : 0;
+                const isArcher = (attackingUnit?.class === 'archer' || attackingUnit?.class === 'general');
+                const identityBonus = isArcher && (state.players[attackingUnit?.owner ?? '']?.selectedIdentity ?? '').startsWith('francotirador') ? 1 : 0;
                 const espartanoRangeBonus = attackingUnit?.espartanoRangeBonus ? 1 : 0;
                 const attackRange = (attackingUnit?.range ?? 0) + identityBonus + espartanoRangeBonus;
                 const isAttackTarget = attackingUnit !== null && unit.owner !== playerId && hexDistance(attackingUnit.position, unit.position) <= attackRange;
@@ -170,66 +174,64 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                 const passiveLabels: string[] = [];
                 const isFrancotirador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('francotirador');
-                if (isBlancoFacilTarget) passiveLabels.push(`Blanco fácil (${isFrancotirador ? '-2' : '-1'} dificultad)`);
-                if (showSword) passiveLabels.push('Presión (+1 daño)');
-                if (showAnticaballeria) passiveLabels.push('Anti-caballería (+1 daño)');
+                if (isBlancoFacilTarget) passiveLabels.push(`${l('passive.blancoFacil')} (${isFrancotirador ? '-2' : '-1'} ${l('passive.difficultyAbbr')})`);
+                if (showSword) passiveLabels.push(l('passive.presion'));
+                if (showAnticaballeria) passiveLabels.push(l('passive.anticaballeria'));
                 if (showFormacionDefensiva) {
-                    passiveLabels.push('Form. defensiva (anula Carga)');
-                    passiveLabels.push('Form. defensiva (+1 contraataque)');
+                    passiveLabels.push(l('passive.formacionDefensivaAnula'));
+                    passiveLabels.push(l('passive.formacionDefensivaContra'));
                 }
                 if (showShield) {
-                    if (unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false) passiveLabels.push('Línea defensiva (-1 daño)');
-                    else if (unitAbilities.includes('resistencia') && !unit.timesDamagedThisTurn) passiveLabels.push('Resistencia (-1 daño)');
+                    if (unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false) passiveLabels.push(l('passive.lineaDefensiva'));
+                    else if (unitAbilities.includes('resistencia') && !unit.timesDamagedThisTurn) passiveLabels.push(l('passive.resistencia'));
                 }
-                if (showMeditacionShield) passiveLabels.push('Meditación (-1 daño)');
-                if (showFormacionLineaShield) passiveLabels.push('Formación línea (-1 daño)');
-                if (showFormacionTrianguloDiana) passiveLabels.push('Formación triángulo (+1 daño)');
-                if (showVozDeMandoReady || showVozDeMandoUsed) passiveLabels.push('Voz de mando');
-                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`Plan de batalla: Avanzar (+${atkModSum} daño)`);
+                if (showMeditacionShield) passiveLabels.push(l('passive.meditacion'));
+                if (showFormacionLineaShield) passiveLabels.push(l('passive.formacionLinea'));
+                if (showFormacionTrianguloDiana) passiveLabels.push(l('passive.formacionTriangulo'));
+                if (showVozDeMandoReady || showVozDeMandoUsed) passiveLabels.push(l('passive.vozDeMando'));
+                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`${l('passive.planBatallaAvanzar')} (+${atkModSum} ${l('passive.damageAbbr')})`);
                 if (showReagruparShield || showReagruparSelf) {
-                    if (dmgModSum < 0) passiveLabels.push(`Plan de batalla: Reagruparse (${dmgModSum} daño)`);
+                    if (dmgModSum < 0) passiveLabels.push(`${l('passive.planBatallaReagrupar')} (${dmgModSum} ${l('passive.damageAbbr')})`);
                 }
-                if (showGuardiaDiana && atkModSum > 0) passiveLabels.push(`Guardia real (+${atkModSum} ataque)`);
-                if (showGuardiaShield && dmgModSum < 0) passiveLabels.push(`Guardia real (${dmgModSum} daño)`);
+                if (showGuardiaDiana && atkModSum > 0) passiveLabels.push(`${l('passive.guardiaRealAtk')} (+${atkModSum} ${l('passive.attackAbbr')})`);
+                if (showGuardiaShield && dmgModSum < 0) passiveLabels.push(`${l('passive.guardiaRealDef')} (${dmgModSum} ${l('passive.damageAbbr')})`);
                 if (hasRoyalShield) {
                     const shieldOwner = (state.players[unit.owner]?.selectedIdentity ?? '').startsWith('inspiracion_real');
-                    passiveLabels.push(shieldOwner ? 'Escudo real (+3 HP temporal)' : 'Ángel Guardián (+2 HP)');
+                    passiveLabels.push(shieldOwner ? l('passive.escudoReal') : l('passive.angelGuardianShield'));
                 }
-                if (hasProtegerShield) passiveLabels.push('Proteger (-1 daño)');
+                if (hasProtegerShield) passiveLabels.push(l('passive.proteger'));
                 if (unitOwnerIdentity.startsWith('capitan_guardia') && unit.class === 'general') {
-                    const usado = unit.usedCounterattack ? ' (agotado)' : '';
-                    passiveLabels.push(`Contraataque (acierto: +1, fallo: +3)${usado}`);
+                    const usado = unit.usedCounterattack ? ` (${l('passive.exhausted')})` : '';
+                    passiveLabels.push(`${l('passive.contraataque')}${usado}`);
                 }
-                if (showAcechar) passiveLabels.push(`Acechar (+${unit.class === 'general' ? 1 : 2} daño)`);
-                if (showHostigar) passiveLabels.push('Hostigar (-1 dificultad)');
-                if (showCelestialRay) passiveLabels.push(`Rayo celestial (+${unit.celestialRayDamageBonus} daño)`);
-                if (showFuriaBerserker) passiveLabels.push('Furia berserker (+1 daño)');
+                if (showAcechar) passiveLabels.push(`${l('passive.acechar')} (+${unit.class === 'general' ? 1 : 2} ${l('passive.damageAbbr')})`);
+                if (showHostigar) passiveLabels.push(l('passive.hostigar'));
+                if (showCelestialRay) passiveLabels.push(`${l('passive.rayoCelestial')} (+${unit.celestialRayDamageBonus} ${l('passive.damageAbbr')})`);
+                if (showFuriaBerserker) passiveLabels.push(l('passive.furiaBerserker'));
                 if (hasTerror) {
                     if (unit.owner !== playerId && isTiranoViewer) {
-                        passiveLabels.push('Terror');
+                        passiveLabels.push(l('passive.terror'));
                     } else if (unit.owner === playerId && !isTiranoViewer) {
-                        passiveLabels.push('Terror (+1 dificultad)');
+                        passiveLabels.push(l('passive.terrorDifficulty'));
                     }
                 }
-                if (liderarNextTurn && unit.class === 'general') passiveLabels.push('Liderar a las tropas (próximo turno)');
-                if (liderarActive && isInfantryOrGeneral) passiveLabels.push('Liderar a las tropas (+1 daño)');
+                if (liderarNextTurn && unit.class === 'general') passiveLabels.push(l('passive.liderarNextTurn'));
+                if (liderarActive && isInfantryOrGeneral) passiveLabels.push(l('passive.liderarActive'));
                 if (isDiosTrueno && unit.class === 'general') {
                     const rayBonus = state.players[unit.owner]?.celestialRayBonus ?? 0;
-                    if (rayBonus > 0) passiveLabels.push(`Rayo celestial disponible (+${rayBonus} daño)`);
+                    if (rayBonus > 0) passiveLabels.push(`${l('passive.rayoCelestialDisponible')} (+${rayBonus} ${l('passive.damageAbbr')})`);
                 }
-
-                if (isMonjeShaolin) passiveLabels.push('Karma (+2 daño al morir)');
-
+                if (isMonjeShaolin) passiveLabels.push(l('passive.karma'));
                 const isEspartano = unitOwnerIdentity.startsWith('espartano');
-                if (unit.espartanoRangeBonus) passiveLabels.push('Lanza y escudo (+1 rango)');
-                if (unit.espartanoDefenseBonus) passiveLabels.push('Lanza y escudo (-1 daño recibido)');
+                if (unit.espartanoRangeBonus) passiveLabels.push(l('passive.lanzaEscudoRango'));
+                if (unit.espartanoDefenseBonus) passiveLabels.push(l('passive.lanzaEscudoDefensa'));
                 const showMuroEspartano = isEspartano && (unit.class === 'lancer' || unit.class === 'general')
                     && Object.values(state.units).some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(unit.position, u.position) === 1 && (
                         u.class === 'lancer' || (u.class === 'general' && (state.players[u.owner]?.selectedIdentity ?? '').startsWith('espartano'))
                     ));
-                if (showMuroEspartano) passiveLabels.push('Muro espartano (-1 daño)');
-                if (showAtaqueExtra) passiveLabels.push('Ataque extra (+1 ataque, +2 dificultad, 0 PA)');
-                if (showPrecision) passiveLabels.push('Precisión (-2 dificultad)');
+                if (showMuroEspartano) passiveLabels.push(l('passive.muroEspartano'));
+                if (showAtaqueExtra) passiveLabels.push(l('passive.ataqueExtra'));
+                if (showPrecision) passiveLabels.push(l('passive.precision'));
 
                 const attackAbilities = new Set(['patada_acrobatica', 'fuego_cobertura', 'carga', 'doble_ataque', 'ventaja_alcance']);
                 const isAbilityTarget = pendingAttacker && unit.owner !== playerId && isEnemyInAbilityRange(pendingAttacker.position, unit.position, pendingAbilityId ?? '', pendingAttacker);
@@ -477,145 +479,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
     );
 }
 
-function UnitTooltip({ unit, maxHp, buffs, debuffs, attackInfo, passiveLabels }: { unit: Unit; maxHp: number; buffs: string[]; debuffs: string[]; attackInfo: { distance: number; difficulty: number; baseDifficulty: number } | null; passiveLabels?: string[] }) {
-    const lineH = 16;
-    const padX = 12;
-    const padY = 10;
-    const colX = TOKEN_W / 2 + 8;
-    const firstY = -TOKEN_H + padY;
 
-    const pLen = passiveLabels?.length ?? 0;
-    let rows = 2;
-    if (attackInfo) rows += 2;
-    if (buffs.length > 0) rows += 2 + buffs.length;
-    if (debuffs.length > 0) rows += 2 + debuffs.length;
-    if (pLen > 0) rows += 1 + pLen;
-
-    const tipW = 180;
-    const tipH = padY * 2 + rows * lineH;
-
-    const showAttackInfo = !!attackInfo;
-    const attackRow = showAttackInfo ? 3 : -1;
-    const diffRow = showAttackInfo ? 4 : -1;
-    const buffHeaderRow = showAttackInfo ? 5 : 3;
-    const buffStartRow = buffHeaderRow + 1;
-    const debuffHeaderRow = buffs.length > 0 ? buffStartRow + buffs.length : (showAttackInfo ? 5 : 3);
-    const debuffStartRow = debuffHeaderRow + 1;
-    const passiveHeaderRow = debuffs.length > 0 ? debuffStartRow + debuffs.length : debuffHeaderRow;
-    const passiveStartRow = passiveHeaderRow + 1;
-
-    return (
-        <g>
-            <rect
-                x={colX - padX}
-                y={-TOKEN_H}
-                width={tipW}
-                height={tipH}
-                rx={6}
-                fill="#1f2937"
-                fillOpacity={0.96}
-                stroke="#4b5563"
-                strokeWidth={1}
-                onClick={e => e.stopPropagation()}
-            />
-            <text x={colX} y={firstY + lineH * 1} fontSize={9} fill="#e5e7eb" fontWeight="bold" pointerEvents="none">
-                {classLabel(unit.class)}
-            </text>
-            <text x={colX} y={firstY + lineH * 2} fontSize={9} fill="#9ca3af" pointerEvents="none">
-                HP: {unit.hp}/{maxHp} ({Math.round((unit.hp / maxHp) * 100)}%)
-            </text>
-
-            {showAttackInfo && (
-                <>
-                    <text x={colX} y={firstY + lineH * attackRow} fontSize={8} fill="#f59e0b" fontWeight="bold" pointerEvents="none">
-                        Distancia: {attackInfo!.distance}
-                    </text>
-                    <text x={colX} y={firstY + lineH * diffRow} fontSize={8} fill="#f59e0b" fontWeight="bold" pointerEvents="none">
-                        Dificultad: Base {attackInfo!.baseDifficulty} ({hitPercent(attackInfo!.baseDifficulty)}) · Final {attackInfo!.difficulty} ({hitPercent(attackInfo!.difficulty)})
-                    </text>
-                </>
-            )}
-
-            {buffs.length > 0 && (
-                <>
-                    <text x={colX} y={firstY + lineH * buffHeaderRow} fontSize={8} fill="#22c55e" fontWeight="bold" pointerEvents="none">
-                        ▲ Mejoras activas
-                    </text>
-                    {buffs.map((b, i) => (
-                        <text key={b} x={colX + 6} y={firstY + lineH * (buffStartRow + i)} fontSize={8} fill="#86efac" pointerEvents="none">
-                            {statusLabel(b)}
-                        </text>
-                    ))}
-                </>
-            )}
-
-            {debuffs.length > 0 && (
-                <>
-                    <text x={colX} y={firstY + lineH * debuffHeaderRow} fontSize={8} fill="#ef4444" fontWeight="bold" pointerEvents="none">
-                        ▼ Debilidades activas
-                    </text>
-                    {debuffs.map((d, i) => (
-                        <text key={d} x={colX + 6} y={firstY + lineH * (debuffStartRow + i)} fontSize={8} fill="#fca5a5" pointerEvents="none">
-                            {statusLabel(d)}
-                        </text>
-                    ))}
-                </>
-            )}
-
-            {pLen > 0 && (
-                <>
-                    <text x={colX} y={firstY + lineH * passiveHeaderRow} fontSize={8} fill="#60a5fa" fontWeight="bold" pointerEvents="none">
-                        ⚡ Pasivas que afectan
-                    </text>
-                    {passiveLabels!.map((l, i) => (
-                        <text key={l} x={colX + 6} y={firstY + lineH * (passiveStartRow + i)} fontSize={8} fill="#93c5fd" pointerEvents="none">
-                            {l}
-                        </text>
-                    ))}
-                </>
-            )}
-        </g>
-    );
-}
-
-function classLabel(cls: string): string {
-    switch (cls) {
-        case 'archer': return 'Arquero';
-        case 'infantry': return 'Infantería';
-        case 'cavalry': return 'Caballería';
-        case 'lancer': return 'Lancero';
-        case 'general': return 'General';
-        default: return cls;
-    }
-}
-
-function statusLabel(stat: string): string {
-    switch (stat) {
-        case 'movementCost': return 'Coste movimiento alterado';
-        case 'attack': return 'Ataque potenciado';
-        case 'difficulty': return 'Dificultad modificada';
-        case 'damage': return 'Daño alterado';
-        case 'attackCost': return 'Coste ataque aumentado';
-        case 'bloqueo': return 'Bloqueado';
-        case 'inmovil': return 'Inmovilizado';
-        case 'dotOnHit': return 'Daño pasivo preparado';
-        case 'ap': return 'PA modificados';
-        case 'passiveDamage': return 'Recibiendo daño pasivo';
-        case 'movementPenalty': return 'Penalización de movimiento (×2)';
-        default: return stat;
-    }
-}
-
-function hitPercent(difficulty: number): string {
-    const pct: Record<number, string> = {
-        2: '100%', 3: '97.2%', 4: '91.7%', 5: '83.3%',
-        6: '72.2%', 7: '58.3%', 8: '41.7%', 9: '27.8%',
-        10: '16.7%', 11: '8.3%', 12: '2.8%',
-    };
-    if (difficulty < 2) return '100%';
-    if (difficulty > 12) return '0%';
-    return pct[difficulty] ?? '0%';
-}
 
 function isEnemyInAbilityRange(from: { q: number; r: number }, to: { q: number; r: number }, abilityId: string, unit: Unit): boolean {
     const d = hexDistance(from, to);
@@ -639,7 +503,7 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const debuffs: string[] = [];
 
     const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
-    const helpfulStats = ['attack', 'damage', 'ap', 'dotOnHit'];
+    const helpfulStats = ['attack', 'ap', 'dotOnHit'];
     const passiveStats = ['passiveDamage'];
 
     for (const m of modifiers) {
@@ -667,7 +531,10 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (stat === 'difficulty' && m.value > 0 && m.targetId) {
             continue;
         }
-        if (harmfulStats.includes(stat)) {
+        if (stat === 'damage') {
+            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
+            else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
+        } else if (harmfulStats.includes(stat)) {
             if (!debuffs.includes(stat)) debuffs.push(stat);
         } else if (helpfulStats.includes(stat)) {
             if (!buffs.includes(stat)) buffs.push(stat);

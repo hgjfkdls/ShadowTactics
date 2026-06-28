@@ -1,6 +1,7 @@
 import type { GameState } from '../state';
 import type { GameAction } from '../action-types';
 import { roll2d6 } from '../utils/rng';
+import { applyIdentityEffects } from './identity-apply';
 
 export function handleRoll(state: GameState, action: GameAction): GameState {
     if (action.type !== 'ROLL_DICE') return state;
@@ -27,7 +28,7 @@ export function handleRoll(state: GameState, action: GameAction): GameState {
 
     const [first, second] = p1Roll < p2Roll ? ['p1', 'p2'] as const : ['p2', 'p1'] as const;
 
-    return {
+    let s: GameState = {
         ...newState,
         deploymentOrder: [first, second],
         currentDeployingPlayer: first,
@@ -36,4 +37,9 @@ export function handleRoll(state: GameState, action: GameAction): GameState {
         deploymentCount: 0,
         preparationPhase: 'DEPLOYMENT'
     };
+
+    // Pre-apply identity effects (player-level tracking) before deployment
+    s = applyIdentityEffects(s);
+
+    return s;
 }

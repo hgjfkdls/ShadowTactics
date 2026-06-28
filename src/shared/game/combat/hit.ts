@@ -12,5 +12,5 @@ export function isCritical(roll: number): boolean {
 }
 
 export function getCriticalBonus(): number {
-    return 2;
+    return 1;
 }

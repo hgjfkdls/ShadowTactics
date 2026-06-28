@@ -51,7 +51,7 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
         if (unitClass !== 'general' && deployed >= 10) return state;
     }
 
-    const unit = createUnit(action.unitId, action.playerId, action.position, unitClass);
+    let unit = createUnit(action.unitId, action.playerId, action.position, unitClass);
 
     let newState: GameState = {
         ...state,
@@ -66,6 +66,11 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
         }
     };
 
+    // Apply identity effects immediately so the general has its abilities/stats
+    newState = applyIdentityEffects(newState);
+    // Update unit reference in case identity effects modified it
+    unit = newState.units[unit.id];
+
     const nextCount = state.deploymentCount + 1;
     const target = getTargetForStep(state.deploymentStep);
 
@@ -76,9 +81,8 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
     const nextStep = state.deploymentStep + 1;
 
     if (nextStep >= 12) {
-        const identityApplied = applyIdentityEffects(newState);
         const postDeploy: GameState = {
-            ...identityApplied,
+            ...newState,
             deploymentCount: 0,
             deploymentStep: nextStep,
             gamePhase: 'GAME',

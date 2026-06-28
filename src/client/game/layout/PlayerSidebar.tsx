@@ -2,16 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import type { GameState, GameAction } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
 import { getCardName, getCardType } from '@shared/game/actions/card';
-
-const CLASS_DISPLAY: Record<string, string> = {
-    archer: 'Arquero', infantry: 'Infantería', cavalry: 'Caballería', lancer: 'Lancero', general: 'General',
-};
+import { l } from '@shared/i18n';
 
 const CLASS_BORDER: Record<string, string> = {
     archer: 'border-amber-600/50', infantry: 'border-blue-600/50', cavalry: 'border-violet-600/50', lancer: 'border-red-600/50', general: 'border-yellow-500/50',
 };
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string } | null;
 
 type Props = {
     state: GameState;
@@ -28,12 +25,16 @@ type Props = {
 function getIdentityName(cardId: string | undefined): string {
     if (!cardId) return '?';
     const key = getIdentityKey(cardId);
+    const translated = l(`identity.${key}.name`);
+    if (translated && translated !== `identity.${key}.name`) return translated;
     return IDENTITY_INFO[key]?.name ?? '?';
 }
 
 function getIdentityClass(cardId: string | undefined): string {
     if (!cardId) return '';
     const key = getIdentityKey(cardId);
+    const translated = l(`identity.${key}.className`);
+    if (translated && translated !== `identity.${key}.className`) return translated;
     return IDENTITY_INFO[key]?.className ?? '';
 }
 
@@ -67,11 +68,11 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
             {isGameActive && (
                 <div className="px-3 py-2 border-b border-zinc-700 space-y-0.5">
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500 font-bold uppercase">Turno</span>
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase">{l('board.turnLabel')}</span>
                         <span className="text-sm font-bold text-zinc-200">{state.turn}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500 font-bold uppercase">Tiempo</span>
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase">{l('board.time')}</span>
                         <span className="text-xs font-bold text-zinc-200">{fmtTime(totalTime)}</span>
                     </div>
                 </div>
@@ -90,6 +91,7 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
                     onSelectDeployUnit={onSelectDeployUnit}
                     onInfoSelect={onInfoSelect}
                     sendAction={sendAction}
+                    selectedInfo={selectedInfo}
                 />
             </div>
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -104,13 +106,14 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
                     state={state}
                     onInfoSelect={onInfoSelect}
                     sendAction={sendAction}
+                    selectedInfo={selectedInfo}
                 />
             </div>
         </aside>
     );
 }
 
-function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, onIdentityClick, mode, state, selectedDeployUnitId, onSelectDeployUnit, onInfoSelect, sendAction }: {
+function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, onIdentityClick, mode, state, selectedDeployUnitId, onSelectDeployUnit, onInfoSelect, sendAction, selectedInfo }: {
     label: string;
     playerId: string;
     isOwner: boolean;
@@ -124,6 +127,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
     onSelectDeployUnit?: (unitId: string | null) => void;
     onInfoSelect?: (info: SelectedInfo) => void;
     sendAction?: (action: GameAction) => void;
+    selectedInfo: SelectedInfo;
 }) {
     const [hoveredCard, setHoveredCard] = useState<string | null>(null);
     const unitCount = Object.values(state.units).filter(u => u.owner === playerId).length;
@@ -138,26 +142,25 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
     const isCounterWindow = state.turnPhase === 'COUNTER' && state.activePlayer !== playerId;
 
     function getCardActionLabel(cardId: string): string | null {
-        if (isDrawDiscard) return 'Descartar';
+        if (isDrawDiscard) return 'discard';
         if (isCounterWindow) {
             const ctype = getCardType(cardId);
             if (ctype === 'COUNTER') {
-                // Espejo contra Confusión debe usar el CounterPrompt (necesita seleccionar objetivo)
                 if (cardId.startsWith('espejo') && state.lastCardAction?.cardId.startsWith('confusion')) return null;
-                return 'Contrarrestar';
+                return 'counter';
             }
             return null;
         }
-        if (state.activePlayer === playerId && state.turnPhase !== 'COUNTER') return 'Usar';
+        if (state.activePlayer === playerId && state.turnPhase !== 'COUNTER') return 'useCard';
         return null;
     }
 
     function handleCardAction(cardId: string) {
         const actionLabel = getCardActionLabel(cardId);
         if (!actionLabel || !sendAction) return;
-        if (actionLabel === 'Descartar') {
+        if (actionLabel === 'discard') {
             sendAction({ type: 'DISCARD_CARD', playerId, cardId });
-        } else if (actionLabel === 'Usar' && (cardId.startsWith('confusion') || cardId.startsWith('ataque_extra') || cardId.startsWith('precision')) && onInfoSelect) {
+        } else if (actionLabel === 'useCard' && (cardId.startsWith('confusion') || cardId.startsWith('ataque_extra') || cardId.startsWith('precision')) && onInfoSelect) {
             onInfoSelect({ type: 'cardTarget', cardId });
         } else {
             sendAction({ type: 'USE_CARD', playerId, cardId });
@@ -176,7 +179,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
         ].join(' ')}>
             {/* Player name + active badge */}
             <div className="flex items-center justify-between px-3 pt-2 pb-2">
-                <span className="text-xs font-semibold text-zinc-200">Jugador {playerId === 'p1' ? '1' : '2'}</span>
+                <span className="text-xs font-semibold text-zinc-200">{l(playerId === 'p1' ? 'board.player1' : 'board.player2')}</span>
                 {isActive && (
                     <span className={[
                         'text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap tracking-wide',
@@ -184,7 +187,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                             ? 'bg-green-700/60 text-green-200'
                             : 'bg-red-700/60 text-red-200',
                     ].join(' ')}>
-                        {mode === 'DEPLOYMENT' ? 'DESPLEGANDO' : 'EN TURNO'}
+                        {mode === 'DEPLOYMENT' ? l('board.deploying') : l('board.yourTurn')}
                     </span>
                 )}
             </div>
@@ -209,7 +212,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="text-xs font-bold truncate">{getIdentityName(identityCardId) || '—'}</div>
-                        <div className="text-[9px] text-zinc-500">{getIdentityClass(identityCardId)}</div>
+                        <div className="text-[9px] text-zinc-500">{l('identity.cardLabel')}</div>
                     </div>
                 </div>
             </div>
@@ -218,11 +221,11 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
             {mode === 'GAME' && (
                 <div className="flex gap-3 px-3 py-2 bg-zinc-800/60 border-2 border-zinc-700 mx-2 rounded-lg mb-2">
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-zinc-200 font-bold uppercase">PA</span>
+                        <span className="text-[10px] text-zinc-200 font-bold uppercase">{l('board.paLabel')}</span>
                         <span className="text-sm font-bold text-yellow-400">{actionPoints}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-zinc-200 font-bold uppercase">Unidades</span>
+                        <span className="text-[10px] text-zinc-200 font-bold uppercase">{l('board.unitsLabel')}</span>
                         <span className="text-sm font-bold text-yellow-400">{unitCount}</span>
                     </div>
                 </div>
@@ -236,7 +239,11 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                     return !m.targetId && m.sourcePlayerId === playerId;
                 });
                 if (playerMods.length === 0) return null;
-                const isDebuff = (m: { stat: string; value: number }) => ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil', 'passiveDamage'].includes(m.stat) || (m.stat === 'ap' && m.value < 0);
+                const isDebuff = (m: { stat: string; value: number; operator?: string }) => {
+                    if (m.stat === 'movementCost' && m.value === 0 && m.operator === 'SET') return false;
+                    if (m.stat === 'damage' && m.value > 0) return false;
+                    return ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil', 'passiveDamage'].includes(m.stat) || m.stat === 'damage' || (m.stat === 'ap' && m.value < 0);
+                };
                 return (
                     <div className="px-3 py-1.5 space-y-1">
                         <div className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wide">Efectos</div>
@@ -244,7 +251,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                             {playerMods.map((m, i) => (
                                 <button
                                     key={i}
-                                    onClick={() => onInfoSelect?.({ type: 'effect', stat: m.stat, label: statusLabel(m.stat), description: descriptionForStat(m.stat, m.value, m.operator) })}
+                                    onClick={() => onInfoSelect?.({ type: 'effect', stat: m.stat, label: statusLabel(m.stat), description: descriptionForStat(m.stat, m.value, m.operator), source: m.source, sourceName: m.sourceName })}
                                     className={[
                                         'text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition',
                                         isDebuff(m)
@@ -264,50 +271,68 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
             {mode === 'DEPLOYMENT' && (
                 <div className="flex-1 flex flex-col overflow-hidden px-2 pb-2">
                     <div className="text-[9px] text-zinc-500 py-1">
-                        Despliegue: {deployedCount}/11 · Restan {pool.length}
-                        {step > 0 && <span> · Paso {step + 1}/12</span>}
-                        {isMyTurn && <span className="text-yellow-400 font-semibold"> · Tu turno</span>}
+                        {l('deploy.count', { placed: deployedCount, remaining: pool.length })}
+                        {step > 0 && <span> · {l('deploy.step', { step: step + 1 })}</span>}
+                        {isMyTurn && <span className="text-yellow-400 font-semibold"> · {l('deploy.yourTurn')}</span>}
                     </div>
 
-                    {pool.length > 0 && playerId === state.currentDeployingPlayer && onSelectDeployUnit ? (
-                        <div className="flex-1 overflow-y-auto">
-                            <div className="grid grid-cols-3 gap-1">
-                                {pool.map(entry => {
-                                    const sel = selectedDeployUnitId === entry.unitId;
-                                    return (
-                                        <button
-                                            key={entry.unitId}
-                                            onClick={() => {
-                                                onInfoSelect?.({ type: 'unit', unitId: entry.unitId });
-                                                onSelectDeployUnit(sel ? null : entry.unitId);
-                                            }}
-                                            className={[
-                                                'flex flex-col items-center gap-0.5 rounded border p-1 transition cursor-pointer',
-                                                sel
-                                                    ? 'border-blue-500 bg-blue-600/20'
-                                                    : 'border-zinc-700 bg-zinc-800 hover:border-zinc-500',
-                                            ].join(' ')}
-                                        >
-                                            <ClassSvg cls={entry.unitClass} />
-                                            <span className="text-[8px] font-mono text-zinc-500">{entry.unitId}</span>
-                                            <span className="text-[8px] font-semibold leading-tight">{CLASS_DISPLAY[entry.unitClass]}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            {selectedDeployUnitId && (
-                                <div className="mt-1 text-[9px] text-green-400 text-center">
-                                    ✅ Click en hexágono válido
+                    {pool.length > 0 ? (() => {
+                        const isMyPool = playerId === state.currentDeployingPlayer;
+                        const dCount = state.players[playerId]?.deployedUnits?.length ?? 0;
+                        const hasGeneralDeployed = Object.values(state.units).some(u => u.owner === playerId && u.class === 'general');
+                        const generalRequired = dCount >= 10 && !hasGeneralDeployed;
+
+                        const CLASS_ORDER: string[] = ['infantry', 'cavalry', 'lancer', 'archer', 'general'];
+                        const sorted = [...pool].sort((a, b) => CLASS_ORDER.indexOf(a.unitClass) - CLASS_ORDER.indexOf(b.unitClass));
+
+                        return (
+                            <div className="flex-1 overflow-y-auto">
+                                <div className="grid grid-cols-3 gap-1">
+                                    {sorted.map(entry => {
+                                        const sel = selectedDeployUnitId === entry.unitId;
+                                        const isDisabled = generalRequired && entry.unitClass !== 'general';
+                                        return (
+                                            <button
+                                                key={entry.unitId}
+                                                disabled={isDisabled}
+                                                onClick={() => {
+                                                    onInfoSelect?.({ type: 'unit', unitId: entry.unitId });
+                                                    if (isMyPool && onSelectDeployUnit) {
+                                                        onSelectDeployUnit(sel ? null : entry.unitId);
+                                                    }
+                                                }}
+                                                className={[
+                                                    'flex flex-col items-center gap-0.5 rounded border p-1 transition',
+                                                    isMyPool ? 'cursor-pointer' : 'cursor-default',
+                                                    isDisabled
+                                                        ? 'border-zinc-800 bg-zinc-900/50 opacity-40 cursor-not-allowed'
+                                                        : sel
+                                                            ? 'border-blue-500 bg-blue-600/20'
+                                                            : 'border-zinc-700 bg-zinc-800 hover:border-zinc-500',
+                                                ].join(' ')}
+                                            >
+                                                <ClassSvg cls={entry.unitClass} />
+                                                <span className="text-[8px] font-mono text-zinc-500">{entry.unitId}</span>
+                                                <span className="text-[8px] font-semibold leading-tight">{l(`unit.class.${entry.unitClass}`)}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                            )}
-                        </div>
-                    ) : pool.length > 0 ? (
+                                {selectedDeployUnitId && (
+                                    <div className="mt-1 text-[9px] text-green-400 text-center">
+                                        {l('deploy.clickValidHex')}
+                                    </div>
+                                )}
+                                {generalRequired && (
+                                    <div className="mt-1 text-[9px] text-yellow-400 text-center">
+                                        ⚠️ Debes desplegar a tu General primero
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })() : (
                         <div className="flex-1 flex items-center justify-center text-[10px] text-zinc-600">
-                            Esperando turno...
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center text-[10px] text-zinc-600">
-                            Todas colocadas
+                            {l('deploy.allPlaced')}
                         </div>
                     )}
                 </div>
@@ -317,7 +342,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
             {mode === 'GAME' && (
                 <div className="px-2 pb-2 space-y-1.5">
                     <div className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wide">
-                        Cartas ({hand.length})
+                        {l('board.cards')} ({hand.length})
                     </div>
                     {hand.length > 0 ? (
                         <div className="flex flex-col gap-1.5">
@@ -327,12 +352,14 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                     onMouseEnter={() => isOwner && setHoveredCard(cid)}
                                     onMouseLeave={() => setHoveredCard(null)}
                                     onClick={() => isOwner && onInfoSelect?.({ type: 'card', cardId: cid })}
-                                    className={[
-                                        'flex items-center gap-2 rounded border px-2.5 py-2 transition',
-                                        isOwner
-                                            ? 'cursor-pointer border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'
-                                            : 'border-zinc-700/50 bg-zinc-800/20',
-                                    ].join(' ')}
+                                            className={[
+                                                'flex items-center gap-2 rounded border px-2.5 py-2 transition',
+                                                selectedInfo?.type === 'card' && selectedInfo.cardId === cid
+                                                    ? 'border-blue-500 bg-blue-600/15'
+                                                    : isOwner
+                                                        ? 'cursor-pointer border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'
+                                                        : 'border-zinc-700/50 bg-zinc-800/20',
+                                            ].join(' ')}
                                 >
                                     <span className="text-sm">🃏</span>
                                     <span className="text-xs font-semibold flex-1 truncate">
@@ -346,7 +373,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                                 onClick={e => { e.stopPropagation(); handleCardAction(cid); }}
                                                 className="text-[10px] font-semibold px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white cursor-pointer transition whitespace-nowrap"
                                             >
-                                                {label}
+                                                {l(`button.${label}`)}
                                             </button>
                                         );
                                     })()}
@@ -354,7 +381,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                             ))}
                         </div>
                     ) : (
-                        <div className="text-xs text-zinc-600 italic">Sin cartas</div>
+                        <div className="text-xs text-zinc-600 italic">{l('board.noCards')}</div>
                     )}
                 </div>
             )}
@@ -413,35 +440,24 @@ function ClassSvg({ cls }: { cls: string }) {
 }
 
 function statusLabel(stat: string): string {
-    switch (stat) {
-        case 'movementCost': return 'Coste movimiento alterado';
-        case 'attack': return 'Ataque potenciado';
-        case 'difficulty': return 'Dificultad modificada';
-        case 'damage': return 'Daño alterado';
-        case 'attackCost': return 'Coste ataque aumentado';
-        case 'bloqueo': return 'Bloqueado';
-        case 'inmovil': return 'Inmovilizado';
-        case 'dotOnHit': return 'Daño pasivo preparado';
-        case 'ap': return 'PA modificados';
-        case 'passiveDamage': return 'Recibiendo daño pasivo';
-        case 'movementPenalty': return 'Penalización de movimiento (×2)';
-        default: return stat;
-    }
+    const t = l(`unit.status.${stat}`);
+    return t || stat;
 }
 
 function descriptionForStat(stat: string, value: number, operator: string): string {
     const ops: Record<string, string> = { ADD: 'suma', MUL: 'multiplica', SET: 'establece' };
     const opStr = ops[operator] ?? operator;
+    const t = l(`unit.status.${stat}`);
     const values: Record<string, string> = {
-        movementCost: `Movimiento: ${opStr} ${value}`,
-        attack: `Ataque: +${value}`,
-        difficulty: `Dificultad: ${value > 0 ? '+' : ''}${value}`,
-        damage: `Daño: ${value > 0 ? '+' : ''}${value}`,
+        movementCost: `${t}: ${opStr} ${value}`,
+        attack: `${t}: +${value}`,
+        difficulty: `${t}: ${value > 0 ? '+' : ''}${value}`,
+        damage: `${t}: ${value > 0 ? '+' : ''}${value}`,
         attackCost: `Coste de ataque: +${value}`,
         blocked: 'Unidad bloqueada, no puede actuar',
-        dotOnHit: 'Daño pasivo preparado: +1 en el próximo impacto',
+        dotOnHit: `${t}: +1 en el próximo impacto`,
         ap: `PA: ${value > 0 ? '+' : ''}${value}`,
-        passiveDamage: 'Recibiendo daño pasivo al inicio del turno',
+        passiveDamage: `${t} al inicio del turno`,
     };
     return values[stat] ?? `${stat}: ${opStr} ${value}`;
 }

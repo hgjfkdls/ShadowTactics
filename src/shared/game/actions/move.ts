@@ -63,6 +63,38 @@ export function handleMove(state: GameState, action: GameAction): GameState {
     // Consumir modificador de movementCost
     s = consumeModifier(s, playerId, 'movementCost', 1);
 
+    const baseCost = getMovementCost(unit, to);
+    const moveModsStr: string[] = [];
+    if (cost !== baseCost) {
+        const movementMods = state.activeModifiers.filter(
+            m => m.stat === 'movementCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
+        );
+        for (const m of movementMods) {
+            moveModsStr.push(`Coste: ${m.operator} ${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
+        }
+    }
+    if (hasSurcharge) moveModsStr.push('Penalización fuego cobertura: +1 PA');
+    if (useVozBonus) moveModsStr.push('Voz de mando: coste 0');
+
+    s = {
+        ...s,
+        gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId,
+            type: 'move' as const,
+            unitId: unit.id,
+            unitClass: unit.class,
+            from: unit.position,
+            to,
+            cost,
+            baseCost,
+            modifiers: moveModsStr,
+        }],
+        nextHistoryId: s.nextHistoryId + 1,
+    };
+
     // Voz de mando (Comandante Supremo)
     if (identity.startsWith('comandante_supremo')) {
         if (isGeneral && !state.players[playerId]?.vozDeMandoReady) {
