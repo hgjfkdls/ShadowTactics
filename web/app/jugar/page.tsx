@@ -68,8 +68,9 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
         })
             .then((r) => r.json())
             .then((data) => {
-                if (data.status === 'accepted') {
-                    window.location.href = `http://localhost:5173/game/${data.gameId}`;
+                if (data.status === 'accepted' && session?.user?.id) {
+                    const params = new URLSearchParams({ userId: session.user.id, matchType: 'quickplay' });
+                    window.location.href = `http://localhost:5173/game/${data.gameId}?${params}`;
                 }
             })
             .catch(() => {});
@@ -236,14 +237,17 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
         };
     }, [status]);
 
+    const { data: session } = useSession();
+
     useEffect(() => {
-        if (status === 'matched' && matchedGameId) {
+        if (status === 'matched' && matchedGameId && session?.user?.id) {
             const timer = setTimeout(() => {
-                window.location.href = `http://localhost:5173/game/${matchedGameId}`;
+                const params = new URLSearchParams({ userId: session.user.id, matchType: mode });
+                window.location.href = `http://localhost:5173/game/${matchedGameId}?${params}`;
             }, 1500);
             return () => clearTimeout(timer);
         }
-    }, [status, matchedGameId]);
+    }, [status, matchedGameId, session, mode]);
 
     return (
         <>
@@ -332,6 +336,7 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
 }
 
 function InviteMode({ onBack }: { onBack: () => void }) {
+    const { data: session } = useSession();
     const [username, setUsername] = useState('');
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState<{ type: 'success' | 'error'; message: string; gameId?: string } | null>(null);
@@ -351,9 +356,17 @@ function InviteMode({ onBack }: { onBack: () => void }) {
                 setSending(false);
                 if (data.status === 'invited') {
                     setResult({ type: 'success', message: 'Invitación enviada. Redirigiendo...', gameId: data.gameId });
-                    setTimeout(() => {
-                        window.location.href = `http://localhost:5173/game/${data.gameId}`;
-                    }, 1500);
+                    if (session?.user?.id) {
+                        const params = new URLSearchParams({ userId: session.user.id, matchType: 'quickplay' });
+                        const redirectUrl = `http://localhost:5173/game/${data.gameId}?${params}`;
+                        setTimeout(() => {
+                            window.location.href = redirectUrl;
+                        }, 1500);
+                    } else {
+                        setTimeout(() => {
+                            window.location.href = `http://localhost:5173/game/${data.gameId}`;
+                        }, 1500);
+                    }
                 } else {
                     setResult({ type: 'error', message: data.message ?? 'Error al enviar invitación' });
                 }

@@ -40,10 +40,12 @@ y Cómo jugar (documentación completa del juego orientada al jugador).
 | Input | — | Pendiente para Fase 2 |
 | Modal | — | Pendiente para Fase 2 |
 
-## Próximos pasos (Fase 2)
+## Fase 2 (completada)
 
-- Configurar Prisma + PostgreSQL
-- Registro de usuarios (email + username + password)
-- Login con JWT (NextAuth.js)
-- Página de perfil con estadísticas básicas
-- Navbar con menú de usuario autenticado
+Los pasos siguientes se implementaron en [Fase 2](./fase2.md):
+
+- ✅ Configurar Prisma + PostgreSQL
+- ✅ Registro de usuarios (email + username + password)
+- ✅ Login con JWT (NextAuth.js)
+- ✅ Página de perfil con estadísticas básicas
+- ✅ Navbar con menú de usuario autenticado

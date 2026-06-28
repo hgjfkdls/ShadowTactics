@@ -84,13 +84,15 @@ export function useGameState() {
         };
     }, []);
 
-    function joinGame(newGameId: string) {
+    function joinGame(newGameId: string, userId?: string, matchType?: string) {
         if (!newGameId.trim()) return;
 
         setGameId(newGameId);
 
         socket.emit('JOIN_GAME', {
             gameId: newGameId,
+            userId,
+            matchType,
         });
     }
 

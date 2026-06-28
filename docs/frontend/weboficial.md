@@ -78,9 +78,7 @@ vídeos tutoriales.
 | Perfil público | Username, avatar, estadísticas básicas |
 | Perfil privado | Historial de partidas, estadísticas detalladas, configuración |
 
-**Tecnología sugerida:** JWT + base de datos relacional (PostgreSQL).
-El stack concreto está por definir (puede ser un backend separado del servidor
-de juego, o integrarse con el mismo Node.js).
+**Tecnología:** NextAuth (credentials) + PostgreSQL vía Prisma ORM.
 
 ### 4. Rankings
 
@@ -125,86 +123,134 @@ Web oficial → "Jugar con amigos" → Cliente de juego (localhost:5173)
   └─ Ambos se conectan → partida
 ```
 
-#### Matchmaking (juego competitivo)
+#### Matchmaking
 
-Sistema con registro requerido. El servidor empareja jugadores de rango similar.
+Sistema con registro requerido. El servidor empareja jugadores usando una cola en memoria dentro de Next.js API routes.
 
 ```
-Web oficial → "Partida rápida" → matchmaking → Cliente de juego
-  └─ Jugador solicita partida
-  └─ Servidor busca oponente del mismo rango
-  └─ Asigna Game ID automáticamente
-  └─ Ambos redirigidos al cliente con ese ID
-  └─ Partida competitiva (afecta ranking)
+Web oficial → /jugar → "Partida rápida" / "Ranked" → matchmaking → Cliente de juego
+  └─ Jugador solicita partida (POST /api/matchmaking/join)
+  └─ Cola en memoria: quickplayQueue / rankedQueue
+  └─ Emparejamiento: ELO ± margen creciente para ranked, cualquier rango para quickplay
+  └─ Asigna Game ID (8 chars hex) y crea ActiveMatch
+  └─ Ambos redirigidos al cliente con userId + matchType vía query params
+  └─ Cliente conecta al Socket.IO server con JOIN_GAME
+  └─ Cuando ambos conectan, se notifica a /api/games/start para cancelar el timeout del ActiveMatch
+  └─ Al terminar la partida, el Socket.IO server envía el reporte a /api/games/report
 ```
 
-El matchmaking requiere:
-- Servicio de cola de emparejamiento (posiblemente independiente del servidor de juego)
-- Base de datos de usuarios y rankings
-- Lógica de ELO / puntuación
-- Timeout y cancelación de búsqueda
+**Ciclo de vida del ActiveMatch:**
+
+| Evento | Acción |
+|--------|--------|
+| Match creado | `setTimeout` 30s programado para limpiar el match si nadie conecta |
+| Ambos jugadores conectan | Fetch a `/api/games/start` → `confirmGameStarted()` cancela el timeout |
+| Partida termina | Reporte a `/api/games/report` → procesa ELO + estadísticas → elimina el match |
+| Timeout (30s) sin conexión | Match se elimina automáticamente de `activeMatches` |
+
+**Modos disponibles:**
+
+| Modo | Efecto en ELO | Matchmaking |
+|------|---------------|-------------|
+| Partida rápida | No afecta ELO | Cualquier oponente disponible |
+| Ranked | Afecta ELO | Oponente con ELO similar (±50-300 según espera) |
+| Invitar amigo | No afecta ELO | Sala privada entre dos usuarios registrados |
+
+**API endpoints:**
+
+| Ruta | Método | Propósito |
+|------|--------|-----------|
+| `/api/matchmaking/join` | POST | Entrar a cola (body: `{ type: 'quickplay' | 'ranked' }`) |
+| `/api/matchmaking/status` | GET | Consultar estado de la búsqueda |
+| `/api/matchmaking/leave` | POST | Salir de la cola |
+| `/api/matchmaking/invite` | POST | Crear invitación (body: `{ username }`) |
+| `/api/matchmaking/invites` | GET | Listar invitaciones pendientes |
+| `/api/matchmaking/invites/accept` | POST | Aceptar invitación (body: `{ inviteId }`) |
+| `/api/games/report` | POST | Recibir reporte de partida desde Socket.IO server |
+| `/api/games/start` | POST | Notificar que ambos jugadores conectaron (cancela timeout) |
 
 ---
 
 ## Relación con el cliente de juego
 
+### Flujo completo (matchmaking → juego → reporte)
+
 ```
-                          ┌──────────────────┐
-                          │   Web oficial    │
-                          │  (Next.js / SPA) │
-                          │                  │
-                          │  Landing         │
-                          │  Cómo jugar      │
-                          │  Registro/Login  │
-                          │  Rankings        │
-                          │  Tienda          │
-                          └────────┬─────────┘
-                                   │
-                     ┌─────────────┴─────────────┐
-                     │                           │
-                     ▼                           ▼
-          ┌──────────────────┐       ┌──────────────────┐
-          │  Matchmaking     │       │  Redirige a      │
-          │  (servicio cola) │       │  cliente juego   │
-          └────────┬─────────┘       │  con Game ID     │
-                   │                 └────────┬─────────┘
-                   ▼                          │
-          ┌──────────────────┐                │
-          │  Servidor juego  │◄───────────────┘
-          │  (Socket.IO)     │
-          └──────────────────┘
+                          ┌──────────────────────┐
+                          │    Web oficial       │
+                          │  (Next.js :3001)     │
+                          │                      │
+                          │  /jugar (UI cola)    │
+                          │  /api/matchmaking/*  │
+                          │  /api/games/report   │
+                          │  /api/games/start    │
+                          │  activeMatches[]     │
+                          └──────┬───────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                    ▼                         ▼
+         ┌──────────────────┐     ┌──────────────────────┐
+         │  Matchmaking:    │     │  Redirección HTTP    │
+         │  POST /join      │     │  con query params    │
+         │  Crea ActiveMatch│     │  ?userId&matchType   │
+         │  + setTimeout 30s│     └──────────┬───────────┘
+         └────────┬─────────┘                │
+                  │                          │
+                  ▼                          ▼
+         ┌─────────────────────────────────────────┐
+         │      Cliente de juego (Vite :5173)      │
+         │      App.tsx lee URL → joinGame()       │
+         └────────────────┬────────────────────────┘
+                          │ Socket.IO
+                          ▼
+         ┌─────────────────────────────────────────┐
+         │   Servidor Socket.IO (:3000)            │
+         │                                         │
+         │   JOIN_GAME → room.join()               │
+         │   getPlayerCount() === 2 →              │
+         │     ├─ fetch /api/games/start           │
+         │     └─ onGameOverCallback set            │
+         │                                         │
+         │   Game over → onGameOverCallback →      │
+         │     submitReport() → POST /api/games/report
+         └─────────────────────────────────────────┘
 ```
 
 ---
 
-## Stack sugerido para la web oficial
+## Stack actual
 
-| Capa | Opción |
-|------|--------|
-| Frontend | Next.js 14+ o React SPA con router |
-| Estilos | Tailwind CSS |
-| Backend | Node.js + Express o Next.js API routes |
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | Next.js 15 (App Router) |
+| Estilos | Tailwind CSS 4 |
+| Backend | Next.js API routes |
 | Base de datos | PostgreSQL |
-| Autenticación | JWT + bcrypt |
-| ORM | Prisma o Drizzle |
-| Despliegue | Vercel / Railway / servidor propio |
+| Autenticación | NextAuth v5 (credentials) con bcrypt |
+| ORM | Prisma |
+| Servidor de juego separado | Socket.IO 4 (puerto 3000) |
 
-> El stack no está decidido — esta sección se actualizará cuando se inicie
-> el desarrollo de la web oficial.
+> La web oficial y el servidor de juego son procesos independientes.
+> Se comunican vía HTTP (fetch) para la notificación de inicio y reporte de partidas.
 
 ---
 
-## Estado
+## Estado actual
 
 | Componente | Estado |
 |-----------|--------|
-| Web oficial | ❎ No implementada |
-| Registro de usuarios | ❎ No implementado |
-| Rankings | ❎ No implementado |
-| Tienda | ❎ No implementada |
-| Matchmaking | ❎ No implementado |
-| Página "Cómo jugar" | ❎ No implementada |
-
-Toda la lógica de la web oficial está **fuera del alcance actual** del proyecto.
-El cliente de juego funciona de forma independiente con el sistema de salas
-privadas por Game ID.
+| Landing / Home | ✅ Implementada |
+| Registro de usuarios | ✅ Implementado (email + username + password + bcrypt) |
+| Login / Logout | ✅ Implementado (NextAuth credentials) |
+| Rankings | ✅ Implementado (tabla ELO global) |
+| Perfil de usuario | ✅ Implementado (stats, historial) |
+| Matchmaking (quickplay) | ✅ Implementado |
+| Matchmaking (ranked) | ✅ Implementado |
+| Invitar amigo | ✅ Implementado |
+| Reporte de partidas | ✅ Implementado (POST /api/games/report) |
+| Página "Jugar" | ✅ Implementada |
+| Página "Cómo jugar" | ⬜ En desarrollo |
+| Tienda | ❌ No implementada |
+| Recuperación de contraseña | ❌ No implementada |
+| Sala privada por Game ID | ✅ Implementada (vía cliente de juego directo) |

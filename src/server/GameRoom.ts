@@ -10,6 +10,7 @@ const DISCONNECT_TIMEOUT_MS = 60_000;
 export type PlayerSlot = {
     socketId: string;
     playerId: 'p1' | 'p2';
+    userId?: string;
 };
 
 export type PlayerRole = {
@@ -47,7 +48,17 @@ export class GameRoom {
     private disconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     private disconnectedPlayerId: 'p1' | 'p2' | null = null;
 
+    private matchType: 'quickplay' | 'ranked' = 'quickplay';
     onDisconnectCallback: ((state: GameState) => void) | null = null;
+    onGameOverCallback: ((state: GameState) => void) | null = null;
+
+    setMatchType(type: 'quickplay' | 'ranked') {
+        this.matchType = type;
+    }
+
+    getMatchType(): 'quickplay' | 'ranked' {
+        return this.matchType;
+    }
 
     private actions: ActionRecord[] = [];
     private snapshots: StateSnapshot[] = [];
@@ -66,13 +77,13 @@ export class GameRoom {
         });
     }
 
-    join(socketId: string): JoinResult {
+    join(socketId: string, userId?: string): JoinResult {
         if (this.players.length < 2) {
             const playerId = (this.players.length === 0 ? 'p1' : 'p2') as
                 | 'p1'
                 | 'p2';
 
-            this.players.push({ socketId, playerId });
+            this.players.push({ socketId, playerId, userId });
 
             return { role: 'player', playerId };
         }
@@ -96,6 +107,12 @@ export class GameRoom {
         return this.players.find(p => p.socketId === socketId)?.playerId ?? null;
     }
 
+    getUserIdMapping(): { p1?: string; p2?: string } {
+        const p1 = this.players.find(p => p.playerId === 'p1');
+        const p2 = this.players.find(p => p.playerId === 'p2');
+        return { p1: p1?.userId, p2: p2?.userId };
+    }
+
     onPlayerDisconnect(playerId: 'p1' | 'p2') {
         this.disconnectedPlayerId = playerId;
         this.currentState = {
@@ -107,7 +124,6 @@ export class GameRoom {
         };
         this.disconnectTimeout = setTimeout(() => {
             if (this.currentState.gamePhase !== 'GAME') return;
-            const winner = playerId === 'p1' ? 'p2' : 'p1';
             this.currentState = applyAction(this.currentState, {
                 type: 'SURRENDER',
                 playerId,
@@ -116,6 +132,7 @@ export class GameRoom {
                 ...this.currentState,
                 gameOverReason: 'disconnect',
             };
+            this.onGameOverCallback?.(this.currentState);
             this.onDisconnectCallback?.(this.currentState);
         }, DISCONNECT_TIMEOUT_MS);
     }
@@ -171,6 +188,10 @@ export class GameRoom {
 
         const newState = applyAction(this.currentState, action);
         this.currentState = newState;
+
+        if (newState.gamePhase === 'GAME_OVER') {
+            this.onGameOverCallback?.(newState);
+        }
 
         if (index % this.SNAPSHOT_EVERY_N_ACTIONS === 0) {
             this.snapshots.push({

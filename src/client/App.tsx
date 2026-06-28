@@ -35,11 +35,14 @@ export function App() {
     const [confirmLeave, setConfirmLeave] = useState(false);
     const { alerts, addAlert, removeAlert } = useAlerts();
 
-    // Auto-join desde URL: /game/<id>
+    // Auto-join desde URL: /game/<id>?userId=...&matchType=...
     useEffect(() => {
         const match = window.location.pathname.match(/^\/game\/([a-zA-Z0-9_-]+)$/);
         if (match && !gameId) {
-            joinGame(match[1]);
+            const url = new URL(window.location.href);
+            const userId = url.searchParams.get('userId') ?? undefined;
+            const matchType = url.searchParams.get('matchType') ?? undefined;
+            joinGame(match[1], userId, matchType);
         }
     }, []);
 

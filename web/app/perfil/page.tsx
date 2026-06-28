@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import GameHistory from './GameHistory';
 
 export const metadata = { title: 'Mi perfil' };
 
@@ -30,7 +31,7 @@ export default async function PerfilPage() {
     return (
         <>
             <Navbar />
-            <main className="mx-auto max-w-2xl px-4 pt-28 pb-20">
+            <main className="mx-auto max-w-4xl px-4 pt-28 pb-20">
                 <h1 className="mb-8 text-3xl font-bold text-white">Mi perfil</h1>
 
                 <div className="rounded-xl border border-white/10 bg-bg-card p-6">
@@ -55,14 +56,7 @@ export default async function PerfilPage() {
                     </div>
                 </div>
 
-                <div className="mt-8">
-                    <a
-                        href="/jugar"
-                        className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-lg font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400"
-                    >
-                        ⚔️ Partida rápida
-                    </a>
-                </div>
+                {total > 0 && <GameHistory userId={session.user.id} />}
 
                 {total === 0 && (
                     <div className="mt-8 rounded-xl border border-zinc-800 bg-bg-card p-8 text-center">

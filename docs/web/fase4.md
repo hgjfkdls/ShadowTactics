@@ -2,6 +2,8 @@
 
 # Fase 4 — Matchmaking
 
+**Estado:** ✅ Completada
+
 ## Objetivo
 
 Implementar un sistema de emparejamiento (_matchmaking_) con tres modos de juego:
@@ -110,7 +112,7 @@ sequenceDiagram
 
 **Al encontrar match (ambos modos):**
 - Genera un `gameId` único (UUID v4, primeros 8 chars).
-- Crea `ActiveMatch { gameId, userIds, type, matchedAt }`.
+- Crea `ActiveMatch { gameId, userIds, type, isRanked, matchedAt }`.
 - Elimina ambos jugadores de la cola.
 - Programa expiración del match a los 30s (por si no se conectan).
 
@@ -198,6 +200,7 @@ type ActiveMatch = {
     gameId: string;
     userIds: string[];
     type: QueueType;
+    isRanked: boolean;
     matchedAt: number;
 };
 

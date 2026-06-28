@@ -10,10 +10,11 @@ type QueueEntry = {
     joinedAt: number;
 };
 
-type ActiveMatch = {
+export type ActiveMatch = {
     gameId: string;
     userIds: string[];
     type: QueueType;
+    isRanked: boolean;
     matchedAt: number;
 };
 
@@ -29,10 +30,19 @@ type PendingInvite = {
 const TIMEOUT_MS = 60_000;
 const INVITE_TIMEOUT_MS = 30_000;
 
-const quickplayQueue: QueueEntry[] = [];
-const rankedQueue: QueueEntry[] = [];
-const activeMatches: ActiveMatch[] = [];
-const pendingInvites: PendingInvite[] = [];
+const g = (globalThis as any).__matchmaking ??= {
+    quickplayQueue: [] as QueueEntry[],
+    rankedQueue: [] as QueueEntry[],
+    activeMatches: [] as ActiveMatch[],
+    matchTimeouts: new Map<string, ReturnType<typeof setTimeout>>(),
+    pendingInvites: [] as PendingInvite[],
+};
+
+const quickplayQueue: QueueEntry[] = g.quickplayQueue;
+const rankedQueue: QueueEntry[] = g.rankedQueue;
+export const activeMatches: ActiveMatch[] = g.activeMatches;
+const matchTimeouts: Map<string, ReturnType<typeof setTimeout>> = g.matchTimeouts;
+const pendingInvites: PendingInvite[] = g.pendingInvites;
 
 function getQueue(type: QueueType): QueueEntry[] {
     return type === 'quickplay' ? quickplayQueue : rankedQueue;
@@ -105,14 +115,17 @@ export async function joinQueue(userId: string, type: QueueType): Promise<
             gameId,
             userIds: [entry.userId, match.userId],
             type,
+            isRanked: type === 'ranked',
             matchedAt: Date.now(),
         };
         activeMatches.push(matched);
 
-        setTimeout(() => {
+        const matchTimeoutId = setTimeout(() => {
             const idx = activeMatches.indexOf(matched);
             if (idx !== -1) activeMatches.splice(idx, 1);
+            matchTimeouts.delete(gameId);
         }, 30_000);
+        matchTimeouts.set(gameId, matchTimeoutId);
 
         return {
             status: 'matched',
@@ -169,6 +182,14 @@ export function leaveQueue(userId: string): void {
     }
 }
 
+export function confirmGameStarted(gameId: string): boolean {
+    const timeoutId = matchTimeouts.get(gameId);
+    if (!timeoutId) return false;
+    clearTimeout(timeoutId);
+    matchTimeouts.delete(gameId);
+    return true;
+}
+
 export async function createInvite(inviterId: string, invitedUsername: string): Promise<
     { status: 'invited'; gameId: string }
     | { status: 'error'; message: string }
@@ -194,6 +215,7 @@ export async function createInvite(inviterId: string, invitedUsername: string): 
         gameId,
         userIds: [inviterId, invited.id],
         type: 'quickplay',
+        isRanked: false,
         matchedAt: Date.now(),
     };
     activeMatches.push(matched);
@@ -213,14 +235,16 @@ export async function createInvite(inviterId: string, invitedUsername: string): 
     };
     pendingInvites.push(invite);
 
-    setTimeout(() => {
+    const inviteTimeoutId = setTimeout(() => {
         const idx = pendingInvites.indexOf(invite);
         if (idx !== -1) {
             pendingInvites.splice(idx, 1);
             const matchIdx = activeMatches.indexOf(matched);
             if (matchIdx !== -1) activeMatches.splice(matchIdx, 1);
         }
+        matchTimeouts.delete(gameId);
     }, INVITE_TIMEOUT_MS);
+    matchTimeouts.set(gameId, inviteTimeoutId);
 
     return { status: 'invited', gameId };
 }

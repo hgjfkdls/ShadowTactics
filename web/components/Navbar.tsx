@@ -7,6 +7,7 @@ import AuthButton from './AuthButton';
 const links = [
     { href: '/', label: 'Inicio' },
     { href: '/como-jugar', label: 'Cómo jugar' },
+    { href: '/cartas', label: 'Cartas' },
     { href: '/jugar', label: 'Jugar' },
 ];
 

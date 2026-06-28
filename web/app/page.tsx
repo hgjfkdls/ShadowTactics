@@ -20,8 +20,11 @@ export default function HomePage() {
 function HeroSection() {
     return (
         <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 pt-16">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(59,40,204,0.15),transparent_70%)]" />
-            <div className="relative z-10 mx-auto max-w-4xl text-center">
+            <div className="absolute inset-0">
+                <img src="/img/fondos/fondo1.webp" alt="" className="h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-black/50" />
+            </div>
+            <div className="relative z-10 mx-auto mr-auto max-w-4xl px-4 text-left sm:ml-16 lg:ml-32">
                 <p className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-400">
                     Juego táctico por turnos
                 </p>
@@ -30,11 +33,11 @@ function HeroSection() {
                     <br />
                     y contrajuego
                 </h1>
-                <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-400">
+                <p className="mt-6 max-w-xl text-lg text-zinc-400">
                     Shadow Tactics combina combate táctico por turnos, cartas de efecto e identidades únicas.
                     Despliega tu ejército, aplica modificadores y elimina al general enemigo.
                 </p>
-                <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+                <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
                     <Link
                         href="/registro"
                         className="rounded-xl bg-brand-500 px-8 py-3 text-base font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400 hover:shadow-brand-400/30"
@@ -122,11 +125,11 @@ function FeaturesSection() {
 
 function UnitsSection() {
     const units = [
-        { name: 'Arquero', hp: 12, atk: 3, range: 3, diff: 6, color: 'border-emerald-700', bg: 'bg-emerald-950/30' },
-        { name: 'Infantería', hp: 16, atk: 2, range: 1, diff: 6, color: 'border-blue-700', bg: 'bg-blue-950/30' },
-        { name: 'Caballería', hp: 14, atk: 3, range: 1, diff: 7, color: 'border-amber-700', bg: 'bg-amber-950/30' },
-        { name: 'Lancero', hp: 14, atk: 3, range: 1, diff: 7, color: 'border-rose-700', bg: 'bg-rose-950/30' },
-        { name: 'General', hp: 20, atk: 4, range: 1, diff: 6, color: 'border-purple-700', bg: 'bg-purple-950/30' },
+        { name: 'Arquero', hp: 12, atk: 3, range: 3, diff: 6, color: 'border-emerald-700', bg: 'bg-emerald-950/30', token: '/img/fichas/ficha_arquero.png' },
+        { name: 'Infantería', hp: 16, atk: 2, range: 1, diff: 6, color: 'border-blue-700', bg: 'bg-blue-950/30', token: '/img/fichas/ficha_infanteria.png' },
+        { name: 'Caballería', hp: 14, atk: 3, range: 1, diff: 7, color: 'border-amber-700', bg: 'bg-amber-950/30', token: '/img/fichas/ficha_caballeria.png' },
+        { name: 'Lancero', hp: 14, atk: 3, range: 1, diff: 7, color: 'border-rose-700', bg: 'bg-rose-950/30', token: '/img/fichas/ficha_lancero.png' },
+        { name: 'General', hp: 20, atk: 4, range: 1, diff: 6, color: 'border-purple-700', bg: 'bg-purple-950/30', token: '/img/fichas/ficha_general.png' },
     ];
 
     return (
@@ -143,6 +146,7 @@ function UnitsSection() {
                             key={u.name}
                             className={`rounded-xl border ${u.color} ${u.bg} p-5 text-center`}
                         >
+                            {u.token && <img src={u.token} alt={`${u.name} token`} className="mx-auto mb-3 h-32 object-contain" />}
                             <p className="mb-2 text-lg font-bold text-white">{u.name}</p>
                             <div className="space-y-1 text-sm text-zinc-400">
                                 <p>❤️ HP {u.hp}</p>
