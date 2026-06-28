@@ -1,13 +1,18 @@
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { auth } from '@/lib/auth';
+import { FeatureCard } from '@/components/FeatureCard';
 
-export default function HomePage() {
+export default async function HomePage() {
+    const session = await auth();
+    const isAuthenticated = !!session?.user;
+
     return (
         <>
             <Navbar />
             <main>
-                <HeroSection />
+                <HeroSection isAuthenticated={isAuthenticated} />
                 <FeaturesSection />
                 <UnitsSection />
                 <CTASection />
@@ -17,7 +22,7 @@ export default function HomePage() {
     );
 }
 
-function HeroSection() {
+function HeroSection({ isAuthenticated }: { isAuthenticated: boolean }) {
     return (
         <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 pt-16">
             <div className="absolute inset-0">
@@ -39,7 +44,7 @@ function HeroSection() {
                 </p>
                 <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
                     <Link
-                        href="/registro"
+                        href={isAuthenticated ? '/jugar' : '/registro'}
                         className="rounded-xl bg-brand-500 px-8 py-3 text-base font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400 hover:shadow-brand-400/30"
                     >
                         Jugar ahora
@@ -48,7 +53,7 @@ function HeroSection() {
                         href="/jugar"
                         className="rounded-xl border border-yellow-700/50 bg-yellow-950/20 px-8 py-3 text-base font-semibold text-yellow-400 transition-colors hover:bg-yellow-900/30"
                     >
-                        ⚔️ Partida rápida
+                        <img src="/img/jugar/partida_rapida_icon.png" alt="" className="mr-1 inline h-5 scale-[1.5]" /> Partida rápida
                     </Link>
                     <Link
                         href="/como-jugar"
@@ -67,32 +72,32 @@ function FeaturesSection() {
         {
             title: '15 identidades',
             desc: 'Cada partida empieza eligiendo entre identidades únicas que modifican tu general y otorgan habilidades globales a tu ejército.',
-            icon: '👑',
+            img: '/img/caracteristicas/identidades.png',
         },
         {
             title: '13 cartas de efecto',
             desc: 'Buff, debuff y counter. Juega cartas para potenciar tus unidades, sabotear al enemigo o contraatacar en su turno.',
-            icon: '🃏',
+            img: '/img/caracteristicas/efectos.png',
         },
         {
             title: '5 clases de unidad',
             desc: 'Arquero, infantería, caballería, lancero y general. Cada clase con estadísticas y habilidades pasivas y activas únicas.',
-            icon: '⚔️',
+            img: '/img/caracteristicas/unidades.png',
         },
         {
             title: 'Combate táctico',
             desc: 'Sistema de dificultad por distancia, modificadores, críticos, contraataques y cobertura. Cada decisión cuenta.',
-            icon: '🎲',
+            img: '/img/caracteristicas/combate_tactico.png',
         },
         {
             title: 'Despliegue estratégico',
             desc: 'Coloca tus 11 unidades en un tablero hexagonal. La posición inicial define tu estrategia para toda la partida.',
-            icon: '🗺️',
+            img: '/img/caracteristicas/despliegue_estrategico.png',
         },
         {
             title: 'Multijugador 1v1',
             desc: 'Enfréntate a otro jugador en partidas por turnos. Salas privadas con amigos o matchmaking competitivo.',
-            icon: '🎮',
+            img: '/img/caracteristicas/miltijugador.png',
         },
     ];
 
@@ -108,14 +113,7 @@ function FeaturesSection() {
 
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {features.map((f) => (
-                        <div
-                            key={f.title}
-                            className="group rounded-xl border border-white/5 bg-bg-card p-6 transition-colors hover:bg-bg-card-hover"
-                        >
-                            <span className="text-3xl">{f.icon}</span>
-                            <h3 className="mb-2 mt-4 text-lg font-bold text-white">{f.title}</h3>
-                            <p className="text-sm leading-relaxed text-zinc-400">{f.desc}</p>
-                        </div>
+                        <FeatureCard key={f.title} title={f.title} desc={f.desc} img={f.img} />
                     ))}
                 </div>
             </div>
@@ -148,11 +146,11 @@ function UnitsSection() {
                         >
                             {u.token && <img src={u.token} alt={`${u.name} token`} className="mx-auto mb-3 h-32 object-contain" />}
                             <p className="mb-2 text-lg font-bold text-white">{u.name}</p>
-                            <div className="space-y-1 text-sm text-zinc-400">
-                                <p>❤️ HP {u.hp}</p>
-                                <p>⚔️ ATQ {u.atk}</p>
-                                <p>🎯 Rango {u.range}</p>
-                                <p>📊 Dif. {u.diff}</p>
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm text-zinc-400">
+                                <p className="flex items-center"><img src="/img/stats/hp_icon.png" alt="HP" className="mr-1 inline h-8" /> HP {u.hp}</p>
+                                <p className="flex items-center"><img src="/img/stats/atq_icon.png" alt="ATQ" className="mr-1 inline h-8" /> ATQ {u.atk}</p>
+                                <p className="flex items-center"><img src="/img/stats/rango_icon.png" alt="Rango" className="mr-1 inline h-8" /> RNG {u.range}</p>
+                                <p className="flex items-center"><img src="/img/stats/dificultad_icon.png" alt="Dif" className="mr-1 inline h-8" /> DIF {u.diff}</p>
                             </div>
                         </div>
                     ))}

@@ -37,6 +37,12 @@ type ReportBody = {
         kills: number; damageDealt: number; damageReceived: number;
         abilityUses: number; cardsPlayed: number;
     }>;
+    performance: Record<string, {
+        score: number; winBonus: number; hitRate: number;
+        damageTradeRatio: number; survivalRate: number; killParticipation: number;
+        counterEfficiency: number; cardsPlayedPerTurn: number;
+        generalProtection: number; firstBlood: number; comeback: number;
+    }>;
 };
 
 export async function POST(req: NextRequest) {
@@ -52,7 +58,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
     }
 
-    const { gameId, winnerId, type, rngSeed, actions, duration, totalTurns, deployment, classStats, identityStats } = body;
+    const { gameId, winnerId, type, rngSeed, actions, duration, totalTurns, deployment, classStats, identityStats, performance } = body;
 
     if (!gameId || !winnerId || !type || rngSeed === undefined || !actions?.length) {
         return NextResponse.json({ error: 'Campos obligatorios faltantes' }, { status: 400 });
@@ -149,6 +155,28 @@ export async function POST(req: NextRequest) {
                     cardsPlayed: idStat.cardsPlayed,
                 },
             });
+        }
+
+        if (performance) {
+            for (const [playerId, perf] of Object.entries(performance)) {
+                await tx.gamePlayerPerformance.create({
+                    data: {
+                        gameId: game.id,
+                        playerId,
+                        score: perf.score,
+                        winBonus: perf.winBonus,
+                        hitRate: perf.hitRate,
+                        damageTradeRatio: perf.damageTradeRatio,
+                        survivalRate: perf.survivalRate,
+                        killParticipation: perf.killParticipation,
+                        counterEfficiency: perf.counterEfficiency,
+                        cardsPlayedPerTurn: perf.cardsPlayedPerTurn,
+                        generalProtection: perf.generalProtection,
+                        firstBlood: perf.firstBlood,
+                        comeback: perf.comeback,
+                    },
+                });
+            }
         }
 
         if (isRanked) {

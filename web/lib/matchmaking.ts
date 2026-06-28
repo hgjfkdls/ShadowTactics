@@ -1,5 +1,15 @@
 import { prisma } from './prisma';
 
+const GAME_SERVER = process.env.GAME_SERVER_URL ?? 'http://localhost:3000';
+
+function emitToUser(userId: string, event: string, data: unknown) {
+    fetch(`${GAME_SERVER}/__emit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, event, data }),
+    }).catch(() => {});
+}
+
 type QueueType = 'quickplay' | 'ranked';
 
 type QueueEntry = {
@@ -127,6 +137,15 @@ export async function joinQueue(userId: string, type: QueueType): Promise<
         }, 30_000);
         matchTimeouts.set(gameId, matchTimeoutId);
 
+        emitToUser(entry.userId, 'match_found', {
+            gameId,
+            opponent: { username: match.username, elo: match.elo },
+        });
+        emitToUser(match.userId, 'match_found', {
+            gameId,
+            opponent: { username: entry.username, elo: entry.elo },
+        });
+
         return {
             status: 'matched',
             gameId,
@@ -235,10 +254,17 @@ export async function createInvite(inviterId: string, invitedUsername: string): 
     };
     pendingInvites.push(invite);
 
+    emitToUser(invited.id, 'invite', {
+        id: invite.id,
+        inviterName: invite.inviterName,
+        gameId: invite.gameId,
+    });
+
     const inviteTimeoutId = setTimeout(() => {
         const idx = pendingInvites.indexOf(invite);
         if (idx !== -1) {
             pendingInvites.splice(idx, 1);
+            emitToUser(invited.id, 'invite_cancelled', { inviteId: invite.id });
             const matchIdx = activeMatches.indexOf(matched);
             if (matchIdx !== -1) activeMatches.splice(matchIdx, 1);
         }
@@ -253,12 +279,21 @@ export function getPendingInvites(userId: string): PendingInvite[] {
     return pendingInvites.filter((i) => i.invitedId === userId);
 }
 
-export function acceptInvite(inviteId: string, userId: string): { status: 'accepted'; gameId: string } | { status: 'error'; message: string } {
+export function acceptInvite(
+    inviteId: string,
+    userId: string,
+    username?: string,
+): { status: 'accepted'; gameId: string } | { status: 'error'; message: string } {
     const idx = pendingInvites.findIndex((i) => i.id === inviteId && i.invitedId === userId);
     if (idx === -1) return { status: 'error', message: 'Invitación no encontrada o expirada' };
 
     const invite = pendingInvites[idx];
     pendingInvites.splice(idx, 1);
+
+    emitToUser(invite.inviterId, 'invite_accepted', {
+        gameId: invite.gameId,
+        invitedName: username ?? 'Desconocido',
+    });
 
     return { status: 'accepted', gameId: invite.gameId };
 }

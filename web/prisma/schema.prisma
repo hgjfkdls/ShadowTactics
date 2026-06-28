@@ -20,6 +20,7 @@ model User {
     gamesWon  Game[]              @relation("Winner")
     classStats GameClassStats[]
     identityStats GameIdentityStats[]
+    performances GamePlayerPerformance[]
 }
 
 model Game {
@@ -39,6 +40,7 @@ model Game {
     replay       GameReplay?
     classStats   GameClassStats[]
     identityStats GameIdentityStats[]
+    performances GamePlayerPerformance[]
 }
 
 model GameReplay {
@@ -102,4 +104,27 @@ model GameIdentityStats {
     player User @relation(fields: [playerId], references: [id])
 
     @@unique([gameId, playerId, identityId])
+}
+
+model GamePlayerPerformance {
+    id          String @id @default(uuid())
+    gameId      String
+    playerId    String
+
+    score             Float
+    winBonus          Float
+    hitRate           Float
+    damageTradeRatio  Float
+    survivalRate      Float
+    killParticipation Float
+    counterEfficiency Float
+    cardsPlayedPerTurn Float
+    generalProtection Float
+    firstBlood        Float
+    comeback          Float
+
+    game   Game @relation(fields: [gameId], references: [id])
+    player User @relation(fields: [playerId], references: [id])
+
+    @@unique([gameId, playerId])
 }

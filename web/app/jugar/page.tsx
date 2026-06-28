@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { useSocket } from '@/hooks/useSocket';
 
 type GameMode = 'quickplay' | 'ranked' | 'invite';
 type SearchStatus = 'idle' | 'searching' | 'matched' | 'timeout' | 'error';
@@ -43,22 +44,19 @@ export default function JugarPage() {
 
 function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
     const { data: session } = useSession();
-    const [pendingInvites, setPendingInvites] = useState<{ id: string; inviterName: string }[]>([]);
+    const [pendingInvites, setPendingInvites] = useState<{ id: string; inviterName: string; gameId: string }[]>([]);
 
-    useEffect(() => {
-        if (!session?.user?.id) return;
-
-        const check = () => {
-            fetch('/api/matchmaking/invites')
-                .then((r) => r.json())
-                .then((data) => setPendingInvites(data.invites ?? []))
-                .catch(() => {});
-        };
-
-        check();
-        const interval = setInterval(check, 3000);
-        return () => clearInterval(interval);
-    }, [session?.user?.id]);
+    useSocket({
+        onInvite: (data) => {
+            setPendingInvites((prev) => {
+                if (prev.some((i) => i.id === data.id)) return prev;
+                return [...prev, data];
+            });
+        },
+        onInviteCancelled: (data) => {
+            setPendingInvites((prev) => prev.filter((i) => i.id !== data.inviteId));
+        },
+    });
 
     function handleAccept(inviteId: string) {
         fetch('/api/matchmaking/invites/accept', {
@@ -76,10 +74,10 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
             .catch(() => {});
     }
 
-    const modes: { key: GameMode; title: string; desc: string; icon: string; accent: string }[] = [
-        { key: 'quickplay', title: 'Partida rápida', desc: 'Sin afectar tu ELO. Enfréntate a quien sea.', icon: '⚔️', accent: 'border-yellow-700/50 bg-yellow-950/20 text-yellow-400' },
-        { key: 'ranked', title: 'Ranked', desc: 'Compite por ELO y sube en el ranking.', icon: '🏆', accent: 'border-brand-500/50 bg-brand-950/20 text-brand-400' },
-        { key: 'invite', title: 'Invitar amigo', desc: 'Crea una sala privada para jugar con un amigo.', icon: '👤', accent: 'border-emerald-700/50 bg-emerald-950/20 text-emerald-400' },
+    const modes: { key: GameMode; title: string; desc: string; img: string; accent: string }[] = [
+        { key: 'quickplay', title: 'Partida rápida', desc: 'Sin afectar tu ELO. Enfréntate a quien sea.', img: '/img/jugar/partida_rapida_icon.png', accent: 'border-yellow-700/50 bg-yellow-950/20 text-yellow-400' },
+        { key: 'ranked', title: 'Ranked', desc: 'Compite por ELO y sube en el ranking.', img: '/img/jugar/ranked_icon.png', accent: 'border-brand-500/50 bg-brand-950/20 text-brand-400' },
+        { key: 'invite', title: 'Invitar amigo', desc: 'Crea una sala privada para jugar con un amigo.', img: '/img/jugar/invitar_amigo_icon.png', accent: 'border-emerald-700/50 bg-emerald-950/20 text-emerald-400' },
     ];
 
     return (
@@ -118,7 +116,7 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
                                 className={`w-full rounded-xl border p-5 text-left transition-all hover:scale-[1.02] ${m.accent}`}
                             >
                                 <div className="flex items-center gap-4">
-                                    <span className="text-2xl">{m.icon}</span>
+                                    <img src={m.img} alt={m.title} className="h-15" />
                                     <div>
                                         <p className="text-lg font-bold">{m.title}</p>
                                         <p className="mt-0.5 text-sm opacity-70">{m.desc}</p>
@@ -135,17 +133,32 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
 }
 
 function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () => void }) {
+    const { data: session } = useSession();
     const [status, setStatus] = useState<SearchStatus>('idle');
     const [elapsed, setElapsed] = useState(0);
     const [queueLength, setQueueLength] = useState(0);
     const [matchedGameId, setMatchedGameId] = useState<string | null>(null);
     const [matchedOpponent, setMatchedOpponent] = useState<{ username: string; elo: number } | null>(null);
     const [errorMsg, setErrorMsg] = useState('');
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const title = mode === 'ranked' ? 'Ranked' : 'Partida rápida';
     const accentBorder = mode === 'ranked' ? 'border-brand-500/50' : 'border-yellow-700/50';
     const accentBg = mode === 'ranked' ? 'bg-brand-950/20' : 'bg-yellow-950/20';
+
+    useSocket({
+        onMatchFound: (data) => {
+            setStatus('matched');
+            setMatchedGameId(data.gameId);
+            setMatchedOpponent(data.opponent ?? null);
+        },
+    });
+
+    function goToMatch(gameId: string) {
+        const params = new URLSearchParams({ userId: session?.user?.id ?? '', matchType: mode });
+        window.location.href = `http://localhost:5173/game/${gameId}?${params}`;
+    }
 
     function startSearch() {
         setStatus('searching');
@@ -179,12 +192,14 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
     }
 
     function cancelSearch() {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-        }
+        stopIntervals();
         fetch('/api/matchmaking/leave', { method: 'POST' }).catch(() => {});
         setStatus('idle');
+    }
+
+    function stopIntervals() {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
 
     function reset() {
@@ -194,16 +209,26 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
         setErrorMsg('');
     }
 
+    // Local smooth timer (1s ticks)
     useEffect(() => {
         if (status !== 'searching') {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
+            if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+            return;
+        }
+        timerRef.current = setInterval(() => {
+            setElapsed((prev) => prev + 1);
+        }, 1000);
+        return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    }, [status]);
+
+    // Poll para queueLength y timeout (cada 3s, ya no controla elapsed ni match)
+    useEffect(() => {
+        if (status !== 'searching') {
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             return;
         }
 
-        intervalRef.current = setInterval(() => {
+        pollRef.current = setInterval(() => {
             fetch('/api/matchmaking/status')
                 .then((r) => r.json())
                 .then((data) => {
@@ -214,37 +239,26 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
                     }
                     if (data.status === 'searching') {
                         setQueueLength(data.queueLength);
-                        setElapsed(data.elapsed);
                         return;
                     }
                     if (data.status === 'timeout') {
-                        cancelSearch();
+                        stopIntervals();
                         setStatus('timeout');
                     }
                 })
                 .catch(() => {
-                    cancelSearch();
+                    stopIntervals();
                     setStatus('error');
                     setErrorMsg('Error al consultar estado');
                 });
-        }, 2000);
+        }, 3000);
 
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        };
+        return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [status]);
 
-    const { data: session } = useSession();
-
     useEffect(() => {
-        if (status === 'matched' && matchedGameId && session?.user?.id) {
-            const timer = setTimeout(() => {
-                const params = new URLSearchParams({ userId: session.user.id, matchType: mode });
-                window.location.href = `http://localhost:5173/game/${matchedGameId}?${params}`;
-            }, 1500);
+        if (status === 'matched' && matchedGameId) {
+            const timer = setTimeout(() => goToMatch(matchedGameId), 1500);
             return () => clearTimeout(timer);
         }
     }, [status, matchedGameId, session, mode]);
@@ -255,14 +269,21 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
             <main className="flex min-h-screen items-center justify-center px-4 pt-16">
                 <div className="w-full max-w-md text-center">
                     <button onClick={onBack} className="mb-6 text-sm text-zinc-500 hover:text-white">&larr; Volver</button>
-                    <h1 className="mb-2 text-3xl font-bold text-white">{title}</h1>
+                    <h1 className="mb-2 flex items-center justify-center gap-3 text-3xl font-bold text-white">
+                        <img
+                            src={mode === 'ranked' ? '/img/jugar/ranked_icon.png' : '/img/jugar/partida_rapida_icon.png'}
+                            alt=""
+                            className="h-15"
+                        />
+                        {title}
+                    </h1>
 
                     {status === 'idle' && (
                         <button
                             onClick={startSearch}
-                            className="mt-8 w-full rounded-xl bg-brand-500 px-6 py-3 text-lg font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400"
+                            className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl bg-brand-500 px-6 py-3 text-lg font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400"
                         >
-                            {mode === 'ranked' ? '🏆 Buscar partida' : '⚔️ Buscar partida'}
+                            Buscar partida
                         </button>
                     )}
 
@@ -383,7 +404,15 @@ function InviteMode({ onBack }: { onBack: () => void }) {
             <main className="flex min-h-screen items-center justify-center px-4 pt-16">
                 <div className="w-full max-w-md text-center">
                     <button onClick={onBack} className="mb-6 text-sm text-zinc-500 hover:text-white">&larr; Volver</button>
-                    <h1 className="mb-2 text-3xl font-bold text-white">Invitar a un amigo</h1>
+                    <h1 className="m-2 flex items-center justify-center gap-3 text-3xl font-bold text-whbite">
+                        <img
+                            src={'/img/jugar/invitar_amigo_icon.png'}
+                            alt=""
+                            className="h-15"
+                        />
+                        Invitar a un amigo
+                    </h1>
+
                     <p className="mb-8 text-zinc-500">Introduce el nombre de usuario de tu amigo.</p>
 
                     <div className="flex gap-3">

@@ -43,6 +43,20 @@ type DeploymentEntry = {
     step: number;
 };
 
+type PerformanceEntry = {
+    score: number;
+    winBonus: number;
+    hitRate: number;
+    damageTradeRatio: number;
+    survivalRate: number;
+    killParticipation: number;
+    counterEfficiency: number;
+    cardsPlayedPerTurn: number;
+    generalProtection: number;
+    firstBlood: number;
+    comeback: number;
+};
+
 type ReportPayload = {
     gameId: string;
     winnerId: string;
@@ -54,6 +68,7 @@ type ReportPayload = {
     deployment: Record<string, DeploymentEntry[]>;
     classStats: Record<string, ClassStatEntry[]>;
     identityStats: Record<string, IdentityStatEntry>;
+    performance: Record<string, PerformanceEntry>;
 };
 
 function mapPlayerToUserId(playerId: string, mapping: { p1?: string; p2?: string }): string | undefined {
@@ -198,6 +213,95 @@ function computeReport(
     const gameStartTime = state.gameStartTime ?? 0;
     const duration = gameStartTime > 0 ? Math.floor((Date.now() - gameStartTime) / 1000) : 0;
 
+    const allUnits = { ...state.units, ...state.graveyard };
+
+    function findUnit(id: string) {
+        return Object.values(allUnits).find(u => u.id === id);
+    }
+
+    function computePerf(playerId: string, userId: string): PerformanceEntry {
+        const isWinner = winnerPlayerId === playerId;
+        const myUnits = Object.values(state.units).filter(u => u.owner === playerId);
+        const myGraveyard = Object.values(state.graveyard).filter(u => u.owner === playerId);
+        const totalUnits = myUnits.length + myGraveyard.length;
+        const allAttacks = state.attackResults;
+
+        const myAttacks = allAttacks.filter(a => findUnit(a.attackerId)?.owner === playerId);
+        const myTargeted = allAttacks.filter(a => findUnit(a.targetId)?.owner === playerId);
+
+        const hit = myAttacks.filter(a => a.hit).length;
+        const miss = myAttacks.filter(a => !a.hit).length;
+        const hitRate = hit / (hit + miss || 1);
+
+        const dmgDealt = myAttacks.reduce((s, a) => s + a.damage, 0);
+        const dmgReceived = myTargeted.reduce((s, a) => s + a.damage, 0);
+        const damageTradeRatio = dmgDealt / (dmgReceived || 1);
+
+        const survivalRate = myUnits.length / (totalUnits || 1);
+
+        const totalKills = allAttacks.filter(a => a.targetKilled).length;
+        const playerKills = myAttacks.filter(a => a.targetKilled).length;
+        const killParticipation = playerKills / (totalKills || 1);
+
+        const counterInflicted = allAttacks.filter(a => {
+            const target = findUnit(a.targetId);
+            return target?.owner !== playerId && a.counterDamage > 0;
+        }).reduce((s, a) => s + a.counterDamage, 0);
+        const counterReceived = allAttacks.filter(a => {
+            const target = findUnit(a.targetId);
+            return target?.owner === playerId && a.counterDamage > 0;
+        }).reduce((s, a) => s + a.counterDamage, 0);
+        const counterEfficiency = counterInflicted / (counterReceived || 1);
+
+        const pActions = actions.filter(a =>
+            a.playerId === playerId &&
+            (a.action.type === 'USE_CARD' || a.action.type === 'PLAY_CARD')
+        );
+        const cardsPlayedPerTurn = pActions.length / (state.turn || 1);
+
+        const generalDmg = myTargeted.filter(a => findUnit(a.targetId)?.class === 'general')
+            .reduce((s, a) => s + a.damage, 0);
+        const generalProtection = 1 - (generalDmg / (dmgReceived || 1));
+
+        const firstKill = allAttacks.find(a => a.targetKilled);
+        const firstBlood = firstKill && findUnit(firstKill.attackerId)?.owner === playerId ? 1 : 0;
+
+        const opponentId = playerId === 'p1' ? 'p2' : 'p1';
+        const opponentDead = Object.values(state.graveyard).filter(u => u.owner === opponentId).length;
+        const myDead = myGraveyard.length;
+        const comeback = isWinner && myDead > opponentDead ? 1 : 0;
+
+        const winBonus = isWinner ? 1 : 0;
+
+        const norm = (v: number, cap: number) => Math.min(v / cap, 1);
+
+        const rawScore =
+            winBonus * 0.20 +
+            hitRate * 0.10 +
+            norm(damageTradeRatio, 2) * 0.15 +
+            survivalRate * 0.15 +
+            killParticipation * 0.10 +
+            norm(counterEfficiency, 2) * 0.05 +
+            norm(cardsPlayedPerTurn, 3) * 0.05 +
+            generalProtection * 0.05 +
+            firstBlood * 0.05 +
+            comeback * 0.05;
+
+        return {
+            score: Math.round(rawScore * 100),
+            winBonus,
+            hitRate: Math.round(hitRate * 1000) / 1000,
+            damageTradeRatio: Math.round(damageTradeRatio * 100) / 100,
+            survivalRate: Math.round(survivalRate * 1000) / 1000,
+            killParticipation: Math.round(killParticipation * 1000) / 1000,
+            counterEfficiency: Math.round(counterEfficiency * 100) / 100,
+            cardsPlayedPerTurn: Math.round(cardsPlayedPerTurn * 100) / 100,
+            generalProtection: Math.round(generalProtection * 1000) / 1000,
+            firstBlood,
+            comeback,
+        };
+    }
+
     const deployment: Record<string, DeploymentEntry[]> = {
         [p1UserId]: allP1Units.map(u => ({
             unitId: u.id,
@@ -245,6 +349,10 @@ function computeReport(
                 abilityUses: 0,
                 cardsPlayed: 0,
             },
+        },
+        performance: {
+            [p1UserId]: computePerf('p1', p1UserId),
+            [p2UserId]: computePerf('p2', p2UserId),
         },
     };
 }

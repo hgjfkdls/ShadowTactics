@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
                 player1: { select: { id: true, username: true } },
                 player2: { select: { id: true, username: true } },
                 replay: { select: { gameId: true } },
+                performances: { where: { playerId: userId }, take: 1 },
             },
             orderBy: { createdAt: 'desc' },
             skip,
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
         const opponent = isPlayer1 ? game.player2 : game.player1;
         const won = game.winnerId === userId;
         const eloChange = calcEloChange(userId, game.player1Id, game.player2Id, game.winnerId, game.type);
+        const perf = game.performances?.[0] ?? null;
 
         return {
             id: game.id,
@@ -58,6 +60,19 @@ export async function GET(req: NextRequest) {
             duration: game.duration,
             totalTurns: game.totalTurns,
             hasReplay: game.replay !== null,
+            performance: perf ? {
+                score: perf.score,
+                winBonus: perf.winBonus,
+                hitRate: perf.hitRate,
+                damageTradeRatio: perf.damageTradeRatio,
+                survivalRate: perf.survivalRate,
+                killParticipation: perf.killParticipation,
+                counterEfficiency: perf.counterEfficiency,
+                cardsPlayedPerTurn: perf.cardsPlayedPerTurn,
+                generalProtection: perf.generalProtection,
+                firstBlood: perf.firstBlood,
+                comeback: perf.comeback,
+            } : null,
         };
     });
 

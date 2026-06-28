@@ -29,7 +29,6 @@ export default function Footer() {
                     <div>
                         <p className="mb-2 text-sm font-semibold text-zinc-400">Próximamente</p>
                         <ul className="space-y-1 text-sm text-zinc-600">
-                            <li>Rankings competitivos</li>
                             <li>Tienda de cosméticos</li>
                         </ul>
                     </div>

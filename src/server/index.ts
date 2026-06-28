@@ -3,12 +3,14 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join } from 'path';
 import { Server } from 'socket.io';
+import * as jwt from 'jsonwebtoken';
 import { getRoom, removeRoomIfEmpty } from './rooms';
 import { submitReport } from './report';
 
 const isOnline = process.env.MODE === 'online';
 const SERVER_PORT = parseInt(process.env.SERVER_PORT || '3000');
 const LOCAL_URL = process.env.LOCAL_URL || 'http://localhost';
+const AUTH_SECRET = process.env.AUTH_SECRET || 'dev-secret';
 
 const clientUrl = isOnline
     ? process.env.CLIENT_URL || `${LOCAL_URL}:${SERVER_PORT}`
@@ -29,6 +31,24 @@ const MIME: Record<string, string> = {
 };
 
 const httpServer = createServer((req, res) => {
+    // Endpoint interno para que la web emita eventos a usuarios via Socket.IO
+    if (req.method === 'POST' && req.url === '/__emit') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+            try {
+                const { userId, event, data } = JSON.parse(body);
+                io.to(userId).emit(event, data);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true }));
+            } catch {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid payload' }));
+            }
+        });
+        return;
+    }
+
     if (!isOnline) {
         res.writeHead(404);
         res.end();
@@ -57,11 +77,32 @@ const httpServer = createServer((req, res) => {
 
 const io = new Server(httpServer, {
     cors: {
-        origin: clientUrl
+        origin: ['http://localhost:3001', 'http://localhost:5173', clientUrl].filter(Boolean),
+        credentials: true,
+    }
+});
+
+// Auth middleware: si el socket trae un JWT válido de NextAuth, lo identifica
+// Si no trae token (cliente de juego legacy), deja pasar igual
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) return next();
+
+    try {
+        const decoded = jwt.verify(token, AUTH_SECRET) as { id: string; username: string };
+        socket.data.userId = decoded.id;
+        socket.data.username = decoded.username;
+        next();
+    } catch {
+        next();
     }
 });
 
 io.on('connection', socket => {
+    // Si el socket se autenticó, unirlo a su room personal para recibir notificaciones
+    if (socket.data.userId) {
+        socket.join(socket.data.userId);
+    }
     console.log('Cliente conectado:', socket.id);
 
     socket.on('JOIN_GAME', ({ gameId, userId, matchType }) => {
