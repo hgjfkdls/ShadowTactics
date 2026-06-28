@@ -75,6 +75,8 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
                 <RevealScreen
                     myIdentity={myIdentityInfo}
                     opponentIdentity={opponentIdentityInfo}
+                    myCardId={state.players[playerId]?.selectedIdentity}
+                    opponentCardId={state.players[opponentId]?.selectedIdentity}
                     onContinue={() => setRevealDismissed(true)}
                 />
             );

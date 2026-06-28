@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useKeyBindings, type ActionId } from '../KeyBindingsContext';
-
-const ACTION_LABELS: Record<ActionId, string> = {
-    DESELECT: 'Deseleccionar',
-    BASIC_ATTACK: 'Ataque básico',
-    MOVE: 'Movimiento',
-    ABILITY_1: 'Habilidad 1',
-    ABILITY_2: 'Habilidad 2',
-    ABILITY_3: 'Habilidad 3',
-    END_TURN: 'Finalizar turno',
-};
+import { l } from '@shared/i18n';
 
 const ACTIONS: ActionId[] = ['DESELECT', 'BASIC_ATTACK', 'MOVE', 'ABILITY_1', 'ABILITY_2', 'ABILITY_3', 'END_TURN'];
+
+const ACTION_KEYS: Record<ActionId, string> = {
+    DESELECT: 'keyBindings.deselect',
+    BASIC_ATTACK: 'keyBindings.basicAttack',
+    MOVE: 'keyBindings.move',
+    ABILITY_1: 'keyBindings.ability1',
+    ABILITY_2: 'keyBindings.ability2',
+    ABILITY_3: 'keyBindings.ability3',
+    END_TURN: 'keyBindings.endTurn',
+};
 
 function keyLabel(key: string): string {
     if (key === ' ') return 'SPACE';
@@ -51,7 +52,7 @@ export function KeyBindingsModal({ open, onClose }: Props) {
             ([, v]) => v === key
         );
         if (existing && existing[0] !== recording) {
-            setConflict(`${ACTION_LABELS[existing[0]]} ya usa ${keyLabel(key)}`);
+            setConflict(l('keyBindings.conflict', { key: keyLabel(key), action: l(ACTION_KEYS[existing[0]]) }));
             return;
         }
 
@@ -77,7 +78,7 @@ export function KeyBindingsModal({ open, onClose }: Props) {
                 className="bg-zinc-800 border border-zinc-600 rounded-lg p-6 w-96 shadow-xl"
                 onClick={e => e.stopPropagation()}
             >
-                <h2 className="text-lg font-semibold mb-4">Configuración de teclas</h2>
+                <h2 className="text-lg font-semibold mb-4">{l('keyBindings.title')}</h2>
 
                 <div className="space-y-2 mb-4">
                     {ACTIONS.map(action => {
@@ -95,11 +96,11 @@ export function KeyBindingsModal({ open, onClose }: Props) {
                                     setRecording(isRecording ? null : action);
                                 }}
                             >
-                                <span className="text-sm">{ACTION_LABELS[action]}</span>
+                                <span className="text-sm">{l(ACTION_KEYS[action])}</span>
                                 <span className={`text-xs font-mono px-2 py-0.5 rounded ${
                                     isRecording ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-300'
                                 }`}>
-                                    {isRecording ? '⟳ Presiona una tecla...' : keyLabel(bindings[action])}
+                                    {isRecording ? l('keyBindings.pressKey') : keyLabel(bindings[action])}
                                 </span>
                             </div>
                         );
@@ -115,13 +116,13 @@ export function KeyBindingsModal({ open, onClose }: Props) {
                         className="bg-zinc-600 hover:bg-zinc-500 transition text-white text-sm px-3 py-1.5 rounded-md cursor-pointer"
                         onClick={resetBindings}
                     >
-                        Restaurar valores por defecto
+                        {l('keyBindings.reset')}
                     </button>
                     <button
                         className="ml-auto bg-blue-600 hover:bg-blue-500 transition text-white text-sm px-4 py-1.5 rounded-md cursor-pointer"
                         onClick={onClose}
                     >
-                        Cerrar
+                        {l('keyBindings.close')}
                     </button>
                 </div>
             </div>

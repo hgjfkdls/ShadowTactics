@@ -51,7 +51,15 @@ const CARD_TEMPLATES: Record<string, CardTemplate> = {
     espejo:            { name: 'Espejo',             type: 'COUNTER', description: 'Júgala cuando el rival juegue un debuff. El debuff se refleja y aplica al rival.' },
 };
 
+import { l } from '@shared/i18n';
+
+function cardI18nKey(cardId: CardId): string {
+    return `card.${getKey(cardId)}`;
+}
+
 export function getCardName(cardId: CardId): string {
+    const translated = l(`${cardI18nKey(cardId)}.name`);
+    if (translated && translated !== `${cardI18nKey(cardId)}.name`) return translated;
     return CARD_TEMPLATES[getKey(cardId)]?.name ?? cardId;
 }
 
@@ -60,6 +68,8 @@ export function getCardType(cardId: CardId): 'BUFF' | 'DEBUFF' | 'COUNTER' | und
 }
 
 export function getCardDescription(cardId: CardId): string {
+    const translated = l(`${cardI18nKey(cardId)}.desc`);
+    if (translated && translated !== `${cardI18nKey(cardId)}.desc`) return translated;
     return CARD_TEMPLATES[getKey(cardId)]?.description ?? '';
 }
 

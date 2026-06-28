@@ -4,6 +4,7 @@ import { BASE_STATS } from '@shared/game/units';
 import { getPlayerAP } from '@shared/game/actions';
 import { useKeyBindings } from '../KeyBindingsContext';
 import type { GameState, UnitId, GameAction } from '@shared';
+import { l } from '@shared/i18n';
 
 type Props = {
     state: GameState;
@@ -59,12 +60,12 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     const basicActions = unit ? [
         {
             id: '__attack__',
-            label: (unit.attackedThisTurn && !extraCharges) ? 'Ya atacó' : 'Ataque básico',
+            label: (unit.attackedThisTurn && !extraCharges) ? l('button.alreadyAttacked') : l('button.basicAttack'),
             cost: extraCharges > 0 ? 0 : 1,
             disabled: unit.attackedThisTurn && !extraCharges,
             binding: bindings.BASIC_ATTACK,
         },
-        { id: '__move__', label: 'Movimiento', cost: effectiveMoveCost, disabled: ap < effectiveMoveCost, binding: bindings.MOVE },
+        { id: '__move__', label: l('button.move'), cost: effectiveMoveCost, disabled: ap < effectiveMoveCost, binding: bindings.MOVE },
     ] : [];
 
     const aLaCargaCost = state.players[playerId]?.aLaCargaCost ?? 0;
@@ -92,8 +93,9 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
                 (a.id === 'proteger' && !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) <= 3)) ||
                 ap < cost;
             const abBinding = i === 0 ? bindings.ABILITY_1 : i === 1 ? bindings.ABILITY_2 : bindings.ABILITY_3;
+            const abName = l(`ability.${a.id}.name`) || a.def!.name;
             return {
-                id: a.id, label: a.def!.name, cost,
+                id: a.id, label: abName, cost,
                 disabled, binding: abBinding, def: a.def,
             };
         })
@@ -106,15 +108,15 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
         if (actionId === '__attack__') {
             const ec = unit.ataqueExtraCharges ?? 0;
             if (unit.attackedThisTurn && !ec) {
-                addAlert?.('Ya has atacado este turno', 'warning');
+                addAlert?.(l('alert.alreadyAttacked'), 'warning');
             } else if (ap < 1 && !ec) {
-                addAlert?.('No tienes PA suficientes', 'warning');
+                addAlert?.(l('alert.noPA'), 'warning');
             } else {
                 onRequestAttack?.(unit.id);
             }
         } else if (actionId === '__move__') {
             if (ap < effectiveMoveCost) {
-                addAlert?.('No tienes PA suficientes', 'warning');
+                addAlert?.(l('alert.noPA'), 'warning');
             } else {
                 onRequestMove?.(unit.id);
             }
@@ -125,7 +127,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
         } else {
             const ab = abilityActions.find(a => a.id === actionId);
             if (ab?.disabled) {
-                addAlert?.('Habilidad no disponible en este momento', 'warning');
+                addAlert?.(l('alert.abilityNotAvailable'), 'warning');
             } else if (!ab?.def?.requiresTarget && !['cabalgar', 'cabalgar_2', 'accion_evasiva', 'posicion_estrategica'].includes(actionId) && unit) {
                 sendAction?.({ type: 'USE_ABILITY', playerId, unitId: unit.id, abilityId: actionId });
             } else {
@@ -136,7 +138,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
 
     return (
         <div className="absolute bottom-4 right-4 bg-zinc-800/95 border border-zinc-600 rounded-lg p-3 shadow-xl z-30 w-[300px] h-[253px] flex flex-col">
-            <div className="text-xs font-semibold text-zinc-400 mb-2">⚡ Acciones</div>
+            <div className="text-xs font-semibold text-zinc-400 mb-2">{l('abilityPanel.title')}</div>
             {unit ? (
                 <div className="flex flex-col gap-1 flex-1">
                     {allActions.map((a, i) => (
@@ -160,7 +162,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
                 </div>
             ) : (
                 <div className="flex-1 flex items-center justify-center text-xs text-zinc-500">
-                    No hay selección de aliado
+                    {l('board.noSelection')}
                 </div>
             )}
         </div>

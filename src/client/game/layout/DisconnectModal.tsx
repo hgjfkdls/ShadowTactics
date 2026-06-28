@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { l } from '@shared/i18n';
 
 const TIMEOUT_SECONDS = 60;
 
@@ -33,11 +34,11 @@ export function DisconnectModal({ disconnectedAt }: Props) {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
             <div className="bg-zinc-900 border-2 border-red-700 rounded-xl px-10 py-8 shadow-2xl min-w-80 text-center space-y-5">
                 <div className="text-2xl font-bold text-red-400">
-                    Rival desconectado
+{l('disconnect.title')}
                 </div>
 
                 <div className="text-sm text-zinc-400">
-                    El rival se ha desconectado. Si no se reconecta en {formatCountdown(remaining)}, perderá la partida.
+                    {l('disconnect.waiting')}
                 </div>
 
                 <div className="text-4xl font-mono font-bold text-yellow-400">

@@ -15,6 +15,7 @@ import { BASE_STATS } from '@shared/game/units';
 import { getPlayerAP } from '@shared/game/actions';
 import { getCardName, getCardType } from '@shared/game/actions/card';
 import { useKeyBindings } from '../KeyBindingsContext';
+import { l } from '@shared/i18n';
 
 type PendingAbility = { abilityId: string; unitId: UnitId } | null;
 
@@ -139,9 +140,9 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             if (key === bindings.BASIC_ATTACK) {
                 const extraCharges = unit.ataqueExtraCharges ?? 0;
                 if (unit.attackedThisTurn && !extraCharges) {
-                    addAlert?.('Ya has atacado este turno', 'warning');
+                    addAlert?.(l('alert.alreadyAttacked'), 'warning');
                 } else if (ap < 1 && !extraCharges) {
-                    addAlert?.('No tienes PA suficientes', 'warning');
+                    addAlert?.(l('alert.noPA'), 'warning');
                 } else {
                     setAttackingUnitId(unit.id);
                     setMovingUnitId(null);
@@ -166,7 +167,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 }
                 effectiveMoveCost = Math.max(0, effectiveMoveCost);
                 if (ap < effectiveMoveCost) {
-                    addAlert?.('No tienes PA suficientes', 'warning');
+                    addAlert?.(l('alert.noPA'), 'warning');
                 } else {
                     setMovingUnitId(unit.id);
                     setAttackingUnitId(null);
@@ -210,9 +211,9 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         (ab.id === 'proteger' && !Object.values(state.units).some(u => u.owner === myPlayerId && u.id !== unit.id && hexDistance(unit.position, u.position) <= 3));
                     const cost = ab.id === 'a_la_carga' ? aLaCargaCost : (ab.def?.cost ?? 0);
                     if (disabled) {
-                        addAlert?.('Habilidad no disponible en este momento', 'warning');
+                        addAlert?.(l('alert.abilityNotAvailable'), 'warning');
                     } else if (ap < cost) {
-                        addAlert?.('No tienes PA suficientes', 'warning');
+                        addAlert?.(l('alert.noPA'), 'warning');
                     } else {
                         if (ab.id === 'a_la_carga') {
                             setPendingAbility({ abilityId: 'cabalgar_2', unitId: unit.id });
@@ -805,19 +806,19 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {isIdentityTargetMode && !pendingIdentityTargetId && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-purple-900/90 border border-purple-500 rounded-lg px-5 py-2.5 text-sm text-purple-100 font-semibold shadow-lg shadow-purple-900/50 flex items-center gap-2 whitespace-nowrap">
                     <span>🎯</span>
-                    <span>Robin Hood — En la mira: selecciona un enemigo (excepto general)</span>
+                    <span>{l('identityTarget.title')}: {l('identityTarget.subtitle')}</span>
                 </div>
             )}
 
             {isCardTargetMode && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-violet-900/90 border border-violet-500 rounded-lg px-5 py-2.5 text-sm text-violet-100 font-semibold shadow-lg shadow-violet-900/50 flex items-center gap-2">
                     <span>🎯</span>
-                    <span>{isCardTargetAlly ? 'Selecciona un aliado objetivo para la carta' : 'Selecciona un enemigo objetivo para la carta'}</span>
+                    <span>{isCardTargetAlly ? l('alert.selectAlly') : l('alert.selectEnemyTarget')}</span>
                     <button
                         className="ml-2 bg-zinc-700 hover:bg-zinc-600 transition text-white px-2 py-0.5 rounded text-xs cursor-pointer"
                         onClick={() => onInfoSelect?.(null)}
                     >
-                        Cancelar
+                        {l('button.cancel')}
                     </button>
                 </div>
             )}
@@ -825,26 +826,26 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {pendingAbility?.abilityId === 'cabalgar_2' && cabalgarPath.length === 0 && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-purple-900/90 border border-purple-500 rounded-lg px-5 py-2.5 text-sm text-purple-100 font-semibold shadow-lg shadow-purple-900/50 flex items-center gap-2 whitespace-nowrap">
                     <span>🐴</span>
-                    <span>Cabalgar: selecciona el recorrido</span>
+                    <span>{l('confirmActions.cabalgarSelect')}</span>
                 </div>
             )}
 
             {pendingAbility?.abilityId === 'patada_acrobatica' && !pendingPatadaTargetId && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-900/90 border border-blue-500 rounded-lg px-5 py-2.5 text-sm text-blue-100 font-semibold shadow-lg shadow-blue-900/50 flex items-center gap-2 whitespace-nowrap">
                     <span>🦶</span>
-                    <span>Patada acrobática: selecciona un enemigo adyacente</span>
+                    <span>{l('confirmActions.patadaTarget')}</span>
                 </div>
             )}
 
             {pendingAbility?.abilityId === 'patada_acrobatica' && pendingPatadaTargetId && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-900/90 border border-emerald-500 rounded-lg px-5 py-2.5 text-sm text-emerald-100 font-semibold shadow-lg shadow-emerald-900/50 flex items-center gap-2 whitespace-nowrap">
                     <span>🦶</span>
-                    <span>Patada acrobática: selecciona una casilla de escape</span>
+                    <span>{l('confirmActions.patadaEscape')}</span>
                     <button
                         className="ml-2 bg-zinc-700 hover:bg-zinc-600 transition text-white px-2 py-0.5 rounded text-xs cursor-pointer"
                         onClick={() => setPendingPatadaTargetId(null)}
                     >
-                        Cancelar
+                        {l('button.cancel')}
                     </button>
                 </div>
             )}
@@ -852,17 +853,17 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {pendingIdentityTargetId && (() => {
                 const target = state.units[pendingIdentityTargetId];
                 if (!target) return null;
-                const CLASS_DISPLAY: Record<string, string> = { archer: 'Arquero', infantry: 'Infantería', cavalry: 'Caballería', lancer: 'Lancero', general: 'General' };
+                const cl = (c: string) => l(`unit.class.${c}`) || c;
                 return (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                         <div className="bg-zinc-900/95 border border-purple-600 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
                             <div className="space-y-1">
-                                <div className="text-xs text-zinc-500">En la mira — Robin Hood</div>
-                                <div className="text-sm font-semibold text-purple-300">{CLASS_DISPLAY[target.class] ?? target.class}</div>
-                                <div className="text-xs text-zinc-400">HP: {target.hp}</div>
+                                <div className="text-xs text-zinc-500">{l('identityTarget.title')}</div>
+                                <div className="text-sm font-semibold text-purple-300">{cl(target.class)}</div>
+                                <div className="text-xs text-zinc-400">{l('unitDetail.hp')}: {target.hp}</div>
                             </div>
                             <div className="text-sm text-zinc-300">
-                                ¿Infligir 1 de daño a esta unidad?
+                                {l('identityTarget.confirm')}
                             </div>
                             <div className="flex gap-3 justify-center">
                                 <button
@@ -872,13 +873,13 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                         setPendingIdentityTargetId(null);
                                     }}
                                 >
-                                    Atacar
+                                    {l('identityTarget.attack')}
                                 </button>
                                 <button
                                     className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-1.5 rounded-md text-sm cursor-pointer"
                                     onClick={() => setPendingIdentityTargetId(null)}
                                 >
-                                    Cancelar
+                                    {l('button.cancel')}
                                 </button>
                             </div>
                         </div>
@@ -890,7 +891,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-zinc-900/95 border border-amber-600 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
                         <div className="text-sm text-zinc-300">
-                            ¿Confirmar ruta de {cabalgarPath.length} casillas?
+                            {l('confirmActions.cabalgarTitle', { n: cabalgarPath.length })}
                         </div>
                         <div className="flex gap-3 justify-center">
                                                             <button
@@ -914,13 +915,13 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                     setCabalgarIsLaCarga(false);
                                 }}
                             >
-                                Confirmar
+                                {l('confirmActions.confirm')}
                             </button>
                             <button
                                 className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-1.5 rounded-md text-sm cursor-pointer"
                                 onClick={() => { setCabalgarPath([]); setCabalgarIsLaCarga(false); }}
                             >
-                                Cancelar
+                                {l('button.cancel')}
                             </button>
                         </div>
                     </div>
@@ -930,8 +931,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {pendingTorbellino && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-zinc-900/95 border border-red-600 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
-                        <div className="text-sm text-zinc-300">Torbellino — esta habilidad daña a todas las unidades adyacentes</div>
-                        <div className="text-xs text-red-400">Dificultad 7: acierto → 2 daño a enemigos. Fallo → 1 daño a todos (excluye general).</div>
+                        <div className="text-sm text-zinc-300">{l('confirmActions.torbellinoTitle')}</div>
+                        <div className="text-xs text-red-400">{l('confirmActions.torbellinoDesc')}</div>
                         <div className="flex gap-3 justify-center mt-2">
                             <button
                                 className="bg-red-700 hover:bg-red-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
@@ -957,8 +958,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {pendingAngelGuardian && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-zinc-900/95 border border-amber-500 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
-                        <div className="text-sm text-zinc-300">🛡 Ángel Guardián — ¿aplicar escudo de +2 HP a todos los aliados?</div>
-                        <div className="text-xs text-amber-400">Coste: 2 PA</div>
+                        <div className="text-sm text-zinc-300">{l('confirmActions.angelGuardianTitle')}</div>
+                        <div className="text-xs text-amber-400">{l('confirmActions.angelGuardianCost')}</div>
                         <div className="flex gap-3 justify-center mt-2">
                             <button
                                 className="bg-amber-700 hover:bg-amber-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
@@ -988,10 +989,10 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-zinc-900/95 border border-amber-600 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
                         <div className="text-lg">⏳</div>
-                        <div className="text-sm text-zinc-300 font-semibold">Esperando la respuesta del oponente...</div>
+                        <div className="text-sm text-zinc-300 font-semibold">{l('counter.waitingForOpponent')}</div>
                         {pendingCard && (
                             <div className="text-xs text-zinc-500">
-                                Jugaste: <span className="text-zinc-200">{getCardName(pendingCard.cardId)}</span>
+                                {l('counter.youPlayed', { card: getCardName(pendingCard.cardId) })}
                             </div>
                         )}
                     </div>
@@ -1012,9 +1013,9 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 return (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                         <div className="bg-zinc-900/95 border border-violet-600 rounded-lg px-6 py-5 shadow-2xl min-w-80 text-center space-y-4">
-                            <div className="text-xs text-zinc-500 uppercase tracking-wide font-semibold">🃏 Carta del oponente</div>
+                            <div className="text-xs text-zinc-500 uppercase tracking-wide font-semibold">{l('counter.opponentCard')}</div>
                             <div className="text-sm font-semibold text-violet-300">{pendingName}</div>
-                            <div className="text-xs text-zinc-400">¿Quieres contrarrestar?</div>
+                            <div className="text-xs text-zinc-400">{l('counter.wantToCounter')}</div>
                             {counterCards.length > 0 && (
                                 <div className="space-y-2">
                                     {counterCards.map(cid => {
@@ -1039,13 +1040,13 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                 </div>
                             )}
                             {counterCards.length === 0 && (
-                                <div className="text-xs text-zinc-500">No tienes cartas para contrarrestar</div>
+                                <div className="text-xs text-zinc-500">{l('counter.noCounterCards')}</div>
                             )}
                             <button
                                 className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
                                 onClick={() => sendAction({ type: 'PASS_COUNTER', playerId: myPlayerId })}
                             >
-                                Pasar
+                                {l('button.pass')}
                             </button>
                         </div>
                     </div>
@@ -1056,26 +1057,26 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {pendingCounterEspejoCard && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-violet-900/90 border border-violet-500 rounded-lg px-5 py-2.5 text-sm text-violet-100 font-semibold shadow-lg shadow-violet-900/50 flex items-center gap-2 whitespace-nowrap">
                     <span>🎯</span>
-                    <span>Selecciona un objetivo para reflejar la Confusión</span>
+                    <span>{l('counter.selectEspejoTarget')}</span>
                 </div>
             )}
 
             {state.players[myPlayerId]?.pendingEspartanoChoice && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-zinc-900/95 border border-blue-600 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
-                        <div className="text-sm text-zinc-300">Lanza y escudo — elige un efecto</div>
+                        <div className="text-sm text-zinc-300">{l('espartano.title')}</div>
                         <div className="flex gap-3 justify-center">
                             <button
                                 className="bg-blue-700 hover:bg-blue-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
                                 onClick={() => sendAction({ type: 'ESPARTANO_CHOICE', playerId: myPlayerId, choice: 'range' })}
                             >
-                                +1 Rango
+                                {l('espartano.range')}
                             </button>
                             <button
                                 className="bg-emerald-700 hover:bg-emerald-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
                                 onClick={() => sendAction({ type: 'ESPARTANO_CHOICE', playerId: myPlayerId, choice: 'defense' })}
                             >
-                                Escudo (-1 daño)
+                                {l('espartano.defense')}
                             </button>
                         </div>
                     </div>
@@ -1085,20 +1086,20 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             {state.players[myPlayerId]?.pendingPlanBatalla && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-zinc-900/95 border border-amber-600 rounded-lg px-6 py-5 shadow-2xl min-w-72 text-center space-y-4">
-                        <div className="text-sm text-zinc-300">Plan de batalla — elige una formación</div>
-                        <div className="text-xs text-zinc-500 mb-2">Todas las unidades aliadas reciben el bono.</div>
+                        <div className="text-sm text-zinc-300">{l('planBatalla.title')}</div>
+                        <div className="text-xs text-zinc-500 mb-2">{l('planBatalla.subtitle')}</div>
                         <div className="flex gap-3 justify-center">
                             <button
                                 className="bg-red-700 hover:bg-red-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
                                 onClick={() => sendAction({ type: 'COMANDANTE_CHOICE', playerId: myPlayerId, choice: 'attack' })}
                             >
-                                Avanzar (+1 daño)
+                                {l('planBatalla.attack')}
                             </button>
                             <button
                                 className="bg-blue-700 hover:bg-blue-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer"
                                 onClick={() => sendAction({ type: 'COMANDANTE_CHOICE', playerId: myPlayerId, choice: 'defense' })}
                             >
-                                Reagruparse (-1 daño)
+                                {l('planBatalla.defense')}
                             </button>
                         </div>
                     </div>

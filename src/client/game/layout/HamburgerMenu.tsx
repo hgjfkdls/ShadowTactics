@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { KeyBindingsModal } from './KeyBindingsModal';
+import { l, setLocale, getLocale } from '@shared/i18n';
 
 type Props = {
     onLeaveGame: () => void;
@@ -29,7 +30,7 @@ export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
                 <button
                     className="text-xl px-2 py-1 hover:bg-zinc-700 rounded-md transition cursor-pointer"
                     onClick={() => setOpen(prev => !prev)}
-                    title="Menú"
+                    title={l('hamburger.menu')}
                 >
                     ☰
                 </button>
@@ -39,21 +40,31 @@ export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
                             className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-700 transition cursor-pointer"
                             onClick={() => { setOpen(false); setShowKeyConfig(true); }}
                         >
-                            ⌨  Configurar teclas
+                            {l('hamburger.configKeys')}
+                        </button>
+                        <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-700 transition cursor-pointer"
+                            onClick={() => {
+                                setOpen(false);
+                                const next = getLocale() === 'es' ? 'en' : 'es';
+                                setLocale(next);
+                            }}
+                        >
+                            {l('hamburger.language')}: {getLocale() === 'es' ? 'Español' : 'English'}
                         </button>
                         {onSurrender && (
                             <button
                                 className="w-full text-left px-4 py-2 text-sm hover:bg-yellow-700 transition cursor-pointer"
                                 onClick={() => { setOpen(false); onSurrender(); }}
                             >
-                                🏳  Rendirse
+                                {l('hamburger.surrender')}
                             </button>
                         )}
                         <button
                             className="w-full text-left px-4 py-2 text-sm hover:bg-red-700 transition cursor-pointer"
                             onClick={() => { setOpen(false); onLeaveGame(); }}
                         >
-                            🚪  Leave game
+                            {l('hamburger.leaveGame')}
                         </button>
                     </div>
                 )}

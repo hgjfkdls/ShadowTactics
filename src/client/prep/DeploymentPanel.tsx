@@ -1,9 +1,6 @@
 import type { GameState } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from './identityData';
-
-const CLASS_DISPLAY: Record<string, string> = {
-    archer: 'Arquero', infantry: 'Infantería', cavalry: 'Caballería', lancer: 'Lancero', general: 'General',
-};
+import { l } from '@shared/i18n';
 
 type Props = {
     state: GameState;
@@ -117,7 +114,7 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
                                     >
                                         <ClassSvg cls={entry.unitClass} />
                                         <span className="text-[10px] font-mono text-zinc-500">{entry.unitId}</span>
-                                        <span className="text-[10px] font-semibold leading-tight">{CLASS_DISPLAY[entry.unitClass]}</span>
+                                        <span className="text-[10px] font-semibold leading-tight">{l(`unit.class.${entry.unitClass}`)}</span>
                                     </button>
                                 );
                             })}

@@ -11,10 +11,18 @@ import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
 import { DisconnectModal } from './game/layout/DisconnectModal';
+import { l } from '@shared/i18n';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string } | null;
 
 export function App() {
+    const [localeKey, setLocaleKey] = useState(0);
+    useEffect(() => {
+        function handler() { setLocaleKey(k => k + 1); }
+        window.addEventListener('locale-changed', handler);
+        return () => window.removeEventListener('locale-changed', handler);
+    }, []);
+
     const {
         state,
         gameId,
@@ -58,7 +66,7 @@ export function App() {
             const handSize = state.players[playerId]?.cardsInHand?.length ?? 0;
             if (handSize > 3 && !wasInDrawRef.current) {
                 wasInDrawRef.current = true;
-                addAlert('Debes descartar 1 carta antes de realizar cualquier acción', 'warning');
+                addAlert(l('alert.discardBeforeAct'), 'warning');
             }
         } else {
             wasInDrawRef.current = false;
@@ -72,8 +80,8 @@ export function App() {
             if (key !== lastHealKeyRef.current) {
                 lastHealKeyRef.current = key;
                 const unit = state.units[state.lastIdentityHeal.unitId];
-                const ownerLabel = unit?.owner === 'p1' ? 'Jugador 1' : 'Jugador 2';
-                addAlert(`🩹 ${ownerLabel}: Robar a los ricos — un arquero recupera 1 HP`, 'success');
+                const ownerLabel = l(unit?.owner === 'p1' ? 'board.player1' : 'board.player2');
+                addAlert(l('alert.identityHeal', { player: ownerLabel }), 'success');
             }
         }
     }, [state?.lastIdentityHeal]);
@@ -82,7 +90,7 @@ export function App() {
     useEffect(() => {
         if (state?.lastCaminoDelGuerrero && !lastCaminoRef.current) {
             lastCaminoRef.current = true;
-            addAlert('⚔️ Jugador: Camino del guerrero — +1 PA por kill a rango 1', 'success');
+            addAlert(l('alert.caminoGuerrero'), 'success');
         }
         if (!state?.lastCaminoDelGuerrero) {
             lastCaminoRef.current = false;
@@ -93,7 +101,7 @@ export function App() {
     useEffect(() => {
         if (state?.lastMeditacion && !lastMeditacionRef.current) {
             lastMeditacionRef.current = true;
-            addAlert('🧘 El Monje Shaolin ha recuperado 3 HP con Meditación', 'success');
+            addAlert(l('alert.meditacionHeal'), 'success');
         }
         if (!state?.lastMeditacion) {
             lastMeditacionRef.current = false;
@@ -102,7 +110,7 @@ export function App() {
 
     return (
         <KeyBindingsProvider>
-        <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
+        <div key={localeKey} className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
                 {gameId && <>
@@ -250,7 +258,7 @@ function EndTurnBtn({ role, state, sendAction }: { role: { role: string; playerI
             disabled={state.activePlayer !== role?.playerId}
             onClick={() => sendAction({ type: 'END_TURN', playerId: role!.playerId })}
         >
-            End Turn [{keyLabel}]
+            {l('button.endTurn')} [{keyLabel}]
         </button>
     );
 }
