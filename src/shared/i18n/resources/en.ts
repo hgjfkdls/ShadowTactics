@@ -122,6 +122,7 @@ export const en = {
     time: 'Time',
     timeLimit: 'Limit',
     unitsLabel: 'Units',
+    paLabel: 'AP',
     effectsLabel: 'Effects',
     noSelection: 'No allied unit selected',
     noDetails: 'Select an identity or unit to see details',

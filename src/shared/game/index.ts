@@ -3,7 +3,7 @@ export * from './action-types';
 export { applyAction } from './reducer';
 export { createInitialGameState } from './init';
 export { nextRandom, rollDice, roll2d6 } from './utils/rng';
-export { pipeState, isHexOccupied, isWithinBounds, updateUnit, killUnit, dealDamage, countPlayerClasses, isNearAnyAlliedUnit } from './utils';
+export { pipeState, isHexOccupied, isWithinBounds, updateUnit, dealDamage, countPlayerClasses, isNearAnyAlliedUnit } from './utils';
 export { createUnit, BASE_STATS } from './units';
 export { resolveAttack, getDifficulty, canCounterattack, getCounterDamage } from './combat';
 export { handleMove, handleAttack, handleCard } from './actions';

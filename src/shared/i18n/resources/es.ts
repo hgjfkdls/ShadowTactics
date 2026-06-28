@@ -122,6 +122,7 @@ export const es = {
     time: 'Tiempo',
     timeLimit: 'Límite',
     unitsLabel: 'Unidades',
+    paLabel: 'PA',
     effectsLabel: 'Efectos',
     noSelection: 'No hay selección de aliado',
     noDetails: 'Selecciona una identidad o unidad para ver detalles',

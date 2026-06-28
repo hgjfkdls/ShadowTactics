@@ -221,11 +221,11 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
             {mode === 'GAME' && (
                 <div className="flex gap-3 px-3 py-2 bg-zinc-800/60 border-2 border-zinc-700 mx-2 rounded-lg mb-2">
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-zinc-200 font-bold uppercase">PA</span>
+                        <span className="text-[10px] text-zinc-200 font-bold uppercase">{l('board.paLabel')}</span>
                         <span className="text-sm font-bold text-yellow-400">{actionPoints}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-zinc-200 font-bold uppercase">Unidades</span>
+                        <span className="text-[10px] text-zinc-200 font-bold uppercase">{l('board.unitsLabel')}</span>
                         <span className="text-sm font-bold text-yellow-400">{unitCount}</span>
                     </div>
                 </div>

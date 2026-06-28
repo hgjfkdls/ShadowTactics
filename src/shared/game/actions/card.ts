@@ -53,6 +53,10 @@ const CARD_TEMPLATES: Record<string, CardTemplate> = {
 
 import { l } from '@shared/i18n';
 
+export function getCardKey(cardId: CardId): string {
+    return getKey(cardId);
+}
+
 function cardI18nKey(cardId: CardId): string {
     return `card.${getKey(cardId)}`;
 }
