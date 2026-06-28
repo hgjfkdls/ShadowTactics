@@ -261,7 +261,7 @@ function handleDesenvainadoVeloz(state: GameState, unit: Unit, action: GameActio
     );
 
     if (result.hit) {
-        s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', 0);
+        s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', 0, undefined, undefined, 'ability', 'Desenvainado veloz');
 
         const dq = target.position.q - unit.position.q;
         const dr = target.position.r - unit.position.r;
@@ -376,8 +376,8 @@ function handleProteger(state: GameState, unit: Unit, action: GameAction): GameS
     const distance = hexDistance(unit.position, target.position);
     if (distance > 3) return state;
 
-    let s = addModifier(state, unit.owner, target.id, 'damage', -1, 'ADD', 0, 1);
-    // Marcar con ID único para identificar el shield de Proteger
+    let s = addModifier(state, unit.owner, target.id, 'damage', -1, 'ADD', 0, 1, 'ability', 'Proteger');
+
     const last = s.activeModifiers[s.activeModifiers.length - 1];
     if (last) {
         s = { ...s, activeModifiers: s.activeModifiers.map((m, i) =>

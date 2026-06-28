@@ -93,7 +93,7 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
                 }
                 for (const uid of terrorTargets) {
                     const u = newState.units[uid];
-                    if (u) newState = addModifier(newState, u.owner, u.id, 'difficulty', 1, 'ADD', 0, 1);
+                    if (u) newState = addModifier(newState, u.owner, u.id, 'difficulty', 1, 'ADD', 0, 1, 'ability', 'Terror');
                 }
             }
         }
