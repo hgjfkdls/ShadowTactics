@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'gameId requerido' }, { status: 400 });
     }
 
-    const cleared = confirmGameStarted(gameId);
+    const cleared = await confirmGameStarted(gameId);
     if (!cleared) {
         return NextResponse.json({ error: 'gameId no encontrado o ya iniciado' }, { status: 404 });
     }

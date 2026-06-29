@@ -8,6 +8,6 @@ export async function POST() {
         return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    leaveQueue(session.user.id);
+    await leaveQueue(session.user.id);
     return NextResponse.json({ status: 'cancelled' });
 }

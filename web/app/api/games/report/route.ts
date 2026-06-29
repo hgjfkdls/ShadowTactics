@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { activeMatches } from '@/lib/matchmaking';
 
 const EXPECTED_API_KEY = process.env.REPORT_API_KEY ?? 'dev-key-change-me';
 
@@ -15,9 +14,12 @@ function eloChange(current: number, expected: number, won: boolean): number {
 type ReportBody = {
     gameId: string;
     winnerId: string;
+    player1Id: string;
+    player2Id: string;
     type: 'quickplay' | 'ranked';
     rngSeed: number;
     actions: { index: number; playerId: string; action: object }[];
+    gameHistory?: unknown[];
     duration: number;
     totalTurns: number;
     deployment: Record<string, { unitId: string; class: string; q: number; r: number; step: number }[]>;
@@ -58,9 +60,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
     }
 
-    const { gameId, winnerId, type, rngSeed, actions, duration, totalTurns, deployment, classStats, identityStats, performance } = body;
+    const { gameId, winnerId, player1Id, player2Id, type, rngSeed, actions, gameHistory, duration, totalTurns, deployment, classStats, identityStats, performance } = body;
 
-    if (!gameId || !winnerId || !type || rngSeed === undefined || !actions?.length) {
+    if (!gameId || !winnerId || !player1Id || !player2Id || !type || rngSeed === undefined || !actions?.length) {
         return NextResponse.json({ error: 'Campos obligatorios faltantes' }, { status: 400 });
     }
 
@@ -68,12 +70,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'type debe ser quickplay o ranked' }, { status: 400 });
     }
 
-    const match = activeMatches.find((m) => m.gameId === gameId);
-    if (!match) {
-        return NextResponse.json({ error: 'gameId no encontrado en partidas activas' }, { status: 404 });
-    }
-
-    if (!match.userIds.includes(winnerId)) {
+    const userIds = [player1Id, player2Id];
+    if (!userIds.includes(winnerId)) {
         return NextResponse.json({ error: 'winnerId no pertenece a esta partida' }, { status: 400 });
     }
 
@@ -82,7 +80,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Partida ya reportada' }, { status: 400 });
     }
 
-    const loserId = match.userIds.find((id) => id !== winnerId)!;
+    const loserId = player1Id === winnerId ? player2Id : player1Id;
     const isRanked = type === 'ranked';
 
     let eloChanges: { ganador: { old: number; new: number }; perdedor: { old: number; new: number } } | undefined;
@@ -91,8 +89,8 @@ export async function POST(req: NextRequest) {
         const game = await tx.game.create({
             data: {
                 id: gameId,
-                player1Id: match.userIds[0],
-                player2Id: match.userIds[1],
+                player1Id: userIds[0],
+                player2Id: userIds[1],
                 winnerId,
                 rngSeed,
                 type,
@@ -106,6 +104,7 @@ export async function POST(req: NextRequest) {
                 gameId: game.id,
                 rngSeed,
                 actions,
+                gameHistory: (gameHistory ?? []) as object,
             },
         });
 
@@ -215,8 +214,7 @@ export async function POST(req: NextRequest) {
         }
     });
 
-    const matchIdx = activeMatches.indexOf(match);
-    if (matchIdx !== -1) activeMatches.splice(matchIdx, 1);
+    await prisma.matchSession.deleteMany({ where: { gameId } });
 
     return NextResponse.json({
         status: 'ok',

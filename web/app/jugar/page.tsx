@@ -58,6 +58,16 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
         },
     });
 
+    // Cargar invites pendientes desde DB al montar (weakness 4)
+    useEffect(() => {
+        fetch('/api/matchmaking/invites')
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.invites) setPendingInvites(data.invites);
+            })
+            .catch(() => {});
+    }, []);
+
     function handleAccept(inviteId: string) {
         fetch('/api/matchmaking/invites/accept', {
             method: 'POST',
@@ -360,7 +370,22 @@ function InviteMode({ onBack }: { onBack: () => void }) {
     const { data: session } = useSession();
     const [username, setUsername] = useState('');
     const [sending, setSending] = useState(false);
-    const [result, setResult] = useState<{ type: 'success' | 'error'; message: string; gameId?: string } | null>(null);
+    const [waiting, setWaiting] = useState(false);
+    const [acceptedGameId, setAcceptedGameId] = useState<string | null>(null);
+    const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+    useSocket({
+        onInviteAccepted: (data) => {
+            setAcceptedGameId(data.gameId);
+        },
+    });
+
+    useEffect(() => {
+        if (acceptedGameId && session?.user?.id) {
+            const params = new URLSearchParams({ userId: session.user.id, matchType: 'quickplay' });
+            window.location.href = `http://localhost:5173/game/${acceptedGameId}?${params}`;
+        }
+    }, [acceptedGameId, session]);
 
     function handleInvite() {
         if (!username.trim()) return;
@@ -376,18 +401,8 @@ function InviteMode({ onBack }: { onBack: () => void }) {
             .then((data) => {
                 setSending(false);
                 if (data.status === 'invited') {
-                    setResult({ type: 'success', message: 'Invitación enviada. Redirigiendo...', gameId: data.gameId });
-                    if (session?.user?.id) {
-                        const params = new URLSearchParams({ userId: session.user.id, matchType: 'quickplay' });
-                        const redirectUrl = `http://localhost:5173/game/${data.gameId}?${params}`;
-                        setTimeout(() => {
-                            window.location.href = redirectUrl;
-                        }, 1500);
-                    } else {
-                        setTimeout(() => {
-                            window.location.href = `http://localhost:5173/game/${data.gameId}`;
-                        }, 1500);
-                    }
+                    setWaiting(true);
+                    setResult({ type: 'success', message: 'Invitación enviada. Esperando a que acepte...' });
                 } else {
                     setResult({ type: 'error', message: data.message ?? 'Error al enviar invitación' });
                 }
@@ -405,37 +420,58 @@ function InviteMode({ onBack }: { onBack: () => void }) {
                 <div className="w-full max-w-md text-center">
                     <button onClick={onBack} className="mb-6 text-sm text-zinc-500 hover:text-white">&larr; Volver</button>
                     <h1 className="m-2 flex items-center justify-center gap-3 text-3xl font-bold text-whbite">
-                        <img
-                            src={'/img/jugar/invitar_amigo_icon.png'}
-                            alt=""
-                            className="h-15"
-                        />
+                        <img src={'/img/jugar/invitar_amigo_icon.png'} alt="" className="h-15" />
                         Invitar a un amigo
                     </h1>
 
-                    <p className="mb-8 text-zinc-500">Introduce el nombre de usuario de tu amigo.</p>
-
-                    <div className="flex gap-3">
-                        <input
-                            type="text"
-                            placeholder="Nombre de usuario"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-                            className="flex-1 rounded-xl border border-zinc-700 bg-bg-dark px-4 py-3 text-white outline-none transition-colors focus:border-brand-500"
-                        />
-                        <button
-                            onClick={handleInvite}
-                            disabled={sending || !username.trim()}
-                            className="rounded-xl bg-brand-500 px-6 py-3 font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400 disabled:opacity-50"
-                        >
-                            {sending ? '...' : 'Invitar'}
-                        </button>
-                    </div>
+                    {waiting ? (
+                        <div className="mt-8 space-y-4">
+                            <div className="flex justify-center">
+                                <div className="h-16 w-16 animate-spin rounded-full border-4 border-zinc-700 border-t-emerald-400" />
+                            </div>
+                            <p className="text-lg font-semibold text-white">Esperando respuesta...</p>
+                            <p className="text-sm text-zinc-500">Esperando a que {username} acepte la invitación</p>
+                            <button
+                                onClick={() => { setWaiting(false); setResult(null); }}
+                                className="rounded-lg border border-zinc-700 px-6 py-2 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="mb-8 text-zinc-500">Introduce el nombre de usuario de tu amigo.</p>
+                            <div className="flex gap-3">
+                                <input
+                                    type="text"
+                                    placeholder="Nombre de usuario"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+                                    className="flex-1 rounded-xl border border-zinc-700 bg-bg-dark px-4 py-3 text-white outline-none transition-colors focus:border-brand-500"
+                                />
+                                <button
+                                    onClick={handleInvite}
+                                    disabled={sending || !username.trim()}
+                                    className="rounded-xl bg-brand-500 px-6 py-3 font-bold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-400 disabled:opacity-50"
+                                >
+                                    {sending ? '...' : 'Invitar'}
+                                </button>
+                            </div>
+                        </>
+                    )}
 
                     {result && (
                         <div className={`mt-6 rounded-xl border p-4 text-sm ${result.type === 'success' ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-400' : 'border-red-700 bg-red-950/30 text-red-400'}`}>
                             {result.message}
+                        </div>
+                    )}
+
+                    {acceptedGameId && (
+                        <div className="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-8">
+                            <p className="mb-2 text-2xl">✅</p>
+                            <p className="text-lg font-bold text-emerald-400">Invitación aceptada</p>
+                            <p className="mt-2 text-sm text-zinc-500">Redirigiendo al juego...</p>
                         </div>
                     )}
                 </div>

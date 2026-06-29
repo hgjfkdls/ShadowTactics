@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Fragment } from 'react';
+import Link from 'next/link';
 
 type PerformanceData = {
     score: number;
@@ -38,7 +39,7 @@ type GameHistoryData = {
 
 function formatDate(iso: string): string {
     const d = new Date(iso);
-    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function scoreColor(score: number): string {
@@ -177,9 +178,12 @@ export default function GameHistory({ userId }: { userId: string }) {
                                         </td>
                                         <td className="px-4 py-3">
                                             {g.hasReplay ? (
-                                                <button className="text-xs text-brand-400 hover:text-brand-300 transition-colors">
+                                                <Link
+                                                    href={`/partida/${g.id}`}
+                                                    className="text-xs text-brand-400 hover:text-brand-300 transition-colors"
+                                                >
                                                     Ver replay
-                                                </button>
+                                                </Link>
                                             ) : (
                                                 <span className="text-zinc-600">—</span>
                                             )}

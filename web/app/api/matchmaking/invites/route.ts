@@ -8,6 +8,6 @@ export async function GET() {
         return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    const invites = getPendingInvites(session.user.id);
+    const invites = await getPendingInvites(session.user.id);
     return NextResponse.json({ invites });
 }

@@ -60,9 +60,12 @@ type PerformanceEntry = {
 type ReportPayload = {
     gameId: string;
     winnerId: string;
+    player1Id: string;
+    player2Id: string;
     type: 'quickplay' | 'ranked';
     rngSeed: number;
     actions: { index: number; playerId: string; action: object }[];
+    gameHistory: GameState['gameHistory'];
     duration: number;
     totalTurns: number;
     deployment: Record<string, DeploymentEntry[]>;
@@ -322,9 +325,12 @@ function computeReport(
     return {
         gameId,
         winnerId,
+        player1Id: p1UserId,
+        player2Id: p2UserId,
         type: matchType,
         rngSeed: state.rngSeed,
         actions: actions.map(a => ({ index: a.index, playerId: a.playerId, action: a.action })),
+        gameHistory: state.gameHistory,
         duration,
         totalTurns: state.turn,
         deployment,
@@ -370,27 +376,41 @@ export async function submitReport(
         return false;
     }
 
-    try {
-        const res = await fetch(REPORT_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Api-Key': REPORT_API_KEY,
-            },
-            body: JSON.stringify(payload),
-        });
+    const delays = [1_000, 5_000, 15_000];
 
-        if (!res.ok) {
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+            const res = await fetch(REPORT_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Api-Key': REPORT_API_KEY,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                const json = await res.json();
+                console.log(`[report] Partida ${gameId} reportada:`, json);
+                return true;
+            }
+
             const text = await res.text();
-            console.error(`[report] Error ${res.status}: ${text}`);
-            return false;
+            console.error(`[report] Intento ${attempt + 1} - Error ${res.status}: ${text}`);
+
+            if (res.status === 400) {
+                console.error(`[report] Error 400 no recuperable para ${gameId}, abortando`);
+                return false;
+            }
+        } catch (err) {
+            console.error(`[report] Intento ${attempt + 1} - Error de red para ${gameId}:`, err);
         }
 
-        const json = await res.json();
-        console.log(`[report] Partida ${gameId} reportada:`, json);
-        return true;
-    } catch (err) {
-        console.error(`[report] Error al reportar partida ${gameId}:`, err);
-        return false;
+        if (attempt < delays.length) {
+            await new Promise((r) => setTimeout(r, delays[attempt]));
+        }
     }
+
+    console.error(`[report] Todos los reintentos fallaron para partida ${gameId}`);
+    return false;
 }

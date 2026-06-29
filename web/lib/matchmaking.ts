@@ -1,213 +1,203 @@
 import { prisma } from './prisma';
 
 const GAME_SERVER = process.env.GAME_SERVER_URL ?? 'http://localhost:3000';
-
-function emitToUser(userId: string, event: string, data: unknown) {
-    fetch(`${GAME_SERVER}/__emit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, event, data }),
-    }).catch(() => {});
-}
+const TIMEOUT_MS = 60_000;
+const INVITE_TIMEOUT_MS = 30_000;
+const MATCH_TIMEOUT_MS = 900_000;
 
 type QueueType = 'quickplay' | 'ranked';
 
-type QueueEntry = {
-    userId: string;
-    username: string;
-    elo: number;
-    type: QueueType;
-    joinedAt: number;
-};
-
-export type ActiveMatch = {
+export type ActiveMatchInfo = {
     gameId: string;
     userIds: string[];
     type: QueueType;
     isRanked: boolean;
-    matchedAt: number;
 };
 
-type PendingInvite = {
-    id: string;
-    inviterId: string;
-    inviterName: string;
-    invitedId: string;
-    gameId: string;
-    createdAt: number;
-};
+// Solo para invitaciones: necesitamos cancelar el timeout al aceptar
+const inviteTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
-const TIMEOUT_MS = 60_000;
-const INVITE_TIMEOUT_MS = 30_000;
-
-const g = (globalThis as any).__matchmaking ??= {
-    quickplayQueue: [] as QueueEntry[],
-    rankedQueue: [] as QueueEntry[],
-    activeMatches: [] as ActiveMatch[],
-    matchTimeouts: new Map<string, ReturnType<typeof setTimeout>>(),
-    pendingInvites: [] as PendingInvite[],
-};
-
-const quickplayQueue: QueueEntry[] = g.quickplayQueue;
-const rankedQueue: QueueEntry[] = g.rankedQueue;
-export const activeMatches: ActiveMatch[] = g.activeMatches;
-const matchTimeouts: Map<string, ReturnType<typeof setTimeout>> = g.matchTimeouts;
-const pendingInvites: PendingInvite[] = g.pendingInvites;
-
-function getQueue(type: QueueType): QueueEntry[] {
-    return type === 'quickplay' ? quickplayQueue : rankedQueue;
-}
-
-function findMatch(entry: QueueEntry): QueueEntry | null {
-    const queue = getQueue(entry.type);
-    const elapsed = (Date.now() - entry.joinedAt) / 1000;
-
-    const inQueue = queue.filter(
-        (c) => c.userId !== entry.userId && Date.now() - c.joinedAt < TIMEOUT_MS
-    );
-
-    if (entry.type === 'quickplay') {
-        return inQueue.sort((a, b) => a.joinedAt - b.joinedAt)[0] ?? null;
-    }
-
-    const margin = Math.min(50 + Math.floor(elapsed / 5) * 50, 300);
-    const candidates = inQueue
-        .filter((c) => Math.abs(c.elo - entry.elo) <= margin)
-        .sort((a, b) => a.joinedAt - b.joinedAt);
-
-    return candidates[0] ?? null;
+function emitToUser(userId: string, event: string, data: unknown) {
+    const doFetch = () => fetch(`${GAME_SERVER}/__emit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, event, data }),
+    });
+    doFetch().catch(() => setTimeout(() => doFetch().catch(() => {}), 500));
 }
 
 function generateGameId(): string {
     return crypto.randomUUID().slice(0, 8);
 }
 
+// ─── Colas ───
+
 export async function joinQueue(userId: string, type: QueueType): Promise<
     | { status: 'searching'; position: number }
     | { status: 'matched'; gameId: string; opponent?: { username: string; elo: number } }
 > {
-    const queue = getQueue(type);
+    // Limpiar entrada previa del usuario y MatchSessions huérfanas
+    await prisma.queueEntry.deleteMany({ where: { userId } });
+    const orphanCutoff = new Date(Date.now() - MATCH_TIMEOUT_MS);
+    await prisma.matchSession.deleteMany({ where: { matchedAt: { lt: orphanCutoff } } });
 
-    const existing = queue.find((e) => e.userId === userId);
-    if (existing) {
-        return { status: 'searching', position: queue.indexOf(existing) + 1 };
-    }
-
-    const alreadyMatched = activeMatches.find((m) => m.userIds.includes(userId));
+    // Verificar si ya está en un match activo
+    const alreadyMatched = await prisma.matchSession.findFirst({
+        where: { players: { some: { userId } } },
+    });
     if (alreadyMatched) {
-        return {
-            status: 'matched',
-            gameId: alreadyMatched.gameId,
-        };
+        return { status: 'matched', gameId: alreadyMatched.gameId };
     }
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { username: true, elo: true },
     });
-
     if (!user) throw new Error('User not found');
 
-    const entry: QueueEntry = {
-        userId,
-        username: user.username,
-        elo: user.elo,
-        type,
-        joinedAt: Date.now(),
-    };
+    const now = Date.now();
+    const joinedAt = new Date(now);
 
-    const match = findMatch(entry);
-    if (match) {
-        queue.splice(queue.indexOf(match), 1);
+    // Buscar oponente
+    const candidate = await findMatchInDB(userId, type, user.elo, joinedAt);
 
+    if (candidate) {
         const gameId = generateGameId();
-        const matched: ActiveMatch = {
-            gameId,
-            userIds: [entry.userId, match.userId],
-            type,
-            isRanked: type === 'ranked',
-            matchedAt: Date.now(),
-        };
-        activeMatches.push(matched);
 
-        const matchTimeoutId = setTimeout(() => {
-            const idx = activeMatches.indexOf(matched);
-            if (idx !== -1) activeMatches.splice(idx, 1);
-            matchTimeouts.delete(gameId);
-        }, 30_000);
-        matchTimeouts.set(gameId, matchTimeoutId);
-
-        emitToUser(entry.userId, 'match_found', {
-            gameId,
-            opponent: { username: match.username, elo: match.elo },
+        const raceLost = await prisma.$transaction(async (tx) => {
+            const deleted = await tx.queueEntry.deleteMany({ where: { userId: candidate.userId } });
+            if (deleted.count === 0) return true;
+            await tx.queueEntry.deleteMany({ where: { userId } });
+            await tx.matchSession.create({
+                data: {
+                    gameId,
+                    userIds: [userId, candidate.userId],
+                    type,
+                    isRanked: type === 'ranked',
+                    matchedAt: joinedAt,
+                    players: {
+                        create: [
+                            { userId },
+                            { userId: candidate.userId },
+                        ],
+                    },
+                },
+            });
+            return false;
         });
-        emitToUser(match.userId, 'match_found', {
+
+        if (raceLost) {
+            await prisma.queueEntry.create({
+                data: { userId, username: user.username, elo: user.elo, type },
+            });
+            const position = await prisma.queueEntry.count({ where: { type, joinedAt: { lte: joinedAt } } });
+            return { status: 'searching', position };
+        }
+
+        emitToUser(userId, 'match_found', {
             gameId,
-            opponent: { username: entry.username, elo: entry.elo },
+            opponent: { username: candidate.username, elo: candidate.elo },
+        });
+        emitToUser(candidate.userId, 'match_found', {
+            gameId,
+            opponent: { username: user.username, elo: user.elo },
         });
 
         return {
             status: 'matched',
             gameId,
-            opponent: { username: match.username, elo: match.elo },
+            opponent: { username: candidate.username, elo: candidate.elo },
         };
     }
 
-    queue.push(entry);
-    setTimeout(() => {
-        const idx = queue.indexOf(entry);
-        if (idx !== -1) queue.splice(idx, 1);
-    }, TIMEOUT_MS);
+    // No hay oponente — entrar en cola
+    await prisma.queueEntry.create({
+        data: { userId, username: user.username, elo: user.elo, type },
+    });
 
-    return { status: 'searching', position: queue.length };
+    const position = await prisma.queueEntry.count({ where: { type, joinedAt: { lte: joinedAt } } });
+    return { status: 'searching', position };
 }
 
-export function getQueueStatus(userId: string):
+async function findMatchInDB(
+    userId: string,
+    type: QueueType,
+    elo: number,
+    now: Date,
+): Promise<{ userId: string; username: string; elo: number } | null> {
+    const cutoff = new Date(now.getTime() - TIMEOUT_MS);
+
+    const candidates = await prisma.queueEntry.findMany({
+        where: {
+            type,
+            userId: { not: userId },
+            joinedAt: { gte: cutoff },
+        },
+        orderBy: { joinedAt: 'asc' },
+    });
+
+    if (candidates.length === 0) return null;
+
+    if (type === 'quickplay') {
+        return candidates[0];
+    }
+
+    // Ranked: filtrar por margen ELO progresivo según tiempo esperando del candidato
+    for (const c of candidates) {
+        const cElapsed = (now.getTime() - c.joinedAt.getTime()) / 1000;
+        const margin = Math.min(50 + Math.floor(cElapsed / 5) * 50, 300);
+        if (Math.abs(c.elo - elo) <= margin) {
+            return c;
+        }
+    }
+
+    return null;
+}
+
+export async function getQueueStatus(userId: string): Promise<
     | { status: 'searching'; queueLength: number; elapsed: number }
     | { status: 'matched'; gameId: string; opponent?: { username: string; elo: number } }
     | { status: 'timeout' }
-{
-    const matched = activeMatches.find((m) => m.userIds.includes(userId));
+> {
+    // Limpiar entradas expiradas y MatchSessions huérfanas
+    const cutoff = new Date(Date.now() - TIMEOUT_MS);
+    await prisma.queueEntry.deleteMany({ where: { joinedAt: { lt: cutoff } } });
+    const matchCutoff = new Date(Date.now() - MATCH_TIMEOUT_MS);
+    await prisma.matchSession.deleteMany({ where: { matchedAt: { lt: matchCutoff } } });
+
+    const matched = await prisma.matchSession.findFirst({
+        where: { players: { some: { userId } } },
+    });
     if (matched) {
         return { status: 'matched', gameId: matched.gameId };
     }
 
-    const allQueues = [...quickplayQueue, ...rankedQueue];
-    const entry = allQueues.find((e) => e.userId === userId);
+    const entry = await prisma.queueEntry.findUnique({ where: { userId } });
     if (!entry) return { status: 'timeout' };
 
-    const elapsed = Math.floor((Date.now() - entry.joinedAt) / 1000);
+    const elapsed = Math.floor((Date.now() - entry.joinedAt.getTime()) / 1000);
     if (elapsed >= TIMEOUT_MS / 1000) {
-        const queue = getQueue(entry.type);
-        const idx = queue.indexOf(entry as QueueEntry);
-        if (idx !== -1) queue.splice(idx, 1);
+        await prisma.queueEntry.deleteMany({ where: { userId } });
         return { status: 'timeout' };
     }
 
-    return {
-        status: 'searching',
-        queueLength: getQueue(entry.type).length,
-        elapsed,
-    };
+    const queueLength = await prisma.queueEntry.count({ where: { type: entry.type } });
+    return { status: 'searching', queueLength, elapsed };
 }
 
-export function leaveQueue(userId: string): void {
-    for (const queue of [quickplayQueue, rankedQueue]) {
-        const idx = queue.findIndex((e) => e.userId === userId);
-        if (idx !== -1) {
-            queue.splice(idx, 1);
-            return;
-        }
-    }
+export async function leaveQueue(userId: string): Promise<void> {
+    await prisma.queueEntry.deleteMany({ where: { userId } });
 }
 
-export function confirmGameStarted(gameId: string): boolean {
-    const timeoutId = matchTimeouts.get(gameId);
-    if (!timeoutId) return false;
-    clearTimeout(timeoutId);
-    matchTimeouts.delete(gameId);
+export async function confirmGameStarted(gameId: string): Promise<boolean> {
+    const existing = await prisma.matchSession.findUnique({ where: { gameId } });
+    if (!existing) return false;
+    // El MatchSession se limpia on-read en joinQueue/getQueueStatus.
+    // Ya no dependemos de él para el reporte (steps 1-2).
     return true;
 }
+
+// ─── Invitaciones ───
 
 export async function createInvite(inviterId: string, invitedUsername: string): Promise<
     { status: 'invited'; gameId: string }
@@ -217,83 +207,128 @@ export async function createInvite(inviterId: string, invitedUsername: string): 
         where: { username: invitedUsername },
         select: { id: true },
     });
-
     if (!invited) return { status: 'error', message: 'Usuario no encontrado' };
     if (invited.id === inviterId) return { status: 'error', message: 'No puedes invitarte a ti mismo' };
 
-    const inMatch = activeMatches.find((m) => m.userIds.includes(inviterId) || m.userIds.includes(invited.id));
-    if (inMatch) return { status: 'error', message: 'Uno de los jugadores ya está en una partida' };
+    // Limpiar MatchSessions huérfanas
+    const orphanCutoff = new Date(Date.now() - MATCH_TIMEOUT_MS);
+    await prisma.matchSession.deleteMany({ where: { matchedAt: { lt: orphanCutoff } } });
 
-    const inQueueCheck = [...quickplayQueue, ...rankedQueue].find(
-        (e) => e.userId === inviterId || e.userId === invited.id
-    );
-    if (inQueueCheck) return { status: 'error', message: 'Uno de los jugadores está en cola de matchmaking' };
+    // Verificar match activo o cola
+    const existingMatch = await prisma.matchSession.findFirst({
+        where: {
+            players: {
+                some: { userId: { in: [inviterId, invited.id] } },
+            },
+        },
+    });
+    if (existingMatch) return { status: 'error', message: 'Uno de los jugadores ya está en una partida' };
+
+    const inQueueCheck = await prisma.queueEntry.findMany({
+        where: { userId: { in: [inviterId, invited.id] } },
+    });
+    if (inQueueCheck.length > 0) {
+        return { status: 'error', message: 'Uno de los jugadores está en cola de matchmaking' };
+    }
 
     const gameId = generateGameId();
-    const matched: ActiveMatch = {
-        gameId,
-        userIds: [inviterId, invited.id],
-        type: 'quickplay',
-        isRanked: false,
-        matchedAt: Date.now(),
-    };
-    activeMatches.push(matched);
 
     const inviter = await prisma.user.findUnique({
         where: { id: inviterId },
         select: { username: true },
     });
 
-    const invite: PendingInvite = {
-        id: crypto.randomUUID().slice(0, 8),
-        inviterId,
-        inviterName: inviter?.username ?? 'Desconocido',
-        invitedId: invited.id,
-        gameId,
-        createdAt: Date.now(),
-    };
-    pendingInvites.push(invite);
-
-    emitToUser(invited.id, 'invite', {
-        id: invite.id,
-        inviterName: invite.inviterName,
-        gameId: invite.gameId,
+    const pendingInvite = await prisma.$transaction(async (tx) => {
+        await tx.matchSession.create({
+            data: {
+                gameId,
+                userIds: [inviterId, invited.id],
+                type: 'quickplay',
+                isRanked: false,
+                players: {
+                    create: [
+                        { userId: inviterId },
+                        { userId: invited.id },
+                    ],
+                },
+            },
+        });
+        return await tx.pendingInvite.create({
+            data: {
+                inviterId,
+                inviterName: inviter?.username ?? 'Desconocido',
+                invitedId: invited.id,
+                gameId,
+            },
+        });
     });
 
-    const inviteTimeoutId = setTimeout(() => {
-        const idx = pendingInvites.indexOf(invite);
-        if (idx !== -1) {
-            pendingInvites.splice(idx, 1);
-            emitToUser(invited.id, 'invite_cancelled', { inviteId: invite.id });
-            const matchIdx = activeMatches.indexOf(matched);
-            if (matchIdx !== -1) activeMatches.splice(matchIdx, 1);
-        }
-        matchTimeouts.delete(gameId);
+    emitToUser(invited.id, 'invite', {
+        id: pendingInvite.id,
+        inviterName: inviter?.username ?? 'Desconocido',
+        gameId,
+    });
+
+    const timeoutId = setTimeout(async () => {
+        await prisma.pendingInvite.deleteMany({ where: { gameId } }).catch(() => {});
+        await prisma.matchSession.deleteMany({ where: { gameId } }).catch(() => {});
+        emitToUser(invited.id, 'invite_cancelled', { inviteId: pendingInvite.id });
+        inviteTimeouts.delete(`invite:${pendingInvite.id}`);
     }, INVITE_TIMEOUT_MS);
-    matchTimeouts.set(gameId, inviteTimeoutId);
+    inviteTimeouts.set(`invite:${pendingInvite.id}`, timeoutId);
 
     return { status: 'invited', gameId };
 }
 
-export function getPendingInvites(userId: string): PendingInvite[] {
-    return pendingInvites.filter((i) => i.invitedId === userId);
+export async function getPendingInvites(userId: string): Promise<{ id: string; inviterName: string; gameId: string }[]> {
+    const cutoff = new Date(Date.now() - INVITE_TIMEOUT_MS);
+    await prisma.pendingInvite.deleteMany({ where: { createdAt: { lt: cutoff }, invitedId: userId } });
+
+    const invites = await prisma.pendingInvite.findMany({
+        where: { invitedId: userId },
+        select: { id: true, inviterName: true, gameId: true },
+    });
+    return invites;
 }
 
-export function acceptInvite(
+export async function acceptInvite(
     inviteId: string,
     userId: string,
     username?: string,
-): { status: 'accepted'; gameId: string } | { status: 'error'; message: string } {
-    const idx = pendingInvites.findIndex((i) => i.id === inviteId && i.invitedId === userId);
-    if (idx === -1) return { status: 'error', message: 'Invitación no encontrada o expirada' };
+): Promise<{ status: 'accepted'; gameId: string } | { status: 'error'; message: string }> {
+    // Limpiar huérfanos y verificar que el usuario no esté ya en partida o cola
+    const matchCutoff = new Date(Date.now() - MATCH_TIMEOUT_MS);
+    await prisma.matchSession.deleteMany({ where: { matchedAt: { lt: matchCutoff } } });
 
-    const invite = pendingInvites[idx];
-    pendingInvites.splice(idx, 1);
+    const existingMatch = await prisma.matchSession.findFirst({
+        where: { players: { some: { userId } } },
+    });
+    if (existingMatch) {
+        return { status: 'error', message: 'Ya estás en una partida activa' };
+    }
+    const inQueue = await prisma.queueEntry.findUnique({ where: { userId } });
+    if (inQueue) {
+        return { status: 'error', message: 'Ya estás en cola de matchmaking' };
+    }
+
+    const invite = await prisma.$transaction(async (tx) => {
+        const invite = await tx.pendingInvite.findUnique({ where: { id: inviteId } });
+        if (!invite || invite.invitedId !== userId) return null;
+        await tx.pendingInvite.delete({ where: { id: inviteId } });
+        return invite;
+    });
+
+    if (!invite) {
+        return { status: 'error', message: 'Invitación no encontrada o expirada' };
+    }
 
     emitToUser(invite.inviterId, 'invite_accepted', {
         gameId: invite.gameId,
         invitedName: username ?? 'Desconocido',
     });
+
+    const tid = inviteTimeouts.get(`invite:${invite.id}`);
+    if (tid) { clearTimeout(tid); inviteTimeouts.delete(`invite:${invite.id}`); }
 
     return { status: 'accepted', gameId: invite.gameId };
 }

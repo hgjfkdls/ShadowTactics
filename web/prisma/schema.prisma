@@ -44,11 +44,12 @@ model Game {
 }
 
 model GameReplay {
-    gameId    String   @id
-    rngSeed   Int
-    actions   Json
-    createdAt DateTime @default(now())
-    game      Game     @relation(fields: [gameId], references: [id])
+    gameId      String   @id
+    rngSeed     Int
+    actions     Json
+    gameHistory Json?
+    createdAt   DateTime @default(now())
+    game        Game     @relation(fields: [gameId], references: [id])
 }
 
 model GameClassStats {
@@ -127,4 +128,40 @@ model GamePlayerPerformance {
     player User @relation(fields: [playerId], references: [id])
 
     @@unique([gameId, playerId])
+}
+
+model QueueEntry {
+    id       String   @id @default(uuid())
+    userId   String   @unique
+    username String
+    elo      Int
+    type     String     // quickplay | ranked
+    joinedAt DateTime @default(now())
+}
+
+model MatchSession {
+    id        String   @id @default(uuid())
+    gameId    String   @unique
+    userIds   Json       // ["uuid1", "uuid2"] — legacy
+    type      String     // quickplay | ranked
+    isRanked  Boolean
+    matchedAt DateTime @default(now())
+    players   MatchPlayer[]
+}
+
+model MatchPlayer {
+    matchId String
+    userId  String
+    match   MatchSession @relation(fields: [matchId], references: [gameId])
+
+    @@id([matchId, userId])
+}
+
+model PendingInvite {
+    id          String   @id @default(uuid())
+    inviterId   String
+    inviterName String
+    invitedId   String
+    gameId      String
+    createdAt   DateTime @default(now())
 }

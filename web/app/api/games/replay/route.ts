@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
         rngSeed: game.replay.rngSeed,
         actions: game.replay.actions,
+        gameHistory: game.replay.gameHistory ?? [],
+        playerMapping: { p1: game.player1.id, p2: game.player2.id },
         players: {
             [game.player1.id]: { username: game.player1.username, identityId: identityMap[game.player1.id] ?? null },
             [game.player2.id]: { username: game.player2.username, identityId: identityMap[game.player2.id] ?? null },

@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Se requiere inviteId' }, { status: 400 });
     }
 
-    const result = acceptInvite(inviteId, session.user.id, session.user.username);
+    const result = await acceptInvite(inviteId, session.user.id, session.user.username);
     return NextResponse.json(result);
 }

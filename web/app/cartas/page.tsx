@@ -341,7 +341,7 @@ type IdentityGroup = {
 
 const identityGroups: IdentityGroup[] = [
     {
-        class: '🎯 Arqueros (2 cartas)',
+        class: 'Arqueros',
         items: [
             {
                 name: 'Robin Hood', classLabel: 'Arquero', image: '/img/identidades/robin_hood.png',
@@ -360,7 +360,7 @@ const identityGroups: IdentityGroup[] = [
         ],
     },
     {
-        class: '🛡️ Infantería (2 cartas)',
+        class: 'Infantería',
         items: [
             {
                 name: 'Dios del Trueno', classLabel: 'Infantería', image: '/img/identidades/dios_del_trueno.png',
@@ -379,7 +379,7 @@ const identityGroups: IdentityGroup[] = [
         ],
     },
     {
-        class: '🐎 Caballería (2 cartas)',
+        class: 'Caballería',
         items: [
             {
                 name: 'Caballos de Guerra', classLabel: 'Caballería', image: '/img/identidades/caballos_de_guerra.png',
@@ -398,7 +398,7 @@ const identityGroups: IdentityGroup[] = [
         ],
     },
     {
-        class: '🗡️ Lanceros (2 cartas)',
+        class: 'Lanceros',
         items: [
             {
                 name: 'Punta de Lanza', classLabel: 'Lancero', image: '/img/identidades/punta_de_lanza.png',
@@ -417,7 +417,7 @@ const identityGroups: IdentityGroup[] = [
         ],
     },
     {
-        class: '⚜️ General (7 cartas)',
+        class: 'General (7 cartas)',
         items: [
             {
                 name: 'Monje Shaolin', classLabel: 'General', image: '/img/identidades/monje_shaolin.png',
