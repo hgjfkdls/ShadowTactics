@@ -6,6 +6,44 @@ datasource db {
     provider = "postgresql"
 }
 
+enum CosmeticType {
+    SKIN
+    WEAPON
+    BOARD
+    HEX_VARIANT
+    CLIMATE
+    LIGHTING
+    PROFILE_FRAME
+    AVATAR
+    PROFILE_BACKGROUND
+    TITLE
+    EMOTE
+    QUICK_MESSAGE
+    REACTION
+    LOADING_SCREEN
+    CURSOR
+    UI_THEME
+    MENU_BACKGROUND
+    ANIMATION_MOVEMENT
+    ANIMATION_ELIMINATION
+    ANIMATION_SUMMON
+    PET
+    COMPANION
+    BANNER
+}
+
+enum Rarity {
+    COMMON
+    RARE
+    EPIC
+    LEGENDARY
+}
+
+enum TransactionType {
+    EARN
+    SPEND
+}
+
 model User {
     id            String                  @id @default(uuid())
     email         String                  @unique
@@ -14,6 +52,7 @@ model User {
     elo           Int                     @default(1000)
     wins          Int                     @default(0)
     losses        Int                     @default(0)
+    coins         Int                     @default(0)
     createdAt     DateTime                @default(now())
     gamesAsP1     Game[]                  @relation("Player1")
     gamesAsP2     Game[]                  @relation("Player2")
@@ -21,6 +60,8 @@ model User {
     classStats    GameClassStats[]
     identityStats GameIdentityStats[]
     performances  GamePlayerPerformance[]
+    cosmetics     UserCosmetic[]
+    transactions  Transaction[]
 }
 
 model Game {
@@ -164,4 +205,41 @@ model PendingInvite {
     invitedId   String
     gameId      String
     createdAt   DateTime @default(now())
+}
+
+model Cosmetic {
+    id             String        @id @default(uuid())
+    name           String
+    description    String
+    type           CosmeticType
+    rarity         Rarity        @default(COMMON)
+    imageUrl       String
+    price          Int
+    discountPercent Int          @default(0)
+    discountEndsAt DateTime?
+    attributes     Json          @default("{}")
+    createdAt      DateTime      @default(now())
+    users          UserCosmetic[]
+}
+
+model UserCosmetic {
+    userId     String
+    cosmeticId String
+    equipped   Boolean   @default(false)
+    equippedAt DateTime?
+
+    user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    cosmetic Cosmetic @relation(fields: [cosmeticId], references: [id], onDelete: Cascade)
+
+    @@id([userId, cosmeticId])
+}
+
+model Transaction {
+    id        String          @id @default(uuid())
+    userId    String
+    amount    Int
+    type      TransactionType
+    concept   String
+    createdAt DateTime        @default(now())
+    user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

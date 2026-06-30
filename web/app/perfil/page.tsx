@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import GameHistory from './GameHistory';
+import InventorySection from '@/components/perfil/InventorySection';
 
 export const metadata = { title: 'Mi perfil' };
 
@@ -19,6 +20,7 @@ export default async function PerfilPage() {
             elo: true,
             wins: true,
             losses: true,
+            coins: true,
             createdAt: true,
         },
     });
@@ -48,11 +50,20 @@ export default async function PerfilPage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
                         <StatCard label="ELO" value={user.elo} />
                         <StatCard label="Victorias" value={user.wins} />
                         <StatCard label="Derrotas" value={user.losses} />
                         <StatCard label="Winrate" value={`${winrate}%`} />
+                        <StatCard
+                            label="ShadowCoins"
+                            value={
+                                <span className="flex items-center justify-center gap-1 text-yellow-400">
+                                    <img src="/img/icons/shadow_coin_icon.png" alt="" className="h-5" />
+                                    {user.coins}
+                                </span>
+                            }
+                        />
                     </div>
                 </div>
 
@@ -66,13 +77,15 @@ export default async function PerfilPage() {
                         </p>
                     </div>
                 )}
+
+                <InventorySection />
             </main>
             <Footer />
         </>
     );
 }
 
-function StatCard({ label, value }: { label: string; value: number | string }) {
+function StatCard({ label, value }: { label: string; value: number | string | React.ReactNode }) {
     return (
         <div className="rounded-lg border border-white/5 bg-bg-dark p-4 text-center">
             <p className="text-2xl font-bold text-white">{value}</p>

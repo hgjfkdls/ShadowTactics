@@ -9,6 +9,7 @@ const links = [
     { href: '/como-jugar', label: 'Cómo jugar' },
     { href: '/cartas', label: 'Cartas' },
     { href: '/rankings', label: 'Rankings' },
+    { href: '/tienda', label: 'Tienda' },
     { href: '/jugar', label: 'Jugar' },
 ];
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { computeCoins } from '@/lib/pricing';
 
 const EXPECTED_API_KEY = process.env.REPORT_API_KEY ?? 'dev-key-change-me';
 
@@ -212,6 +213,49 @@ export async function POST(req: NextRequest) {
                 data: { losses: { increment: 1 } },
             });
         }
+
+        // ── Coin award ──
+        const lastGames = await tx.game.findMany({
+            where: { id: { not: gameId }, OR: [{ player1Id: winnerId }, { player2Id: winnerId }] },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: { winnerId: true },
+        });
+        let winnerStreak = 0;
+        for (const g of lastGames) { if (g.winnerId === winnerId) winnerStreak++; else break; }
+
+        let loserStreak = 0;
+        const lastLoserGames = await tx.game.findMany({
+            where: { id: { not: gameId }, OR: [{ player1Id: loserId }, { player2Id: loserId }] },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: { winnerId: true },
+        });
+        for (const g of lastLoserGames) { if (g.winnerId === loserId) loserStreak++; else break; }
+
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+
+        const [winnerTodayCount, loserTodayCount] = await Promise.all([
+            tx.transaction.count({ where: { userId: winnerId, concept: { startsWith: 'Partida completada' }, createdAt: { gte: today } } }),
+            tx.transaction.count({ where: { userId: loserId, concept: { startsWith: 'Partida completada' }, createdAt: { gte: today } } }),
+        ]);
+
+        const winnerFirst = winnerTodayCount === 0;
+        const loserFirst = loserTodayCount === 0;
+
+        const winnerScore = performance?.[winnerId]?.score ?? 50;
+        const loserScore = performance?.[loserId]?.score ?? 50;
+
+        const wCoins = computeCoins(true, winnerStreak, type === 'ranked', winnerFirst, winnerScore);
+        const lCoins = computeCoins(false, loserStreak, type === 'ranked', loserFirst, loserScore);
+
+        await Promise.all([
+            tx.user.update({ where: { id: winnerId }, data: { coins: { increment: wCoins } } }),
+            tx.user.update({ where: { id: loserId }, data: { coins: { increment: lCoins } } }),
+            tx.transaction.create({ data: { userId: winnerId, amount: wCoins, type: 'EARN', concept: `Partida completada:${gameId}` } }),
+            tx.transaction.create({ data: { userId: loserId, amount: lCoins, type: 'EARN', concept: `Partida completada:${gameId}` } }),
+        ]);
     });
 
     await prisma.matchSession.deleteMany({ where: { gameId } });
