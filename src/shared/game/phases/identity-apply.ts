@@ -2,6 +2,7 @@ import type { GameState } from '../state';
 import { BASE_STATS } from '../units';
 import { CLASS_ABILITIES } from '../data/abilities';
 import { IDENTITY_EFFECTS, getIdentityKey } from '../data/identities';
+import { AURA_CONFIG } from '../aura';
 
 function isArcherOrGeneral(cls: string): boolean {
   return cls === 'archer' || cls === 'general';
@@ -71,15 +72,6 @@ export function applyIdentityEffects(state: GameState): GameState {
     }
 
     // 3. Player-level identity tracking
-    if (key === 'dios_trueno') {
-      state = {
-        ...state,
-        players: {
-          ...state.players,
-          [playerId]: { ...state.players[playerId], celestialRayBonus: 3 },
-        },
-      };
-    }
     if (key === 'caballos_guerra') {
       state = {
         ...state,
@@ -88,6 +80,15 @@ export function applyIdentityEffects(state: GameState): GameState {
           [playerId]: { ...state.players[playerId], aLaCargaCost: 0 },
         },
       };
+    }
+  }
+
+  // Aura de mando: dificultad base del general sube a 7
+  if (AURA_CONFIG.isActive) {
+    for (const [uid, u] of Object.entries(units)) {
+      if (u.class === 'general') {
+        units[uid] = { ...u, difficulty: 7 };
+      }
     }
   }
 

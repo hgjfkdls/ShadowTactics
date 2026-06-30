@@ -6,9 +6,9 @@ import dotenv from 'dotenv';
 
 const env = dotenv.config().parsed || {};
 const isOnline = env.MODE === 'online';
-const wsUrl = isOnline
+const wsUrl = env.WS_URL || (isOnline
     ? env.SERVER_URL || `${env.LOCAL_URL || 'http://localhost'}:${env.SERVER_PORT || 3000}`
-    : `${env.LOCAL_URL || 'http://localhost'}:${env.SERVER_PORT || 3000}`;
+    : `${env.LOCAL_URL || 'http://localhost'}:${env.SERVER_PORT || 3000}`);
 
 export default defineConfig({
     plugins: [react(), tailwindcss()],
@@ -21,5 +21,13 @@ export default defineConfig({
     },
     define: {
         __WS_URL__: JSON.stringify(wsUrl),
+    },
+    server: {
+        proxy: {
+            '/socket.io': {
+                target: `http://localhost:${env.SERVER_PORT || 3000}`,
+                ws: true,
+            },
+        },
     },
 });

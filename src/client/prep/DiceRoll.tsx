@@ -32,8 +32,8 @@ export function DiceRoll({ state, sendAction, playerId, myIdentity, opponentIden
     }
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex items-center justify-center py-3 border-b border-zinc-700">
+        <div className="flex flex-col h-full pt-12">
+            <div className="flex items-center justify-center py-4 border-b border-zinc-700">
                 <h2 className="text-2xl font-bold">{l('deploy.roll.title')}</h2>
             </div>
 

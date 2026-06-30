@@ -8,6 +8,7 @@ import { BASE_STATS } from '@shared/game/units';
 import { l } from '@shared/i18n';
 import { UnitTooltip } from './UnitTooltip';
 import { statusLabel, classLabel, hitPercent } from './unitLabels';
+import { getAuraBuffs } from '@shared/game/aura';
 
 type Props = {
     state: GameState;
@@ -65,6 +66,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const hovered = hoveredUnitId === unit.id;
                 const maxHp = getMaxHp(unit.class);
                 const { buffs, debuffs } = getUnitStatus(unit, state.activeModifiers);
+                const auraBuffs = unit.class === 'general' ? getAuraBuffs(state, unit.owner) : null;
 
                 const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
                 const attackingUnit = attackingUnitId ? state.units[attackingUnitId] : null;
@@ -101,7 +103,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const isCazador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('cazadores');
                 const isIsolated = unit.owner !== playerId && !Object.values(state.units)
                     .some(u => u.owner !== playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1);
-                const showAcechar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && selectedUnit.class === 'general' && unit.owner !== playerId && isIsolated;
+                const showAcechar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && unit.owner !== playerId && isIsolated
+                    && (selectedUnit.class === 'general' || (selectedUnit.class === 'cavalry' && unit.class !== 'general'));
                 const showHostigar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && unit.owner !== playerId
                     && (selectedUnit.class === 'general' || selectedUnit.class === 'cavalry')
                     && unit.hp <= Math.floor(getMaxHp(unit.class) / 2);
@@ -117,11 +120,12 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                     && unit.owner !== playerId && unit.class === 'lancer'
                     && unitAbilities.includes('formacion_defensiva');
 
-                const showCelestialRay = (unit.celestialRayDamageBonus ?? 0) > 0;
+                const showCelestialRay = state.activeModifiers.some(m => m.stat === 'attack' && m.targetId === unit.id && m.sourceName === 'Rayo celestial' && (m.remainingUses ?? 0) > 0);
+                const celestialRayValue = state.activeModifiers.find(m => m.stat === 'attack' && m.targetId === unit.id && m.sourceName === 'Rayo celestial')?.value ?? 0;
 
                 const unitOwnerIdentity = state.players[unit.owner]?.selectedIdentity ?? '';
                 // Monje Shaolin: resistencia por meditación (modifier damage -1)
-                const hasDamageReductionMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'damage' && m.value < 0 && (m.remainingUses ?? 1) > 0);
+                const hasDamageReductionMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && ((m.stat === 'damage' && m.value < 0) || (m.stat === 'defense' && m.value > 0)) && (m.remainingUses ?? 1) > 0);
                 const hasAttackBonusMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0);
                 const isMonjeShaolin = unitOwnerIdentity.startsWith('monje_shaolin');
                 const isCorazonEstratega = unitOwnerIdentity.startsWith('corazon_estratega');
@@ -134,10 +138,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const showFormacionTrianguloDiana = unit.owner === playerId && hasAttackBonusMod && isCorazonEstratega && !!selectedUnit;
 
                 // Comandante Supremo
-                const hasAvanzarBuff = isComandanteSupremo && hasAttackBonusMod;
-                const hasReagruparBuff = isComandanteSupremo && hasDamageReductionMod;
+                const hasAvanzarBuff = isComandanteSupremo && (state.players[unit.owner]?.planBatallaBonus ?? 0) > 0;
+                const hasReagruparBuff = isComandanteSupremo && (state.players[unit.owner]?.planBatallaDefense ?? 0) > 0;
                 const vozDeMandoActivo = state.players[playerId]?.vozDeMandoReady === true && unit.class !== 'general';
-                const showAvanzarDiana = unit.owner === playerId && hasAvanzarBuff && !!selectedUnit;
+                const showAvanzarDiana = hasAvanzarBuff && !!selectedUnit;
                 const showReagruparShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && hasReagruparBuff;
                 const showReagruparSelf = unit.owner === playerId && hasReagruparBuff && !!selectedUnit;
 
@@ -150,27 +154,33 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const hasRoyalShield = unit.royalShieldSavedHp !== undefined;
                 const hasProtegerShield = state.activeModifiers.some(m => m.id.startsWith('proteger_') && m.targetId === unit.id && (m.remainingUses ?? 1) > 0);
 
-                // Voz de mando: persiste en tooltip hasta el siguiente turno
-                const showVozDeMandoReady = vozDeMandoActivo && unit.owner === playerId;
-                const showVozDeMandoUsed = !!unit.usedVozDeMando && unit.owner === playerId;
+                // Voz de mando: mostrar el bono en cualquier unidad que lo tenga
+                // Voz de mando: mostrar el bono en cualquier unidad que lo tenga
+                const hasVozBonus = (unit.vozDeMandoAttackBonus ?? 0) > 0 || (unit.vozDeMandoDefenseBonus ?? 0) > 0;
+                const showVozDeMandoReady = hasVozBonus;
+                const vozDeMandoDisponible = state.players[playerId]?.vozDeMandoReady && unit.owner === playerId;
 
-                // Valores reales de los modificadores (para mostrar +2/-2 con Voz de Mando)
+                // Valores reales de los modificadores y flags (Plan de batalla, Voz de mando)
                 const atkModSum = state.activeModifiers
                     .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0)
-                    .reduce((s, m) => s + m.value, 0);
+                    .reduce((s, m) => s + m.value, 0)
+                    + (unit.vozDeMandoAttackBonus ?? 0)
+                    + (isComandanteSupremo ? (state.players[unit.owner]?.planBatallaBonus ?? 0) : 0);
                 const dmgModSum = state.activeModifiers
                     .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'damage' && m.value < 0 && (m.remainingUses ?? 1) > 0)
                     .reduce((s, m) => s + m.value, 0);
+                const defModSum = state.activeModifiers
+                    .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'defense' && m.value > 0 && (m.remainingUses ?? 1) > 0)
+                    .reduce((s, m) => s + m.value, 0)
+                    + (unit.vozDeMandoDefenseBonus ?? 0)
+                    + (isComandanteSupremo ? (state.players[unit.owner]?.planBatallaDefense ?? 0) : 0);
 
                 const isDiosTrueno = unitOwnerIdentity.startsWith('dios_trueno');
                 const showFuriaBerserker = isDiosTrueno && (unit.class === 'infantry' || unit.class === 'general')
                     && unit.hp <= Math.floor(getMaxHp(unit.class) / 2);
-                const liderarNextTurn = state.players[unit.owner]?.nextTurnGlobalPresion;
-                const liderarActive = state.players[unit.owner]?.globalPresionActive;
+                const liderarBonus = state.players[unit.owner]?.liderarAtaqueBonus;
                 const isInfantryOrGeneral = unit.class === 'infantry' || unit.class === 'general';
-                const showLiderarTropas = liderarNextTurn
-                    ? unit.class === 'general'
-                    : liderarActive && isInfantryOrGeneral;
+                const showLiderarTropas = !!liderarBonus && liderarBonus > 0 && isInfantryOrGeneral;
 
                 const passiveLabels: string[] = [];
                 const isFrancotirador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('francotirador');
@@ -188,10 +198,19 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 if (showMeditacionShield) passiveLabels.push(l('passive.meditacion'));
                 if (showFormacionLineaShield) passiveLabels.push(l('passive.formacionLinea'));
                 if (showFormacionTrianguloDiana) passiveLabels.push(l('passive.formacionTriangulo'));
-                if (showVozDeMandoReady || showVozDeMandoUsed) passiveLabels.push(l('passive.vozDeMando'));
-                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`${l('passive.planBatallaAvanzar')} (+${atkModSum} ${l('passive.damageAbbr')})`);
+                if (showVozDeMandoReady) {
+                    const vozAtk = unit.vozDeMandoAttackBonus ?? 0;
+                    const vozDef = unit.vozDeMandoDefenseBonus ?? 0;
+                    const parts: string[] = [];
+                    if (vozAtk > 0) parts.push(`+${vozAtk} ${l('passive.attackAbbr')}`);
+                    if (vozDef > 0) parts.push(`+${vozDef} ${l('passive.defenseAbbr')}`);
+                    passiveLabels.push(`${l('passive.vozDeMando')} (${parts.join(', ')})`);
+                } else if (vozDeMandoDisponible) {
+                    passiveLabels.push(l('passive.vozDeMando'));
+                }
+                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`${l('passive.planBatallaAvanzar')} (+${atkModSum} ${l('passive.attackAbbr')})`);
                 if (showReagruparShield || showReagruparSelf) {
-                    if (dmgModSum < 0) passiveLabels.push(`${l('passive.planBatallaReagrupar')} (${dmgModSum} ${l('passive.damageAbbr')})`);
+                    if (defModSum > 0) passiveLabels.push(`${l('passive.planBatallaReagrupar')} (+${defModSum} ${l('passive.defenseAbbr')})`);
                 }
                 if (showGuardiaDiana && atkModSum > 0) passiveLabels.push(`${l('passive.guardiaRealAtk')} (+${atkModSum} ${l('passive.attackAbbr')})`);
                 if (showGuardiaShield && dmgModSum < 0) passiveLabels.push(`${l('passive.guardiaRealDef')} (${dmgModSum} ${l('passive.damageAbbr')})`);
@@ -201,12 +220,16 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 }
                 if (hasProtegerShield) passiveLabels.push(l('passive.proteger'));
                 if (unitOwnerIdentity.startsWith('capitan_guardia') && unit.class === 'general') {
-                    const usado = unit.usedCounterattack ? ` (${l('passive.exhausted')})` : '';
-                    passiveLabels.push(`${l('passive.contraataque')}${usado}`);
+                    passiveLabels.push(l('passive.contraataque'));
                 }
-                if (showAcechar) passiveLabels.push(`${l('passive.acechar')} (+${unit.class === 'general' ? 1 : 2} ${l('passive.damageAbbr')})`);
+                if (showAcechar) {
+                    const bonus = selectedUnit?.class === 'general'
+                        ? (unit.class === 'general' ? 1 : 2)
+                        : 1;
+                    passiveLabels.push(`${l('passive.acechar')} (+${bonus} ${l('passive.attackAbbr')})`);
+                }
                 if (showHostigar) passiveLabels.push(l('passive.hostigar'));
-                if (showCelestialRay) passiveLabels.push(`${l('passive.rayoCelestial')} (+${unit.celestialRayDamageBonus} ${l('passive.damageAbbr')})`);
+                if (showCelestialRay) passiveLabels.push(`${l('passive.rayoCelestial')} (+${celestialRayValue} ${l('passive.attackAbbr')})`);
                 if (showFuriaBerserker) passiveLabels.push(l('passive.furiaBerserker'));
                 if (hasTerror) {
                     if (unit.owner !== playerId && isTiranoViewer) {
@@ -215,11 +238,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         passiveLabels.push(l('passive.terrorDifficulty'));
                     }
                 }
-                if (liderarNextTurn && unit.class === 'general') passiveLabels.push(l('passive.liderarNextTurn'));
-                if (liderarActive && isInfantryOrGeneral) passiveLabels.push(l('passive.liderarActive'));
+                if (showLiderarTropas) passiveLabels.push(`${l('passive.liderarActive')} (+${liderarBonus} ${l('passive.attackAbbr')})`);
                 if (isDiosTrueno && unit.class === 'general') {
-                    const rayBonus = state.players[unit.owner]?.celestialRayBonus ?? 0;
-                    if (rayBonus > 0) passiveLabels.push(`${l('passive.rayoCelestialDisponible')} (+${rayBonus} ${l('passive.damageAbbr')})`);
+                    const hasValidAlly = Object.values(state.units).some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(unit.position, u.position) <= 2);
+                    if (hasValidAlly) passiveLabels.push(`${l('passive.rayoCelestialDisponible')} (${l('passive.attackAbbr')} +3)`);
                 }
                 if (isMonjeShaolin) passiveLabels.push(l('passive.karma'));
                 const isEspartano = unitOwnerIdentity.startsWith('espartano');
@@ -258,6 +280,15 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         .filter(m => m.stat === 'difficulty' && (m.remainingUses ?? 1) > 0 && m.sourcePlayerId === attacker.owner && (m.targetId === undefined || m.targetId === attacker.id))
                         .reduce((s, m) => m.operator === 'ADD' ? s + m.value : s, 0);
                     final += diffMod;
+                    // Aura de mando
+                    if (attacker.class === 'general') {
+                        const auraAtk = getAuraBuffs(state, attacker.owner);
+                        final -= auraAtk.difficultyReduction;
+                    }
+                    if (unit.class === 'general') {
+                        const auraDef = getAuraBuffs(state, unit.owner);
+                        final += auraDef.difficultyPenalty;
+                    }
                     return { distance: dist, difficulty: final, baseDifficulty: base };
                 })() : null;
 
@@ -320,7 +351,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             fill="white"
                             pointerEvents="none"
                         >
-                            {unit.hp}/{maxHp}
+                            {unit.hp + (unit.auraShield ?? 0)}/{maxHp}
                         </text>
 
                         {isBlancoFacilTarget && (
@@ -470,7 +501,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         )}
 
                         {hovered && (
-                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} passiveLabels={passiveLabels} />
+                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} passiveLabels={passiveLabels} auraBuffs={auraBuffs} />
                         )}
                     </g>
                 );

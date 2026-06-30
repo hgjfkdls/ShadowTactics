@@ -11,7 +11,6 @@ import type { CombatResult } from './ability-effects';
 function hasCapitanCounterattack(state: GameState, defender: Unit, distance: number): boolean {
     if (defender.class !== 'general') return false;
     if (distance !== 1) return false;
-    if (defender.usedCounterattack) return false;
     const identity = state.players[defender.owner]?.selectedIdentity ?? '';
     return identity.startsWith('capitan_guardia');
 }
@@ -73,15 +72,16 @@ export function resolveAttack(input: AttackInput): AttackResult {
         if (canCounter && !input.isExtraAttack) {
             cdmg = getCounterDamage();
             if (hasCapitanCounterattack(state, target, distance)) {
-                cdmg = 3;
-                s = updateUnit(s, target.id, (u) => ({ ...u, usedCounterattack: true }));
+                cdmg = 1;
             }
             s = dealDamage(s, unit.id, cdmg);
         }
-        // Consumir modificadores incluso en fallo (flechas de fuego, etc.)
+        // Consumir modificadores incluso en fallo (flechas de fuego, rayo celestial, etc.)
         s = consumeModifier(s, unit.owner, 'damage', 1);
         s = consumeModifier(s, target.owner, 'damage', 1, target.id);
+        s = consumeModifier(s, target.owner, 'defense', 1, target.id);
         s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
+        s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
         return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg };
     }
 
@@ -91,7 +91,6 @@ export function resolveAttack(input: AttackInput): AttackResult {
         if (isCritical(total)) dmg += getCriticalBonus();
         if (input.isCarga) dmg += 1;
         if (input.damagePenalty) dmg -= input.damagePenalty;
-        if (unit.celestialRayDamageBonus) dmg += unit.celestialRayDamageBonus;
     }
 
     const combatResult: CombatResult = { difficulty: 0, damage: dmg, attackCost: 0, ignoresPassives: false };
@@ -119,17 +118,14 @@ export function resolveAttack(input: AttackInput): AttackResult {
     s = dealDamage(s, target.id, finalDamage);
     s = applyPostHitAbilities(defCtx, s, true);
 
-    // Consumir rayo celestial tras el ataque
-    if (unit.celestialRayDamageBonus) {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, celestialRayDamageBonus: undefined }));
-    }
-
     // Consumir modificadores tras el ataque (por unidad específica)
     s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id);
     s = consumeModifier(s, unit.owner, 'difficulty', 1);
+    s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
     s = consumeModifier(s, unit.owner, 'damage', 1);
     // Consumir modificadores defensivos del objetivo (por unidad específica)
     s = consumeModifier(s, target.owner, 'damage', 1, target.id);
+    s = consumeModifier(s, target.owner, 'defense', 1, target.id);
 
     // Aplicar DoT si el atacante tenía flechas_fuego (dotOnHit)
     const hadDot = s.activeModifiers.some(m => m.stat === 'dotOnHit' && m.sourcePlayerId === unit.owner && m.remainingUses !== undefined && m.remainingUses > 0);
@@ -140,10 +136,9 @@ export function resolveAttack(input: AttackInput): AttackResult {
 
     let cdmg = canCounter ? getCounterDamage() : 0;
 
-    // Capitán de la Guardia: contraataque melee 1 dmg incluso en acierto
+    // Capitán de la Guardia: contraataque rango 1, 1 daño verdadero siempre
     if (hasCapitanCounterattack(state, target, distance)) {
         s = dealDamage(s, unit.id, 1);
-        s = updateUnit(s, target.id, (u) => ({ ...u, usedCounterattack: true }));
         cdmg = 1;
     }
 

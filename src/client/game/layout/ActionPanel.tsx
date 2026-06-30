@@ -81,7 +81,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
                 (a.id === 'cabalgar_2' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
                 (a.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)) ||
                 (a.id === 'ventaja_alcance' && (!!unit.attackedThisTurn || !!unit.usedVentajaAlcance || !!unit.usedDobleAtaque)) ||
-                (a.id === 'rayo_celestial' && (state.players[playerId]?.celestialRayBonus ?? 0) <= 0) ||
+                (a.id === 'rayo_celestial' && !!unit.usedRayoCelestial) ||
                 (a.id === 'a_la_carga' && (!!unit.aLaCargaActive || !!unit.usedCabalgar || !!unit.movedThisTurn || !!unit.attackedThisTurn || ap < cost + 1)) ||
                 (a.id === 'torbellino' && !!unit.usedTorbellino) ||
                 (a.id === 'meditacion' && (unit.hp >= BASE_STATS[unit.class].hp || ap < 2)) ||

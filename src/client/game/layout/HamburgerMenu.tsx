@@ -50,7 +50,7 @@ export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
                                 setLocale(next);
                             }}
                         >
-                            {l('hamburger.language')}: {getLocale() === 'es' ? 'Español' : 'English'}
+                            {l('ui.toggleLanguage', { locale: getLocale() === 'es' ? 'Español' : 'English' })}
                         </button>
                         {onSurrender && (
                             <button

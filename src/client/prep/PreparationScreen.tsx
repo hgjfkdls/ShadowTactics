@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState, GameAction } from '@shared';
+import type { TimerInfo } from '@shared/game/timer';
 import type { PlayerRole } from '@server/GameRoom';
+import { l } from '@shared/i18n';
 import { IdentitySelection } from './IdentitySelection';
 import { DiceRoll } from './DiceRoll';
 import { RevealScreen } from './RevealScreen';
@@ -13,6 +15,9 @@ type Props = {
     role: PlayerRole;
     bothPlayersReady: boolean;
     onDone: () => void;
+    timerInfo: TimerInfo | null;
+    sendRevealDismiss: () => void;
+    sendRollResultDismiss: () => void;
 };
 
 function getIdentityInfo(cardId: string | undefined) {
@@ -21,9 +26,17 @@ function getIdentityInfo(cardId: string | undefined) {
     return IDENTITY_INFO[key] ?? null;
 }
 
-export function PreparationScreen({ state, sendAction, role, bothPlayersReady, onDone }: Props) {
+export function PreparationScreen({ state, sendAction, role, bothPlayersReady, onDone, timerInfo, sendRevealDismiss, sendRollResultDismiss }: Props) {
     const [revealDismissed, setRevealDismissed] = useState(false);
     const [rollResultDismissed, setRollResultDismissed] = useState(false);
+
+    const playerId = role.role === 'player' ? role.playerId : 'p1';
+    const opponentId = playerId === 'p1' ? 'p2' : 'p1';
+
+    const bothIdentitiesRevealed = state.players['p1']?.revealedIdentity && state.players['p2']?.revealedIdentity;
+    const bothRolled = state.diceRolls['p1'] !== undefined && state.diceRolls['p2'] !== undefined;
+    const noTieResolved = bothRolled && state.diceRolls['p1'] !== state.diceRolls['p2'];
+    const rollResolved = noTieResolved && state.activePlayer !== undefined;
 
     const prevGamePhase = useRef(state.gamePhase);
     useEffect(() => {
@@ -34,51 +47,68 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
         prevGamePhase.current = state.gamePhase;
     }, [state.gamePhase]);
 
+    // Auto-dismiss roll results when phase moves to DEPLOYMENT
+    useEffect(() => {
+        if (rollResolved && state.preparationPhase === 'DEPLOYMENT' && !rollResultDismissed) {
+            setRollResultDismissed(true);
+            onDone();
+        }
+    }, [state.preparationPhase]);
+
+    // Auto-dismiss reveal screen when timer moves past REVEAL
+    useEffect(() => {
+        if (bothIdentitiesRevealed && !revealDismissed && timerInfo && timerInfo.phase !== 'REVEAL' && timerInfo.phase !== 'IDENTITY_SELECTION') {
+            setRevealDismissed(true);
+        }
+    }, [timerInfo?.phase]);
+
     if (role.role !== 'player') {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">
-                <div className="text-xl font-bold">Preparación</div>
-                <div className="text-zinc-400">Esperando a que los jugadores se preparen...</div>
+                <div className="text-xl font-bold">{l('ui.preparation')}</div>
+                <div className="text-zinc-400">{l('ui.waitingPlayers')}</div>
             </div>
         );
     }
 
-    const playerId = role.playerId;
-    const opponentId = playerId === 'p1' ? 'p2' : 'p1';
-
-    const bothIdentitiesRevealed = state.players['p1']?.revealedIdentity && state.players['p2']?.revealedIdentity;
-    const bothRolled = state.diceRolls['p1'] !== undefined && state.diceRolls['p2'] !== undefined;
-    const noTieResolved = bothRolled && state.diceRolls['p1'] !== state.diceRolls['p2'];
-    const rollResolved = noTieResolved && state.activePlayer !== undefined;
-
     const myIdentityInfo = getIdentityInfo(state.players[playerId]?.selectedIdentity);
     const opponentIdentityInfo = getIdentityInfo(state.players[opponentId]?.selectedIdentity);
 
-    // Roll results overlay (highest priority — shows even if phase is already DEPLOYMENT)
+    // Roll results overlay (highest priority)
     if (rollResolved && !rollResultDismissed) {
         return (
             <RollResults
                 state={state}
                 playerId={playerId}
-                onContinue={() => {
-                    setRollResultDismissed(true);
-                    onDone();
-                }}
+                onContinue={() => sendRollResultDismiss()}
             />
         );
     }
 
+    // Waiting for opponent after dismissing reveal but before timer expires
+    if (bothIdentitiesRevealed && revealDismissed && timerInfo?.phase === 'REVEAL') {
+        return (
+            <div className="flex flex-col items-center justify-center h-full gap-4">
+                <div className="text-2xl font-bold">{l('ui.identitiesRevealed')}</div>
+                <div className="text-zinc-400">{l('ui.waitingOpponent')}</div>
+            </div>
+        );
+    }
+
     // Identity reveal overlay (after both selected, before roll)
-    if (bothIdentitiesRevealed && !revealDismissed && (state.preparationPhase === 'ROLL' || state.preparationPhase === 'DEPLOYMENT')) {
+    if (bothIdentitiesRevealed && !revealDismissed && (state.preparationPhase === 'ROLL' || state.preparationPhase === 'ROLL_RESULT' || state.preparationPhase === 'DEPLOYMENT')) {
         if (myIdentityInfo && opponentIdentityInfo) {
             return (
-                <RevealScreen
-                    myIdentity={myIdentityInfo}
-                    opponentIdentity={opponentIdentityInfo}
-                    myCardId={state.players[playerId]?.selectedIdentity}
-                    opponentCardId={state.players[opponentId]?.selectedIdentity}
-                    onContinue={() => setRevealDismissed(true)}
-                />
+                    <RevealScreen
+                        myIdentity={myIdentityInfo}
+                        opponentIdentity={opponentIdentityInfo}
+                        myCardId={state.players[playerId]?.selectedIdentity}
+                        opponentCardId={state.players[opponentId]?.selectedIdentity}
+                        onContinue={() => {
+                            sendRevealDismiss();
+                            setRevealDismissed(true);
+                        }}
+                    />
             );
         }
     }
@@ -97,6 +127,7 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
                 </div>
             );
         case 'ROLL':
+        case 'ROLL_RESULT':
             return (
                 <>
                     <DiceRoll
@@ -112,7 +143,7 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
                             onClick={() => sendAction({ type: 'SIMULATE_PREPARATION', playerId })}
                             className="bg-amber-700 hover:bg-amber-600 transition text-white px-6 py-2 rounded-lg text-sm font-semibold cursor-pointer"
                         >
-                            ⚡ Simular preparación y despliegue
+                            {l('ui.simulatePrep')}
                         </button>
                     </div>
                 </>

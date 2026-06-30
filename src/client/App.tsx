@@ -32,10 +32,14 @@ export function App() {
         joinGame,
         leaveGame,
         sendAction,
+        sendRevealDismiss,
+        sendRollResultDismiss,
         connected,
         lastBlockedReason,
         clearBlockedReason,
         opponentDisconnectedAt,
+        timerInfo,
+        pausedTimerInfo,
     } = useGameState();
 
     const [gameIdInput, setGameIdInput] = useState('');
@@ -85,19 +89,6 @@ export function App() {
         }
     }, [state?.turnPhase, state?.gamePhase]);
 
-    const lastHealKeyRef = useRef<string | null>(null);
-    useEffect(() => {
-        if (state?.lastIdentityHeal) {
-            const key = `${state.lastIdentityHeal.unitId}-${state.turn}-${state.activePlayer}`;
-            if (key !== lastHealKeyRef.current) {
-                lastHealKeyRef.current = key;
-                const unit = state.units[state.lastIdentityHeal.unitId];
-                const ownerLabel = l(unit?.owner === 'p1' ? 'board.player1' : 'board.player2');
-                addAlert(l('alert.identityHeal', { player: ownerLabel }), 'success');
-            }
-        }
-    }, [state?.lastIdentityHeal]);
-
     const lastCaminoRef = useRef<boolean>(false);
     useEffect(() => {
         if (state?.lastCaminoDelGuerrero && !lastCaminoRef.current) {
@@ -123,7 +114,7 @@ export function App() {
     return (
         <KeyBindingsProvider>
         <AnimationProvider>
-        <div key={localeKey} className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr]">
+        <div key={localeKey} className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr] overflow-hidden">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
                 {gameId && <>
@@ -140,20 +131,20 @@ export function App() {
                     {confirmLeave && (
                         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setConfirmLeave(false)}>
                             <div className="bg-zinc-900 border-2 border-zinc-700 rounded-xl px-8 py-6 shadow-2xl min-w-72 text-center space-y-4" onClick={e => e.stopPropagation()}>
-                                <div className="text-base text-zinc-200 font-semibold">Abandonar partida</div>
-                                <div className="text-sm text-zinc-400">Si abandonas la partida, se contará como rendición.</div>
+                                <div className="text-base text-zinc-200 font-semibold">{l('ui.abandonTitle')}</div>
+                                <div className="text-sm text-zinc-400">{l('ui.abandonDesc')}</div>
                                 <div className="flex gap-3 justify-center pt-2">
                                     <button
                                         onClick={() => { setConfirmLeave(false); leaveGame(); }}
                                         className="bg-red-600 hover:bg-red-500 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
                                     >
-                                        Abandonar
+                                        {l('ui.abandon')}
                                     </button>
                                     <button
                                         onClick={() => setConfirmLeave(false)}
                                         className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
                                     >
-                                        Cancelar
+                                        {l('ui.cancel')}
                                     </button>
                                 </div>
                             </div>
@@ -163,15 +154,24 @@ export function App() {
             </header>
 
             {gameId ? (
-                state && state.gamePhase === 'PREPARATION' && !prepDone ? (
+                <div className="relative h-full overflow-hidden">
+                {state && state.gamePhase === 'PREPARATION' && !prepDone ? (
+                    <>
+                    <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
                     <PreparationScreen
                         state={state}
                         sendAction={sendAction}
                         role={role}
                         bothPlayersReady={bothPlayersReady}
                         onDone={() => setPrepDone(true)}
+                        timerInfo={timerInfo}
+                        sendRevealDismiss={sendRevealDismiss}
+                        sendRollResultDismiss={sendRollResultDismiss}
                     />
+                    </>
                 ) : state && state.preparationPhase === 'DEPLOYMENT' ? (
+                    <>
+                    <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
                     <DeploymentScreen
                         state={state}
                         sendAction={sendAction}
@@ -179,6 +179,7 @@ export function App() {
                         selectedInfo={selectedInfo}
                         onInfoSelect={setSelectedInfo}
                     />
+                    </>
                 ) : isGameOrOver ? (
                     <div className="grid grid-cols-[240px_1fr_280px] overflow-hidden h-full">
                         <PlayerSidebar
@@ -212,13 +213,7 @@ export function App() {
                             {state?.gamePhase === 'GAME_OVER' && (
                                 <GameOverModal state={state} playerId={playerId} onLeaveGame={leaveGame} />
                             )}
-                            {state && (state.gamePhase === 'GAME' || state.gamePhase === 'GAME_OVER') && (
-                                <TurnTimer
-                                    activePlayer={state.activePlayer}
-                                    turnPhase={state.turnPhase ?? ''}
-                                    paused={!!opponentDisconnectedAt}
-                                />
-                            )}
+                            <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
                         </main>
                         <RightPanel
                             state={state}
@@ -231,7 +226,8 @@ export function App() {
                     <div className="flex items-center justify-center h-full text-zinc-400">
                         Waiting for game state…
                     </div>
-                )
+                )}
+                </div>
             ) : (
                 <main className="flex items-start justify-center h-full">
                     <div className="flex flex-col items-center gap-4 mt-24">

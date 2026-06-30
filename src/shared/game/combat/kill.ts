@@ -35,10 +35,10 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
             newState = dealDamage(newState, killerId, 2);
             newState = {
                 ...newState,
-                gameHistory: [...newState.gameHistory, {
+                karmaEntryToAppend: {
                     id: `h${newState.nextHistoryId}`,
                     turn: newState.turn,
-                    actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+                    actionNumber: 0, // will be set when appended
                     playerId: unit.owner,
                     type: 'attack' as const,
                     attackerId: unit.id,
@@ -54,8 +54,7 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
                     attackName: 'Karma',
                     modifiers: ['Monje Shaolin: daño reflejado al asesino'],
                     paCost: 0,
-                }],
-                nextHistoryId: newState.nextHistoryId + 1,
+                },
             };
         }
 
@@ -78,6 +77,21 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
                             caminoDelGuerreroUsedThisTurn: true,
                         },
                     },
+                    gameHistory: [...newState.gameHistory, {
+                        id: `h${newState.nextHistoryId}`,
+                        turn: newState.turn,
+                        actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+                        playerId: killerOwner,
+                        type: 'card' as const,
+                        cardId: 'camino_guerrero',
+                        cardName: 'Camino del guerrero',
+                        cardType: 'BUFF' as const,
+                        details: '+1 PA',
+                        paCost: 0,
+                        sourceClass: killerUnit.class,
+                        sourceIdentity: 'Samurái',
+                    }],
+                    nextHistoryId: newState.nextHistoryId + 1,
                 };
             }
 
@@ -101,13 +115,21 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
     return newState;
 }
 
-export function dealDamage(state: GameState, unitId: string, damage: number): GameState {
+export function dealDamage(state: GameState, unitId: string, damage: number, killerId?: string): GameState {
     const unit = state.units[unitId];
     if (!unit) return state;
-    const newHp = unit.hp - damage;
-    let newState = updateUnit(state, unitId, (u) => ({ ...u, hp: newHp }));
+
+    // Consumir escudo del aura antes que HP
+    const shield = unit.auraShield ?? 0;
+    if (shield >= damage) {
+        return updateUnit(state, unitId, (u) => ({ ...u, auraShield: shield - damage }));
+    }
+    const remaining = damage - shield;
+
+    const newHp = unit.hp - remaining;
+    let newState = updateUnit(state, unitId, (u) => ({ ...u, hp: newHp, auraShield: 0 }));
     if (newHp <= 0) {
-        newState = killUnit(newState, unitId);
+        newState = killUnit(newState, unitId, killerId);
     }
     return newState;
 }

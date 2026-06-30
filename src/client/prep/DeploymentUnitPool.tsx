@@ -27,7 +27,7 @@ export function DeploymentUnitPool({ state, playerId, selectedUnitId, onSelectUn
                     Paso {step + 1} / 12
                     {isMyTurn
                         ? ` — Colocas ${step === 0 || step === 11 ? '1' : '2'} unidad(es)`
-                        : ' — Esperando...'}
+                        : l('ui.waiting')}
                 </div>
                 <div className="text-[11px] text-zinc-500">
                     Colocadas: {deployedCount} / 11 · Restan: {pool.length}
@@ -65,7 +65,7 @@ export function DeploymentUnitPool({ state, playerId, selectedUnitId, onSelectUn
 
             {selectedUnitId && (
                 <div className="text-[11px] text-green-400 text-center">
-                    ✅ Haz clic en un hexágono válido
+                    {l('ui.clickHex')}
                 </div>
             )}
         </div>

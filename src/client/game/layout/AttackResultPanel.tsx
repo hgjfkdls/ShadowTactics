@@ -63,9 +63,48 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
     const bgCls = selected ? 'bg-blue-600/15' : 'bg-zinc-700/40';
     const playerBorder = entry.playerId === 'p1' ? 'border-l-green-700' : 'border-l-red-700';
 
+    const SUPPORT_ABILITIES = new Set([
+        'Ángel Guardián', 'Proteger', 'Rayo celestial', 'Meditación',
+        'En nombre del rey', 'Sacrificar', 'Camino del guerrero',
+        'Voz de mando', 'Liderar a las tropas', 'Lanza y escudo',
+    ]);
+
     if (entry.type === 'attack') {
+        const isSupport = SUPPORT_ABILITIES.has(entry.attackName);
         const isCritical = entry.total >= 11;
         const isTorbellino = entry.attackName === 'Torbellino';
+
+        if (isSupport) {
+            const sourceName = 'General - Escudo del Comandante';
+            const effects: React.ReactNode[] = [];
+            if (entry.attackName === 'Ángel Guardián') {
+                effects.push(<span key="shield"><span className="text-blue-400">🛡</span> Escudo +2 HP a {entry.shieldedCount} aliados</span>);
+                if (entry.healedId) {
+                    effects.push(<span key="heal" className="text-green-400">💚 {l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 HP</span>);
+                }
+            } else if (entry.attackName === 'Proteger') {
+                effects.push(<span key="def" className="text-blue-400">🛡 {l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 defensa</span>);
+            }
+            const lastIdx = effects.length - 1;
+            return (
+                <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+                    <div className="text-zinc-500 flex justify-between items-center mb-1">
+                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
+                        <span className="text-cyan-400 text-[10px] font-semibold">{entry.attackName}</span>
+                    </div>
+                    <div className="text-zinc-400 text-[9px] mb-0.5">{sourceName}</div>
+                    <div className="text-zinc-300 text-[10px] leading-relaxed space-y-0.5">
+                        {effects.map((e, i) => (
+                            <div key={i} className="flex justify-between items-center">
+                                <span>{e}</span>
+                                {i === lastIdx && <span className="text-[10px] font-bold text-yellow-400 ml-2">{entry.paCost ?? 0} PA</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
@@ -103,9 +142,9 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                         {entry.attackName === 'Sacrificar' ? (
                             <span className="text-red-400 font-semibold">🔴 -{entry.damage} HP</span>
                         ) : entry.hit ? (
-                            <span className="text-green-400 font-semibold">✅ -{entry.damage} HP{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage})` : ''}</span>
+                            <span className="text-green-400 font-semibold">✅ -{entry.damage} HP{entry.counterDamage > 0 && entry.counterDamage !== 2 ? <span className="text-red-400">{` (${l('board.counter')} -${entry.counterDamage} HP)`}</span> : ''}</span>
                         ) : (
-                            <span className="text-red-400 font-semibold">❌ {l('board.miss')}{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage})` : ''}</span>
+                            <span className="text-red-400 font-semibold">❌ {l('board.miss')}{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage} HP)` : ''}</span>
                         )}
                         {(entry.targetKilled || entry.attackerKilled) && (
                             <span className="text-yellow-400 ml-1">⚫</span>
@@ -141,10 +180,74 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
         );
     }
 
+    const CARD_SUPPORT = new Set([
+        'rayo_celestial', 'meditacion', 'en_nombre_del_rey', 'liderar_tropas',
+        'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_guerrero', 'robar_ricos',
+        'cabalgar', 'a_la_carga', 'posicion_estrategica',
+    ]);
+
     if (entry.type === 'card') {
         const isRealCard = /_\d+$/.test(entry.cardId);
         const isCounter = entry.cardType === 'COUNTER';
-        const supportColor = 'text-emerald-400';
+        const isAbilityCard = !isRealCard && CARD_SUPPORT.has(entry.cardId);
+
+        if (isAbilityCard) {
+            // Build effect lines per ability
+            const effLines: { text: string; color: string }[] = [];
+            const cls = (c: string) => l(`unit.class.${c}`) ?? c;
+            if (entry.cardId === 'en_nombre_del_rey') {
+                effLines.push({ text: `🛡 [${entry.targetId}] ${cls(entry.targetClass)} Escudo +3 HP`, color: 'text-blue-400' });
+                effLines.push({ text: `⚔ [${entry.targetId}] ${cls(entry.targetClass)} Ataque +2`, color: 'text-red-400' });
+            } else if (entry.cardId === 'rayo_celestial') {
+                effLines.push({ text: `⚔ [${entry.targetId}] ${cls(entry.targetClass)} Ataque +3`, color: 'text-red-400' });
+            } else if (entry.cardId === 'voz_de_mando') {
+                effLines.push({ text: `⚔ +1 ataque, 🛡 +1 defensa`, color: 'text-zinc-300' });
+            } else if (entry.cardId === 'plan_batalla') {
+                const isAtk = entry.details?.includes('Avanzar');
+                effLines.push({ text: isAtk ? `⚔ ${entry.details}` : `🛡 ${entry.details}`, color: isAtk ? 'text-red-400' : 'text-blue-400' });
+            } else if (entry.cardId === 'camino_guerrero') {
+                effLines.push({ text: `⚔ +1 PA (kill a rango 1)`, color: 'text-yellow-400' });
+            } else if (entry.cardId === 'robar_ricos') {
+                effLines.push({ text: `💚 [${entry.targetId}] ${cls(entry.targetClass)} +1 HP`, color: 'text-green-400' });
+            } else if (entry.cardId === 'posicion_estrategica') {
+                effLines.push({ text: `👟 ${entry.details}`, color: 'text-amber-400' });
+            } else if (entry.cardId === 'cabalgar' || entry.cardId === 'a_la_carga') {
+                const parts = (entry.details ?? '').split(' · ');
+                effLines.push({ text: `👟 ${parts[0] ?? ''}`, color: 'text-amber-400' });
+                if (parts.length > 1) effLines.push({ text: `  ${parts[1]}`, color: 'text-zinc-500' });
+            } else if (entry.cardId === 'meditacion') {
+                effLines.push({ text: `💚 +${entry.details?.match(/(\d+)/)?.[1] ?? '?'} HP (${entry.sourceIdentity})`, color: 'text-green-400' });
+            } else if (entry.cardId === 'lanza_escudo') {
+                const isRange = entry.details?.includes('rango');
+                effLines.push({ text: isRange ? `⚔ +1 rango` : `🛡 +1 defensa`, color: isRange ? 'text-red-400' : 'text-blue-400' });
+            } else if (entry.cardId === 'liderar_tropas') {
+                const bonus = entry.details?.match(/\+(\d+)/)?.[1] ?? '1';
+                effLines.push({ text: `⚔ Infantería +${bonus} ataque este turno`, color: 'text-red-400' });
+            } else if (entry.details) {
+                effLines.push({ text: entry.details, color: 'text-zinc-300' });
+            }
+            const last = effLines.length - 1;
+            return (
+                <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+                    <div className="text-zinc-500 flex justify-between items-center mb-1">
+                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
+                        <span className="text-cyan-400 text-[10px] font-semibold">{entry.cardName}</span>
+                    </div>
+                    {entry.sourceClass && entry.sourceIdentity && (
+                        <div className="text-zinc-400 text-[9px] mb-0.5">{cls(entry.sourceClass)} - {entry.sourceIdentity}</div>
+                    )}
+                    <div className="text-zinc-300 text-[10px] space-y-0.5">
+                        {effLines.map((line, i) => (
+                            <div key={i} className="flex justify-between items-center">
+                                <span className={line.color}>{line.text}</span>
+                                {i === last && <span className="text-[10px] font-bold text-yellow-400 ml-2">{entry.paCost ?? 0} PA</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
         const abilityColor = isCounter ? 'text-violet-400' : isRealCard ? (entry.cardType === 'BUFF' ? 'text-emerald-400' : 'text-red-400') : 'text-green-400';
         const titleLine = entry.sourceClass && entry.sourceIdentity
             ? `${l(`unit.class.${entry.sourceClass}`) ?? entry.sourceClass} - ${entry.sourceIdentity}`

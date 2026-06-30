@@ -101,9 +101,9 @@ export const ABILITIES: Record<string, UnitAbility> = {
         restrictions: 'Coste progresivo: +0/+1/+2 (se mantiene en 2). Solo hacia un enemigo.',
     },
     rayo_celestial: {
-        id: 'rayo_celestial', name: 'Rayo celestial', type: 'active', cost: 1,
-        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque hace +X daño (X: 3/2/1 según usos)',
-        restrictions: 'Cada uso reduce el daño en 1. Se desactiva tras el tercer uso.',
+        id: 'rayo_celestial', name: 'Rayo celestial', type: 'active', cost: 2,
+        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque tiene +3 de ataque',
+        restrictions: 'El objetivo debe estar a rango ≤ 2. El efecto se consume tras el ataque.',
         requiresTarget: true,
     },
     avance: {
@@ -114,7 +114,7 @@ export const ABILITIES: Record<string, UnitAbility> = {
     // ── IDENTIDAD: INSPIRACIÓN REAL ──
     en_nombre_del_rey: {
         id: 'en_nombre_del_rey', name: 'En nombre del rey', type: 'active', cost: 2,
-        description: 'Un aliado a rango ≤ 2 obtiene ataque 5 y escudo 3 HP hasta tu siguiente turno. El General no puede atacar este turno.',
+        description: 'Un aliado a rango ≤ 2 obtiene +2 ataque y escudo 3 HP hasta tu siguiente turno. El General no puede atacar este turno.',
         restrictions: '2 PA. El General queda marcado como atacado.',
         requiresTarget: true,
     },
@@ -129,8 +129,8 @@ export const ABILITIES: Record<string, UnitAbility> = {
     // ── IDENTIDAD: MONJE SHAOLIN ──
     meditacion: {
         id: 'meditacion', name: 'Meditación', type: 'active', cost: 2,
-        description: 'Recupera 3 HP a tu General. Sin límite de usos por turno.',
-        restrictions: 'El General debe tener al menos 2 PA disponibles.',
+        description: 'Si no usaste meditación en tu turno, tu General gana +1 de defensa hasta el próximo turno. Activar: recupera 3 HP a tu General.',
+        restrictions: 'El General debe tener al menos 2 PA disponibles y no estar a full HP.',
     },
 
     // ── IDENTIDAD: SAMURÁI ──
@@ -148,11 +148,11 @@ export const ABILITIES: Record<string, UnitAbility> = {
     // ── IDENTIDAD: ESCUDO DEL COMANDANTE ──
     angel_guardian: {
         id: 'angel_guardian', name: 'Ángel Guardián', type: 'active', cost: 2,
-        description: 'Todos los aliados reciben un escudo de 2 HP hasta tu siguiente turno.',
+        description: 'Todos los aliados reciben un escudo de +2 HP y cura 1 HP al aliado (incluye General) que más HP le falte (aleatorio si hay empate).',
     },
     proteger: {
         id: 'proteger', name: 'Proteger', type: 'active', cost: 0,
-        description: 'Un aliado a rango ≤ 3 recibe -1 daño hasta tu siguiente turno. Se acumula con otras defensas (Resistencia, Línea defensiva). Si no se usa, el efecto va al General.',
+        description: 'Un aliado a rango ≤ 3 recibe +1 defensa hasta tu siguiente turno. Se acumula con otras defensas. Si no se usa, el efecto va al General.',
         requiresTarget: true,
     },
 

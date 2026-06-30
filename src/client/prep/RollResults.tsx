@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { IDENTITY_INFO, getIdentityKey } from './identityData';
 import { l } from '@shared/i18n';
 
@@ -8,6 +9,7 @@ type Props = {
 };
 
 export function RollResults({ state, playerId, onContinue }: Props) {
+    const [dismissSent, setDismissSent] = useState(false);
     const opponentId = playerId === 'p1' ? 'p2' : 'p1';
     const myRoll = state.diceRolls[playerId]!;
     const opponentRoll = state.diceRolls[opponentId]!;
@@ -45,12 +47,16 @@ export function RollResults({ state, playerId, onContinue }: Props) {
                 <MiniIdentity id={oppCardId} label={l('deploy.roll.opponent')} color="red" />
             </div>
 
-            <button
-                onClick={onContinue}
-                className="bg-blue-600 hover:bg-blue-500 transition text-white px-8 py-3 rounded-lg text-lg font-semibold cursor-pointer"
-            >
-                {l('preparation.continueToDeploy')}
-            </button>
+            {dismissSent ? (
+                <div className="text-zinc-400 text-lg">{l('ui.waitingOpponent')}</div>
+            ) : (
+                <button
+                    onClick={() => { setDismissSent(true); onContinue(); }}
+                    className="bg-blue-600 hover:bg-blue-500 transition text-white px-8 py-3 rounded-lg text-lg font-semibold cursor-pointer"
+                >
+                    {l('preparation.continueToDeploy')}
+                </button>
+            )}
         </div>
     );
 }

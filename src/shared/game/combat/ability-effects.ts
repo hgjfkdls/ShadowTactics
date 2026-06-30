@@ -4,6 +4,7 @@ import { getModifierSum } from '../modifiers/engine';
 import { dealDamage, updateUnit } from '../utils';
 import { BASE_STATS } from '../units';
 import { hexDistance } from '../../hex';
+import { getAuraBuffs } from '../aura';
 
 export type CombatResult = {
     difficulty: number;
@@ -105,11 +106,11 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     },
 };
 
-export function getUnitModifiers(state: GameState, playerId: string, unitId?: string): { difficulty: number; attackMod: number; damageMod: number; attackCost: number } {
+export function getUnitModifiers(state: GameState, playerId: string, unitId?: string): { difficulty: number; attackMod: number; defenseMod: number; attackCost: number } {
     return {
         difficulty: getModifierSum(state, playerId, unitId ?? null, 'difficulty'),
         attackMod: getModifierSum(state, playerId, unitId ?? null, 'attack'),
-        damageMod: getModifierSum(state, playerId, unitId ?? null, 'damage'),
+        defenseMod: getModifierSum(state, playerId, unitId ?? null, 'defense'),
         attackCost: getModifierSum(state, playerId, unitId ?? null, 'attackCost'),
     };
 }
@@ -135,6 +136,18 @@ export function applyDifficultyAbilities(ctx: AbilityContext, result: CombatResu
             }
         }
     }
+
+    // Aura de mando: arqueros cerca del general reducen dificultad de sus ataques
+    if (ctx.attacker.class === 'general') {
+        const buffs = getAuraBuffs(ctx.state, ctx.attacker.owner);
+        if (buffs.difficultyReduction > 0) result.difficulty -= buffs.difficultyReduction;
+    }
+
+    // Aura de mando: caballería cerca del general enemigo da +dificultad al atacar
+    if (ctx.defender.class === 'general') {
+        const buffs = getAuraBuffs(ctx.state, ctx.defender.owner);
+        if (buffs.difficultyPenalty > 0) result.difficulty += buffs.difficultyPenalty;
+    }
 }
 
 export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult): void {
@@ -142,8 +155,8 @@ export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult):
         ABILITY_EFFECTS[ability]?.onDamage?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
-    // Ataque saliente: attack modifiers + damage modifiers (Flechas de fuego, Mantenimiento de equipo)
-    result.damage += mods.attackMod + mods.damageMod;
+    // Ataque saliente: attack modifiers (Avanzar, Mantenimiento de equipo, etc.)
+    result.damage += mods.attackMod;
 
     // Furia berserker (Dios del Trueno) — general e infantería +1 daño si HP ≤ 50%
     const identity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
@@ -157,24 +170,42 @@ export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult):
         }
     }
 
-    // Acechar (Cazadores) — +2 daño a unidades aisladas (sin aliados adyacentes)
+    // Acechar (Cazadores) — general +2 ataque a aisladas (+1 contra general), caballería mitad (+1, no afecta general)
     const cazadorIdentity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
     if (cazadorIdentity.startsWith('cazadores')) {
         const hasAdjacentAlly = Object.values(ctx.state.units)
             .some(u => u.owner === ctx.defender.owner && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
         if (!hasAdjacentAlly) {
-            const bonus = ctx.defender.class === 'general' ? 1 : 2;
-            result.damage += bonus;
+            if (ctx.attacker.class === 'general') {
+                const bonus = ctx.defender.class === 'general' ? 1 : 2;
+                result.damage += bonus;
+            } else if (ctx.attacker.class === 'cavalry' && ctx.defender.class !== 'general') {
+                result.damage += 1;
+            }
         }
     }
 
-    // Liderar a las tropas (Capitán de la Guardia) — Presión global para infantería + general
-    if (ctx.state.players[ctx.attacker.owner]?.globalPresionActive) {
+    // Plan de batalla (Comandante Supremo) — Avanzar: +1 ataque a todas las unidades
+    const planBonus = ctx.state.players[ctx.attacker.owner]?.planBatallaBonus;
+    if (planBonus && planBonus > 0) {
+        result.damage += planBonus;
+    }
+
+    // Voz de mando (Comandante Supremo) — +1 ataque a la unidad beneficiada
+    const vozAtkBonus = ctx.attacker.vozDeMandoAttackBonus;
+    if (vozAtkBonus && vozAtkBonus > 0) {
+        result.damage += vozAtkBonus;
+    }
+
+    // Liderar a las tropas (Capitán de la Guardia) — infantería + general ganan ataque tras ataque del general
+    const liderarBonus = ctx.state.players[ctx.attacker.owner]?.liderarAtaqueBonus;
+    if (liderarBonus && liderarBonus > 0) {
         const isInfantryOrGeneral = ctx.attacker.class === 'infantry' || ctx.attacker.class === 'general';
         if (isInfantryOrGeneral) {
-            result.damage += 1;
+            result.damage += liderarBonus;
         }
     }
+
 }
 
 export function applyCostAbilities(ctx: AbilityContext, result: CombatResult): void {
@@ -193,8 +224,20 @@ export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult)
         ABILITY_EFFECTS[ability]?.onDefense?.({ ...ctx, abilitySide: 'defender' }, result);
     }
     const mods = getUnitModifiers(ctx.state, ctx.defender.owner, ctx.defender.id);
-    // damageMod negativo afecta daño entrante (Reagruparse, Mantenimiento sobre el defensor)
-    result.damage += Math.min(0, mods.damageMod);
+    // defenseMod resta del daño entrante (Meditación, etc.)
+    result.damage = Math.max(1, result.damage - mods.defenseMod);
+
+    // Plan de batalla (Comandante Supremo) — Reagruparse: +1 defensa
+    const planDefBonus = ctx.state.players[ctx.defender.owner]?.planBatallaDefense;
+    if (planDefBonus && planDefBonus > 0) {
+        result.damage = Math.max(1, result.damage - planDefBonus);
+    }
+
+    // Voz de mando (Comandante Supremo) — +1 defensa a la unidad beneficiada
+    const vozDefBonus = ctx.defender.vozDeMandoDefenseBonus;
+    if (vozDefBonus && vozDefBonus > 0) {
+        result.damage = Math.max(1, result.damage - vozDefBonus);
+    }
 
     // Espartano: Lanza y escudo (-1 daño recibido)
     if (ctx.defender.espartanoDefenseBonus) {
@@ -209,6 +252,12 @@ export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult)
         if (hasAdjacentLancer) {
             result.damage = Math.max(1, result.damage - 1);
         }
+    }
+
+    // Aura de mando: lanceros cerca del general dan +defensa
+    if (ctx.defender.class === 'general') {
+        const buffs = getAuraBuffs(ctx.state, ctx.defender.owner);
+        if (buffs.defenseBonus > 0) result.damage = Math.max(1, result.damage - buffs.defenseBonus);
     }
 }
 

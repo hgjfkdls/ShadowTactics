@@ -101,7 +101,7 @@ function handlePatadaAcrobatica(state: GameState, unit: Unit, action: GameAction
     if (isHexOccupied(state, action.to)) return state;
 
     let s = consumeAP(state, unit.owner, 1);
-    s = dealDamage(s, target.id, 1);
+    s = dealDamage(s, target.id, 1, unit.id);
     s = updateUnit(s, unit.id, (u) => ({
         ...u,
         position: action.to!,
@@ -161,15 +161,16 @@ function handleEnNombreDelRey(state: GameState, unit: Unit, action: GameAction):
     if (!action.targetId) return state;
     const target = state.units[action.targetId];
     if (!target || target.owner !== unit.owner) return state;
+    if (target.id === unit.id) return state;
     const distance = hexDistance(unit.position, target.position);
     if (distance > 2) return state;
     if (playerAP(state, unit.owner) < 2) return state;
 
     let s = consumeAP(state, unit.owner, 2);
     s = updateUnit(s, unit.id, (u) => ({ ...u, usedEnNombreDelRey: true }));
+    s = addModifier(s, unit.owner, action.targetId, 'attack', 2, 'ADD', 0, 1, 'ability', 'En nombre del rey');
     s = updateUnit(s, target.id, (u) => ({
         ...u,
-        attack: 5,
         royalShieldSavedHp: u.hp,
         hp: u.hp + 3,
     }));
@@ -186,7 +187,7 @@ function handleEnNombreDelRey(state: GameState, unit: Unit, action: GameAction):
             cardType: 'BUFF' as const,
             targetId: action.targetId,
             targetClass: target.class,
-            details: 'Ataque 5 · Escudo +3 HP',
+            details: '+2 ataque · Escudo +3 HP',
             paCost: 2,
             sourceClass: unit.class,
             sourceIdentity: 'Inspiración Real',
@@ -334,17 +335,34 @@ function handleAngelGuardian(state: GameState, unit: Unit, action: GameAction): 
     if (unit.class !== 'general') return state;
 
     let s = consumeAP(state, unit.owner, 2);
+    const allies = Object.values(s.units).filter(u => u.owner === unit.owner && u.class !== 'general');
     const shielded: string[] = [];
-    for (const u of Object.values(s.units)) {
-        if (u.owner === unit.owner && u.class !== 'general') {
-            shielded.push(`[${u.id}]${u.class}`);
-            s = updateUnit(s, u.id, (unit) => ({
-                ...unit,
-                royalShieldSavedHp: unit.hp,
-                hp: unit.hp + 2,
-            }));
+
+    // Escudo +2 HP a todos los aliados (excepto general)
+    for (const u of allies) {
+        shielded.push(`[${u.id}]${u.class}`);
+        s = updateUnit(s, u.id, (unit) => ({
+            ...unit,
+            auraShield: (unit.auraShield ?? 0) + 2,
+        }));
+    }
+
+    // Curar 1 HP al aliado (incluye general) que más HP le falte (aleatorio si empate)
+    let healedId = '';
+    const allUnits = Object.values(s.units).filter(u => u.owner === unit.owner);
+    if (allUnits.length > 0) {
+        const missing = allUnits.map(u => ({ id: u.id, missing: BASE_STATS[u.class].hp - u.hp }));
+        const maxMissing = Math.max(...missing.map(m => m.missing));
+        if (maxMissing > 0) {
+            const candidates = missing.filter(m => m.missing === maxMissing);
+            const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+            const maxHp = BASE_STATS[s.units[chosen.id].class].hp;
+            s = updateUnit(s, chosen.id, (u) => ({ ...u, hp: Math.min(u.hp + 1, maxHp) }));
+            healedId = chosen.id;
         }
     }
+
+    const healedClass = healedId ? s.units[healedId]?.class ?? '' : '';
     s = {
         ...s,
         gameHistory: [...s.gameHistory, {
@@ -352,14 +370,23 @@ function handleAngelGuardian(state: GameState, unit: Unit, action: GameAction): 
             turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
             playerId: unit.owner,
-            type: 'card' as const,
-            cardId: 'angel_guardian',
-            cardName: 'Ángel Guardián',
-            cardType: 'BUFF' as const,
-            details: `Escudo +2 HP a ${shielded.length} aliados`,
+            type: 'attack' as const,
+            attackerId: unit.id,
+            targetId: healedId || '',
+            die1: 0, die2: 0, total: 0,
+            difficulty: 0, baseDifficulty: 0,
+            hit: true,
+            damage: 0,
+            baseAttack: 0,
+            counterDamage: 0,
+            attackerClass: unit.class,
+            targetClass: healedClass,
+            targetKilled: false,
+            attackName: 'Ángel Guardián',
+            modifiers: [`Escudo +2 HP a ${shielded.length} aliados`],
             paCost: 2,
-            sourceClass: unit.class,
-            sourceIdentity: 'Escudo del Comandante',
+            shieldedCount: shielded.length,
+            healedId,
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
@@ -376,7 +403,7 @@ function handleProteger(state: GameState, unit: Unit, action: GameAction): GameS
     const distance = hexDistance(unit.position, target.position);
     if (distance > 3) return state;
 
-    let s = addModifier(state, unit.owner, target.id, 'damage', -1, 'ADD', 0, 1, 'ability', 'Proteger');
+    let s = addModifier(state, unit.owner, target.id, 'defense', 1, 'ADD', 0, undefined, 'ability', 'Proteger');
 
     const last = s.activeModifiers[s.activeModifiers.length - 1];
     if (last) {
@@ -398,16 +425,21 @@ function handleProteger(state: GameState, unit: Unit, action: GameAction): GameS
             turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
             playerId: unit.owner,
-            type: 'card' as const,
-            cardId: 'proteger',
-            cardName: 'Proteger',
-            cardType: 'BUFF' as const,
+            type: 'attack' as const,
+            attackerId: unit.id,
             targetId: action.targetId,
+            die1: 0, die2: 0, total: 0,
+            difficulty: 0, baseDifficulty: 0,
+            hit: true,
+            damage: 0,
+            baseAttack: 0,
+            counterDamage: 0,
+            attackerClass: unit.class,
             targetClass: target.class,
-            details: '-1 daño recibido',
+            targetKilled: false,
+            attackName: 'Proteger',
+            modifiers: ['+1 defensa'],
             paCost: 0,
-            sourceClass: unit.class,
-            sourceIdentity: 'Escudo del Comandante',
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
@@ -541,15 +573,14 @@ function handleCabalgar(state: GameState, unit: Unit, action: GameAction): GameS
             turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
             playerId: unit.owner,
-            type: 'move' as const,
-            unitId: unit.id,
-            unitClass: unit.class,
-            from: unit.position,
-            to: action.to!,
-            path: pathStr,
-            cost: 1,
-            baseCost: 1,
-            modifiers: ['Cabalgar'],
+            type: 'card' as const,
+            cardId: 'cabalgar',
+            cardName: 'Cabalgar',
+            cardType: 'BUFF' as const,
+            targetId: unit.id,
+            targetClass: unit.class,
+            details: `Avanza ${maxDist} casillas · ${pathStr}`,
+            paCost: 1,
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
@@ -603,15 +634,14 @@ function handleCabalgar2(state: GameState, unit: Unit, action: GameAction): Game
             turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
             playerId: unit.owner,
-            type: 'move' as const,
-            unitId: unit.id,
-            unitClass: unit.class,
-            from: unit.position,
-            to: last,
-            path: pathStr,
-            cost: isALaCarga ? 1 + (state.players[unit.owner]?.aLaCargaCost ?? 0) : 1,
-            baseCost: 1,
-            modifiers: [isALaCarga ? `A la carga (coste extra +${state.players[unit.owner]?.aLaCargaCost ?? 0})` : 'Cabalgar'],
+            type: 'card' as const,
+            cardId: isALaCarga ? 'a_la_carga' : 'cabalgar',
+            cardName: isALaCarga ? 'A la carga' : 'Cabalgar',
+            cardType: 'BUFF' as const,
+            targetId: unit.id,
+            targetClass: unit.class,
+            details: `${isALaCarga ? 'Avanza 3' : 'Avanza 2'} casillas · ${pathStr}`,
+            paCost: isALaCarga ? 1 + (state.players[unit.owner]?.aLaCargaCost ?? 0) : 1,
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
@@ -722,11 +752,11 @@ function handleTorbellino(state: GameState, unit: Unit, action: GameAction): Gam
     s = consumeAP(s, unit.owner, 3);
     let hitEnemies = 0, hitAllies = 0;
     if (hit) {
-        for (const t of targets) { s = dealDamage(s, t.id, 2); hitEnemies++; }
+        for (const t of targets) { s = dealDamage(s, t.id, 2, unit.id); hitEnemies++; }
     } else {
         const allAdj = [...targets, ...allies].filter(u => u.class !== 'general');
         for (const u of allAdj) {
-            s = dealDamage(s, u.id, 1);
+            s = dealDamage(s, u.id, 1, unit.id);
             if (u.owner !== unit.owner) hitEnemies++; else hitAllies++;
         }
     }
@@ -805,57 +835,132 @@ function buildAttackModifiers(s: GameState, attackerId: string, targetId: string
     for (const m of s.activeModifiers) {
         if (m.remainingTurns < 0) continue;
         if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
-        const isAttackerMod = !m.targetId && m.sourcePlayerId === attacker.owner;
+        const isAttackerMod = (!m.targetId || m.targetId === attacker.id) && m.sourcePlayerId === attacker.owner;
         const isTargetMod = (m.targetId === target.id || (!m.targetId && m.sourcePlayerId === target.owner));
         if (!isAttackerMod && !isTargetMod) continue;
         if (m.source && m.sourceName) {
-            mods.push(`${m.stat}: ${m.value > 0 ? '+' : ''}${m.value} (${m.source}: ${m.sourceName})`);
+            const cat = m.stat === 'attack' ? '[atk] ' : m.stat === 'defense' ? '[def] ' : m.stat === 'difficulty' ? '[diff] ' : '';
+            mods.push(`${cat}${m.stat}: ${m.value > 0 ? '+' : ''}${m.value} (${m.source}: ${m.sourceName})`);
         }
     }
 
     // Anti-caballería
     if (abils.includes('anti_caballeria') && target.class === 'cavalry') {
-        mods.push('Anti-caballería: +1 daño');
+        mods.push('[atk] Anti-caballería: +1 ataque');
     }
 
     // Blanco fácil
     if (abils.includes('blanco_facil') && target.didMovePreviousTurn === false) {
         const identity = s.players[attacker.owner]?.selectedIdentity ?? '';
         const bonus = identity.startsWith('francotirador') ? 2 : 1;
-        mods.push(`Blanco fácil: -${bonus} dificultad`);
+        mods.push(`[diff] Blanco fácil: -${bonus} dificultad`);
+    }
+
+    // Desenvainado veloz (Samurái)
+    if (abils.includes('desenvainado_veloz')) {
+        mods.push('[diff] Desenvainado veloz: -1 dificultad');
+    }
+
+    // Hostigar (Cazadores)
+    const atkIdentity = s.players[attacker.owner]?.selectedIdentity ?? '';
+    if (atkIdentity.startsWith('cazadores') && (attacker.class === 'cavalry' || attacker.class === 'general')) {
+        const maxHp = BASE_STATS[target.class].hp;
+        if (target.hp <= Math.floor(maxHp / 2)) {
+            mods.push('[diff] Hostigar: -1 dificultad');
+        }
     }
 
     // Presión
     if (abils.includes('presion') && attacker.lastTargetId === target.id) {
-        mods.push('Presión: +1 daño');
+        mods.push('[atk] Presión: +1 ataque');
+    }
+
+    // Acechar (Cazadores)
+    // (note: atkIdentity already defined above)
+    if (atkIdentity.startsWith('cazadores')) {
+        const isIsolated = !Object.values(s.units).some(u => u.owner === target.owner && u.id !== target.id && hexDistance(target.position, u.position) === 1);
+        if (isIsolated) {
+            if (attacker.class === 'general') {
+                const bonus = target.class === 'general' ? 1 : 2;
+                mods.push(`[atk] Acechar: +${bonus} ataque`);
+            } else if (attacker.class === 'cavalry' && target.class !== 'general') {
+                mods.push('[atk] Acechar: +1 ataque');
+            }
+        }
+    }
+
+    // Furia berserker (Dios del Trueno)
+    if (atkIdentity.startsWith('dios_trueno')) {
+        const isInfantryOrGeneral = attacker.class === 'infantry' || attacker.class === 'general';
+        if (isInfantryOrGeneral) {
+            const maxHp = BASE_STATS[attacker.class].hp;
+            if (attacker.hp <= Math.floor(maxHp / 2)) {
+                mods.push('[atk] Furia berserker: +1 ataque');
+            }
+        }
+    }
+
+    // Liderar a las tropas (Capitán de la Guardia)
+    const liderarBonus = s.players[attacker.owner]?.liderarAtaqueBonus;
+    if (liderarBonus && liderarBonus > 0 && (attacker.class === 'infantry' || attacker.class === 'general')) {
+        mods.push(`[atk] Liderar a las tropas: +${liderarBonus} ataque`);
+    }
+
+    // Plan de batalla (Comandante Supremo)
+    const planBonus = s.players[attacker.owner]?.planBatallaBonus;
+    if (planBonus && planBonus > 0) mods.push(`[atk] Avanzar: +${planBonus} ataque`);
+    const planDefBonus = s.players[target.owner]?.planBatallaDefense;
+    if (planDefBonus && planDefBonus > 0) mods.push(`[def] Reagruparse: +${planDefBonus} defensa`);
+
+    // Voz de mando (Comandante Supremo)
+    if (attacker.vozDeMandoAttackBonus) mods.push(`[atk] Voz de mando: +${attacker.vozDeMandoAttackBonus} ataque`);
+    if (target.vozDeMandoDefenseBonus) mods.push(`[def] Voz de mando: +${target.vozDeMandoDefenseBonus} defensa`);
+
+    // Espartano: Lanza y escudo (+1 defensa)
+    if (target?.espartanoDefenseBonus) {
+        const tgtIdentity = s.players[target.owner]?.selectedIdentity ?? '';
+        if (tgtIdentity.startsWith('espartano')) {
+            mods.push('[def] Lanza y escudo: +1 defensa');
+        }
+    }
+    // Espartano: Muro espartano
+    if (target && (target.class === 'lancer' || target.class === 'general')) {
+        const tgtIdentity = s.players[target.owner]?.selectedIdentity ?? '';
+        if (tgtIdentity.startsWith('espartano')) {
+            const hasAdjacentLancer = Object.values(s.units).some(u => u.owner === target.owner && (u.class === 'lancer' || u.class === 'general') && u.id !== target.id && hexDistance(target.position, u.position) === 1);
+            if (hasAdjacentLancer) {
+                mods.push('[def] Muro espartano: +1 defensa');
+            }
+        }
     }
 
     // Romper filas
     if (abils.includes('romper_filas')) {
-        mods.push('Romper filas: ignora defensas');
+        mods.push('[def] Romper filas: ignora defensas');
     }
 
     // Formación defensiva (target)
     const tAbils = target.abilities ?? [];
     if (tAbils.includes('formacion_defensiva') && attacker.class === 'cavalry') {
-        mods.push('Formación defensiva: anula Carga, +1 contra');
+        mods.push('[def] Formación defensiva: anula Carga, +1 contra');
     }
 
     // Resistencia / Línea defensiva (target)
     if (tAbils.includes('resistencia') && !target.timesDamagedThisTurn) {
-        mods.push('Resistencia: -1 daño');
+        mods.push('[def] Resistencia: +1 defensa');
     }
     if (tAbils.includes('linea_defensiva') && target.didMovePreviousTurn === false) {
-        mods.push('Línea defensiva: -1 daño');
+        mods.push('[def] Línea defensiva: +1 defensa');
     }
 
-    // Contraataque (Capitán de la Guardia o básico)
-    if (target?.usedCounterattack) {
-        const identity = s.players[target.owner]?.selectedIdentity ?? '';
-        if (identity.startsWith('capitan_guardia')) {
-            mods.push('Contraataque (Capitán de la Guardia): +1 daño');
-        } else {
-            mods.push('Contraataque: +2 daño');
+    // Contraataque (Capitán de la Guardia)
+    if (target && target.class === 'general') {
+        const dist = hexDistance(attacker.position, target.position);
+        if (dist === 1) {
+            const identity = s.players[target.owner]?.selectedIdentity ?? '';
+            if (identity.startsWith('capitan_guardia')) {
+                mods.push('[dmg] Contraataque (Capitán de la Guardia): 1 daño');
+            }
         }
     }
 
@@ -863,10 +968,25 @@ function buildAttackModifiers(s: GameState, attackerId: string, targetId: string
 }
 
 function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[]): GameState {
-    const s = result.state;
+    let s = result.state;
     const mods = buildAttackModifiers(s, attackerId, targetId);
     const atkUnit = s.units[attackerId];
-    return {
+    // Prepend difficulty formula
+    if (atkUnit) {
+        const target = s.units[targetId];
+        const dist = target ? hexDistance(atkUnit.position, target.position) : 0;
+        const hasBlancoFacil = (atkUnit.abilities ?? []).includes('blanco_facil');
+        const baseDiff = hasBlancoFacil ? 5 : atkUnit.difficulty;
+        const raw = hasBlancoFacil ? baseDiff + dist : baseDiff;
+        let formula = `base ${baseDiff}`;
+        if (hasBlancoFacil) formula += `, distancia +${dist} → ${raw}`;
+        if (result.difficulty !== raw) {
+            const diff = result.difficulty - raw;
+            formula += `, ${diff >= 0 ? '+' : ''}${diff} = ${result.difficulty}`;
+        }
+        mods.unshift(`Dificultad: ${formula}`);
+    }
+    s = {
         ...s,
         lastAttackResult: {
             attackerId,
@@ -908,6 +1028,19 @@ function storeAttackResult(result: AttackResult, attackerId: string, targetId: s
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
+    // Flush karma entry after attack history
+    const karmaEntry = result.state.karmaEntryToAppend;
+    if (karmaEntry) {
+        karmaEntry.actionNumber = s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1;
+        karmaEntry.id = `h${s.nextHistoryId}`;
+        s = {
+            ...s,
+            gameHistory: [...s.gameHistory, karmaEntry],
+            nextHistoryId: s.nextHistoryId + 1,
+            karmaEntryToAppend: undefined,
+        };
+    }
+    return s;
 }
 
 // ── Rayo celestial (Dios del Trueno) ──
@@ -919,17 +1052,11 @@ function handleRayoCelestial(state: GameState, unit: Unit, action: GameAction): 
     const distance = hexDistance(unit.position, target.position);
     if (distance > 2) return state;
 
-    const bonus = state.players[unit.owner]?.celestialRayBonus ?? 0;
-    if (bonus <= 0) return state;
-
-    let s = consumeAP(state, unit.owner, 1);
-    s = updateUnit(s, action.targetId, (u) => ({ ...u, celestialRayDamageBonus: bonus }));
+    let s = consumeAP(state, unit.owner, 2);
+    s = updateUnit(s, unit.id, (u) => ({ ...u, usedRayoCelestial: true }));
+    s = addModifier(s, unit.owner, action.targetId, 'attack', 3, 'ADD', 0, 1, 'ability', 'Rayo celestial');
     s = {
         ...s,
-        players: {
-            ...s.players,
-            [unit.owner]: { ...s.players[unit.owner], celestialRayBonus: bonus - 1 },
-        },
         gameHistory: [...s.gameHistory, {
             id: `h${s.nextHistoryId}`,
             turn: s.turn,
@@ -941,8 +1068,10 @@ function handleRayoCelestial(state: GameState, unit: Unit, action: GameAction): 
             cardType: 'BUFF' as const,
             targetId: action.targetId,
             targetClass: target.class,
-            details: `+${bonus} daño al siguiente ataque`,
-            paCost: 1,
+            details: `+3 ataque al siguiente ataque`,
+            paCost: 2,
+            sourceClass: unit.class,
+            sourceIdentity: 'Dios del Trueno',
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };

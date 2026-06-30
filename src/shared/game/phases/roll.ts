@@ -35,7 +35,7 @@ export function handleRoll(state: GameState, action: GameAction): GameState {
         activePlayer: second,
         deploymentStep: 0,
         deploymentCount: 0,
-        preparationPhase: 'DEPLOYMENT'
+        preparationPhase: 'ROLL_RESULT'
     };
 
     // Pre-apply identity effects (player-level tracking) before deployment

@@ -163,7 +163,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         (ab.id === 'posicion_estrategica' && !!unit.usedPosicionEstrategica) ||
                         (ab.id === 'en_nombre_del_rey' && !!unit.usedEnNombreDelRey) ||
                         (ab.id === 'desenvainado_veloz' && !!unit.usedDesenvainadoVeloz) ||
-                        (ab.id === 'rayo_celestial' && (state.players[myPlayerId]?.celestialRayBonus ?? 0) <= 0) ||
+
+                        (ab.id === 'rayo_celestial' && !!unit.usedRayoCelestial) ||
                         (ab.id === 'a_la_carga' && (!!unit.aLaCargaActive || !!unit.usedCabalgar || !!unit.movedThisTurn || !!unit.attackedThisTurn || ap < aLaCargaCost)) ||
                         (ab.id === 'sacrificar' && (unit.hp >= BASE_STATS[unit.class].hp || !Object.values(state.units).some(u => u.owner === myPlayerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) ||
                         (ab.id === 'angel_guardian' && ap < 2) ||
@@ -500,7 +501,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             if (!isMyTurn) return;
                             const blkUnit = state.units[unitId];
                             if (blkUnit && blkUnit.owner === myPlayerId && state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === unitId && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) {
-                                addAlert?.('Unidad bloqueada: 1 turno', 'warning');
+                                addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning');
                                 return;
                             }
                             if (selectedUnitId === unitId) {
@@ -681,7 +682,7 @@ function getAllyAbilityTargets(state: GameState, unitId: UnitId, abilityId: stri
 
     if (abilityId === 'rayo_celestial') {
         return Object.values(state.units)
-            .filter(u => u.owner === playerId && u.id !== unitId && hexDistance(unit.position, u.position) <= 2)
+            .filter(u => u.owner === playerId && hexDistance(unit.position, u.position) <= 2)
             .map(u => u.position);
     }
 
@@ -705,7 +706,7 @@ function getAllyAbilityTargets(state: GameState, unitId: UnitId, abilityId: stri
 
     if (abilityId === 'proteger') {
         return Object.values(state.units)
-            .filter(u => u.owner === playerId && u.id !== unitId && hexDistance(unit.position, u.position) <= 3)
+            .filter(u => u.owner === playerId && hexDistance(unit.position, u.position) <= 3)
             .map(u => u.position);
     }
 

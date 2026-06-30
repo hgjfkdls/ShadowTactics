@@ -45,7 +45,8 @@ function makeGameState(): GameState {
                 id: 'u3', owner: 'p2',
                 position: { q: 4, r: 0 },
                 attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1,
-                class: 'infantry'
+                class: 'infantry',
+                abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance']
             },
             'u4': {
                 id: 'u4', owner: 'p2',

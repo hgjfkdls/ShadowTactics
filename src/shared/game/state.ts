@@ -42,9 +42,10 @@ export type Unit = {
     usedAvance?: boolean;
     hasCargaBonus?: boolean;         // true si usó Cabalgar + Carga
     fuegoCoberturaCharges?: number;  // cargas restantes de Fuego de cobertura (coste +1)
-    usedCounterattack?: boolean;      // Capitán de la Guardia: 1 contraataque por turno enemigo
+
     usedTorbellino?: boolean;          // Punta de Lanza: Torbellino usado este turno
-    celestialRayDamageBonus?: number; // Dios del Trueno: bonus de daño del próximo ataque
+    usedRayoCelestial?: boolean;        // Dios del Trueno: Rayo celestial usado este turno
+
     aLaCargaActive?: boolean;          // Caballos de Guerra: Cabalgar potenciado (3 hex)
     espartanoRangeBonus?: boolean;     // Espartano: +1 rango este turno
     espartanoDefenseBonus?: boolean;   // Espartano: -1 daño recibido este turno
@@ -52,11 +53,14 @@ export type Unit = {
     performedActionThisTurn?: boolean;  // Monje Shaolin: tracking de acciones por turno
     usedPosicionEstrategica?: boolean;  // Corazón de Estratega: 1 vez por turno
     usedVozDeMando?: boolean;           // Comandante Supremo: consumió Voz de mando
+    vozDeMandoAttackBonus?: number;      // Comandante Supremo: +N ataque por Voz de mando
+    vozDeMandoDefenseBonus?: number;     // Comandante Supremo: +N defensa por Voz de mando
     royalShieldSavedHp?: number;          // Inspiración Real: HP guardado antes del escudo
     usedEnNombreDelRey?: boolean;         // Inspiración Real: 1 vez por turno
     usedDesenvainadoVeloz?: boolean;       // Samurái: se resetea si elimina al objetivo
     ataqueExtraCharges?: number;             // Ataque extra: cargas acumulables
     precisionCharges?: number;               // Precisión: cargas acumulables
+    auraShield?: number;                     // Escudo del aura (infantería) — se consume antes que HP
 };
 
 export type GameState = {
@@ -72,6 +76,7 @@ export type GameState = {
     preparationPhase:
         | 'IDENTITY_SELECTION'
         | 'ROLL'
+        | 'ROLL_RESULT'
         | 'DEPLOYMENT'
         | 'DONE';
 
@@ -162,6 +167,7 @@ export type GameState = {
         targetKilled?: boolean;
         attackerKilled?: boolean;
         attackName?: string;
+        distance?: number;
         modifiers: string[];
         paCost?: number;
         paModifiers?: string[];
@@ -238,16 +244,20 @@ export type PlayerResources = {
     identityHealedThisTurn?: boolean;  // Robin Hood: 1 curación por turno
     pendingIdentityTarget?: boolean;   // Robin Hood: elegir objetivo para En la mira
     pendingEspartanoChoice?: boolean;   // Espartano: elegir Lanza y escudo
-    celestialRayBonus?: number;        // Dios del Trueno: bonus de Rayo celestial (3/2/1)
+
     aLaCargaCost?: number;              // Caballos de Guerra: coste actual de A la carga (0/1/2)
-    nextTurnGlobalPresion?: boolean;    // Capitán de la Guardia: Presión global pendiente para el próximo turno
-    globalPresionActive?: boolean;      // Capitán de la Guardia: Presión global activa este turno
+    liderarAtaqueBonus?: number;        // Capitán de la Guardia: +X ataque infantería este turno (1 normal, 2 si elimina)
+
+    // HISTORIAL PENDIENTE
+    karmaEntryToAppend?: any;             // Karma (Monje Shaolin): entrada de historial pendiente
 
     // RESULTADO DE ATAQUE
     lastAcknowledgedIndex: number;     // Último índice en attackResults que el jugador reconoció (-1 = ninguno)
 
     // COMANDANTE SUPREMO
     pendingPlanBatalla?: boolean;     // Plan de batalla: elección pendiente
+    planBatallaBonus?: number;         // Comandante Supremo: +N ataque (Avanzar) este turno
+    planBatallaDefense?: number;       // Comandante Supremo: +N defensa (Reagruparse) este turno
     vozDeMandoReady?: boolean;        // Voz de mando: disponible tras mover general
     caminoDelGuerreroUsedThisTurn?: boolean; // Samurái: 1 PA por kill a rango 1
     protegerUsedThisTurn?: boolean;           // Escudo del Comandante: Proteger usado este turno

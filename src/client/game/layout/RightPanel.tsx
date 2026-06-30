@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { GameState, GameAction, Unit, ModifierInstance } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
 import { ABILITIES, CLASS_ABILITIES } from '@shared/game/data/abilities';
 import { IDENTITY_EFFECTS } from '@shared/game/data/identities';
 import { BASE_STATS } from '@shared/game/units';
 import { getCardName, getCardType, getCardDescription, getCardDescriptionBySourceName } from '@shared/game/actions/card';
+import { getAuraBuffs, AURA_CONFIG } from '@shared/game/aura';
 import { l } from '@shared/i18n';
 
 type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | null;
@@ -40,10 +42,10 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
         if (selectedInfo?.type === 'attackResult') {
             const r = state.attackResults?.[selectedInfo.resultIndex];
             if (!r) return null;
-            return <AttackResultDetail result={r} />;
+            return <AttackResultDetail result={r} state={state} />;
         }
         if (selectedInfo?.type === 'historyAttack') {
-            return <HistoryAttackDetail entry={selectedInfo.entry} />;
+            return <HistoryAttackDetail entry={selectedInfo.entry} state={state} />;
         }
         if (selectedInfo?.type === 'historyMove') {
             return <HistoryMoveDetail entry={selectedInfo.entry} />;
@@ -180,12 +182,80 @@ function CardDetail({ cardId }: { cardId: string }) {
     );
 }
 
-function AttackResultDetail({ result }: { result: NonNullable<GameState['attackResults']>[number] }) {
+function AuraBox({ state, playerId }: { state: GameState; playerId: string }) {
+    const ab = getAuraBuffs(state, playerId);
+    const boxRef = useRef<HTMLDivElement>(null);
+    const [showTip, setShowTip] = useState(false);
+    const items = [
+        { key: 'shieldPoints', name: l('aura.shieldName'), value: ab.shieldPoints, color: 'text-blue-400', desc: l('aura.shieldDesc') },
+        { key: 'defenseBonus', name: l('aura.defenseName'), value: ab.defenseBonus, color: 'text-blue-400', desc: l('aura.defenseDesc') },
+        { key: 'difficultyPenalty', name: l('aura.evasionName'), value: ab.difficultyPenalty, color: 'text-violet-400', desc: l('aura.evasionDesc') },
+        { key: 'difficultyReduction', name: l('aura.precisionName'), value: ab.difficultyReduction, color: 'text-amber-400', desc: l('aura.precisionDesc') },
+    ];
+    return (
+        <div ref={boxRef} className="bg-zinc-800/40 border border-zinc-700/60 rounded-lg p-2.5 cursor-help" onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
+            <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">{l('aura.title')}</div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {items.map(item => (
+                    <div key={item.key} className="flex items-center justify-between text-[11px]">
+                        <span className={`font-bold ${item.color}`}>{item.name}</span>
+                        <span className={`font-bold ${item.color}`}>{item.value}</span>
+                    </div>
+                ))}
+            </div>
+            {showTip && boxRef.current && createPortal(
+                <div className="fixed z-[100] bg-zinc-900 border border-zinc-600 rounded-lg p-2.5 space-y-1.5 shadow-xl" style={{
+                    right: window.innerWidth - boxRef.current.getBoundingClientRect().left + 8 + 'px',
+                    top: boxRef.current.getBoundingClientRect().top - 10 + 'px',
+                    width: '200px',
+                }}>
+                    {items.map(item => (
+                        <div key={item.key} className="text-[10px] leading-relaxed">
+                            <span className={`font-semibold ${item.color}`}>{item.name}</span>
+                            <span className="text-zinc-300"> — {item.desc}</span>
+                        </div>
+                    ))}
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}
+
+function AuraResultInfo({ result, state }: { result: { attackerId?: string; attackerClass: string; targetId?: string; targetClass: string }; state: GameState }) {
+    const lines: { text: string; color: string }[] = [];
+    const atkUnit = result.attackerId ? (state.units[result.attackerId] ?? state.graveyard[result.attackerId]) : undefined;
+    const defUnit = result.targetId ? (state.units[result.targetId] ?? state.graveyard[result.targetId]) : undefined;
+
+    if (result.attackerClass === 'general' && atkUnit) {
+        const ab = getAuraBuffs(state, atkUnit.owner);
+        if (ab.difficultyReduction > 0) lines.push({ text: l('aura.precision', { n: ab.difficultyReduction }), color: 'text-amber-400' });
+    }
+    if (result.targetClass === 'general' && defUnit) {
+        const ab = getAuraBuffs(state, defUnit.owner);
+        if (ab.difficultyPenalty > 0) lines.push({ text: l('aura.evasion', { n: ab.difficultyPenalty }), color: 'text-violet-400' });
+        if (ab.defenseBonus > 0) lines.push({ text: l('aura.defense', { n: ab.defenseBonus }), color: 'text-blue-400' });
+        if (ab.shieldPoints > 0 && defUnit && (defUnit.auraShield ?? 0) > 0) lines.push({ text: l('aura.shieldActive', { n: defUnit.auraShield ?? 0 }), color: 'text-blue-400' });
+    }
+    if (lines.length === 0) return null;
+    return (
+        <div className="space-y-0.5">
+            {lines.map((l, i) => (
+                <div key={i} className={`text-[10px] ${l.color} font-semibold`}>{l.text}</div>
+            ))}
+        </div>
+    );
+}
+
+function AttackResultDetail({ result, state }: { result: NonNullable<GameState['attackResults']>[number]; state: GameState }) {
     const attackerName = `[${result.attackerId}]${result.attackerClass === 'torbellino' ? 'Torbellino' : cls(result.attackerClass)}`;
     const targetName = result.targetId ? `[${result.targetId}]${cls(result.targetClass)}` : '';
     const isCritical = result.total >= 11;
 
     const dieFaces: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
+
+    const isAttackerGeneral = result.attackerClass === 'general';
+    const isDefenderGeneral = result.targetClass === 'general';
 
     return (
         <div className="space-y-4">
@@ -207,6 +277,8 @@ function AttackResultDetail({ result }: { result: NonNullable<GameState['attackR
                     <span className="text-zinc-200">{targetName || '—'}</span>
                 </div>
             </div>
+
+            {(isAttackerGeneral || isDefenderGeneral) && <AuraResultInfo result={result} state={state} />}
 
             <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -230,9 +302,15 @@ function AttackResultDetail({ result }: { result: NonNullable<GameState['attackR
                     <span className="font-semibold">{result.hit ? '✅ Acierta' : '❌ Fallo'}</span>
                     {result.hit && <span className="text-green-300 font-bold">-{result.damage} HP</span>}
                 </div>
-                {result.counterDamage > 0 && (
+                {!result.hit && result.counterDamage > 0 && (
                     <div className="flex items-center justify-between text-red-300">
-                        <span>Daño de contraataque</span>
+                        <span>{l('ui.counterDamage')}</span>
+                        <span className="font-bold">-{result.counterDamage} HP</span>
+                    </div>
+                )}
+                {result.hit && result.counterDamage > 0 && result.counterDamage !== 2 && (
+                    <div className="flex items-center justify-between text-red-300">
+                        <span>Contraataque</span>
                         <span className="font-bold">-{result.counterDamage} HP</span>
                     </div>
                 )}
@@ -253,9 +331,200 @@ function AttackResultDetail({ result }: { result: NonNullable<GameState['attackR
     );
 }
 
-function HistoryAttackDetail({ entry }: { entry: any }) {
+function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState }) {
     const isCritical = entry.total >= 11;
     const dieFaces: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
+
+    const showCounterOnHit = entry.hit && entry.counterDamage > 0 && entry.counterDamage !== 2;
+    const showCounterOnMiss = !entry.hit && entry.counterDamage > 0;
+
+    // Extract difficulty formula from modifiers
+    const diffFormulaIdx = (entry.modifiers ?? []).findIndex((m: string) => m.startsWith('Dificultad:'));
+    const diffFormula = diffFormulaIdx >= 0 ? entry.modifiers[diffFormulaIdx] : null;
+    const rawMods = (entry.modifiers ?? []).filter((_: string, i: number) => i !== diffFormulaIdx);
+
+    // Build flat list of all non-formula modifiers with letters
+    interface ModItem { letter: string; text: string; color?: string }
+    const modItems: ModItem[] = [];
+    let letterIdx = 0;
+    const nextLetter = () => String.fromCharCode(97 + letterIdx++); // a, b, c...
+
+    // Aura lines (inserted as modifiers too)
+    if (entry.attackerClass === 'general' || entry.targetClass === 'general') {
+        const atkUnit = entry.attackerId ? (state.units[entry.attackerId] ?? state.graveyard[entry.attackerId]) : undefined;
+        const defUnit = entry.targetId ? (state.units[entry.targetId] ?? state.graveyard[entry.targetId]) : undefined;
+        if (entry.attackerClass === 'general' && atkUnit) {
+            const ab = getAuraBuffs(state, atkUnit.owner);
+            if (ab.difficultyReduction > 0) modItems.push({ letter: nextLetter(), text: l('aura.precision', { n: ab.difficultyReduction }), color: 'text-amber-400' });
+        }
+        if (entry.targetClass === 'general' && defUnit) {
+            const ab = getAuraBuffs(state, defUnit.owner);
+            if (ab.difficultyPenalty > 0) modItems.push({ letter: nextLetter(), text: l('aura.evasion', { n: ab.difficultyPenalty }), color: 'text-violet-400' });
+            if (ab.defenseBonus > 0) modItems.push({ letter: nextLetter(), text: l('aura.defense', { n: ab.defenseBonus }), color: 'text-blue-400' });
+            if (ab.shieldPoints > 0 && defUnit && (defUnit.auraShield ?? 0) > 0) modItems.push({ letter: nextLetter(), text: l('aura.shieldActive', { n: defUnit.auraShield ?? 0 }), color: 'text-blue-400' });
+        }
+    }
+
+    // Also add aura to catMap for categorized display (keep category grouping)
+    const catLabels: Record<string, string> = { diff: l('cat.diff'), atk: l('cat.atk'), range: l('cat.range'), def: l('cat.def'), pa: l('cat.pa'), mixed: l('cat.mixed') };
+    const catColors: Record<string, string> = { diff: 'text-amber-400', atk: 'text-red-400', range: 'text-cyan-400', def: 'text-blue-400', pa: 'text-yellow-400' };
+    const grouped: { cat: string; items: { letter: string; text: string }[] }[] = [];
+    const catOrder = ['diff', 'atk', 'range', 'def', 'pa', 'mixed'];
+    const catMap = new Map<string, { letter: string; text: string }[]>();
+    for (const m of rawMods) {
+        const match = m.match(/^\[(\w+)\]\s*/);
+        const l = nextLetter();
+        if (match) {
+            const cat = match[1];
+            const text = m.slice(match[0].length);
+            if (!catMap.has(cat)) catMap.set(cat, []);
+            catMap.get(cat)!.push({ letter: l, text });
+        } else {
+            if (!catMap.has('other')) catMap.set('other', []);
+            catMap.get('other')!.push({ letter: l, text: m });
+        }
+    }
+    for (const cat of catOrder) {
+        if (catMap.has(cat)) grouped.push({ cat, items: catMap.get(cat)! });
+    }
+    if (catMap.has('other')) grouped.push({ cat: 'other', items: catMap.get('other')! });
+
+    // Collect all flat items for display (aura + categorized)
+    const allItems: ModItem[] = [...modItems];
+    for (const g of grouped) {
+        for (const item of g.items) {
+            allItems.push(item);
+        }
+    }
+
+    // Resolve Romper filas reference: replace %% with letter of ignored modifier
+    let ignoredLetter = '';
+    const rfIdx = allItems.findIndex(i => i.text.includes('Romper filas'));
+    if (rfIdx >= 0) {
+        const ignored = allItems.slice(0, rfIdx).find(i => i.text.includes('Resistencia') || i.text.includes('Línea defensiva'));
+        ignoredLetter = ignored?.letter ?? '';
+        if (ignored) {
+            allItems[rfIdx] = { ...allItems[rfIdx], text: l('ui.romperFilasIgnore', { letter: ignored.letter }) };
+        } else {
+            allItems[rfIdx] = { ...allItems[rfIdx], text: l('ui.romperFilasIgnore', { letter: '?' }) };
+        }
+    }
+
+    // Add critical as a modifier only if damage was actually increased
+    const critApplied = isCritical;
+    if (critApplied) {
+        allItems.push({ letter: String.fromCharCode(97 + allItems.length), text: l('ui.criticalDamage'), color: 'text-yellow-400' });
+    }
+
+    // Build formula references by category
+    const diffModLetters = [...modItems.filter(m => m.text.includes('dificultad') || m.text.includes('difficulty')), ...(catMap.get('diff') ?? [])].map(m => m.letter);
+    const rangeModLetters = [...(catMap.get('range') ?? [])].map(m => m.letter);
+    const paModLetters = [...(catMap.get('pa') ?? [])].map(m => m.letter);
+    const rangeStats: Record<string, number> = { archer: 3, infantry: 1, cavalry: 1, lancer: 1, general: 1 };
+    const baseRange = entry.attackerClass ? (rangeStats[entry.attackerClass] ?? 1) : 0;
+    const hasRangeBonus = rangeModLetters.length > 0 && baseRange > 0;
+    const finalRange = hasRangeBonus ? baseRange + rangeModLetters.length : baseRange;
+
+    const diffFormulaRef = diffFormula
+        ? (() => {
+            const base = diffFormula.replace('Dificultad: ', '');
+            const hasDiff = /,?\s*[+-]?\d+\s*=\s*\d+/.test(base);
+            if (!hasDiff && diffModLetters.length === 0) return base;
+            if (hasDiff) {
+                return base.replace(/,?\s*[+-]?\d+\s*=\s*\d+/, () => {
+                    if (diffModLetters.length === 0) return ` = ${entry.difficulty}`;
+                    const signs = diffModLetters.map(l => {
+                        const item = modItems.concat(...grouped.map(g => g.items)).find(i => i.letter === l);
+                        const text = item?.text ?? '';
+                        const signMatch = text.match(/([+-])\s*\d/);
+                        const effectiveSign = signMatch ? signMatch[1] : (text.includes('Penalty') || text.includes('Evasión') ? '+' : '-');
+                        return effectiveSign + l;
+                    });
+                    return ', ' + signs.join(' ') + ' = ' + entry.difficulty;
+                });
+            }
+            return base + ' ' + diffModLetters.map(l => `+${l}`).join(' ') + ' → ' + entry.difficulty;
+        })()
+        : null;
+
+    // Build damage formula: atk buffs suman (+), def buffs restan (-)
+    interface DmgLetter { letter: string; sign: string }
+    const dmgLetters: DmgLetter[] = [
+        ...(catMap.get('def') ?? []).map(m => ({ letter: m.letter, sign: '-' as const })),
+        ...(catMap.get('atk') ?? []).map(m => ({ letter: m.letter, sign: '+' as const })),
+        ...modItems.filter(m => m.text.includes('daño') || m.text.includes('damage')).map(m => {
+            const text = m.text ?? '';
+            const signMatch = text.match(/([+-])\s*\d/);
+            return { letter: m.letter, sign: (signMatch ? signMatch[1] : '-') as string };
+        }),
+        ...modItems.filter(m => m.text.includes('defensa') || m.text.includes('defense')).map(m => ({
+            letter: m.letter, sign: '-' as const,
+        })),
+        ...(critApplied ? [{ letter: allItems.find(i => i.text.includes('Crítico') || i.text.includes('Critical'))?.letter ?? '', sign: '+' as const }] : []),
+    ].filter(l => l.letter && l.letter !== ignoredLetter);
+    // Raw damage (before clamping to minimum 1)
+    const rawDamage = dmgLetters.reduce((sum, l) => {
+        const item = allItems.find(i => i.letter === l.letter);
+        const text = item?.text ?? '';
+        const valueMatch = text.match(/([+-])\s*(\d+)/);
+        const val = valueMatch ? parseInt(valueMatch[2]) : 0;
+        return l.sign === '-' ? sum - val : sum + val;
+    }, entry.baseAttack ?? 0);
+    const dmgClamped = rawDamage !== entry.damage;
+    const dmgFormula = dmgLetters.length > 0
+        ? `${entry.baseAttack} ${dmgLetters.map(l => `${l.sign}${l.letter}`).join(' ')} = ${rawDamage}`
+        : null;
+
+    // Support abilities
+    const SUPPORT_NAMES: Record<string, string> = {
+        'Ángel Guardián': 'angel_guardian',
+        'Proteger': 'proteger',
+        'Rayo celestial': 'rayo_celestial',
+        'Meditación': 'meditacion',
+        'En nombre del rey': 'en_nombre_del_rey',
+    };
+    if (SUPPORT_NAMES[entry.attackName]) {
+        const abKey = SUPPORT_NAMES[entry.attackName];
+        const abDesc = l(`ability.${abKey}.desc`);
+        const effectLines: { text: string; color: string }[] = [];
+        if (entry.attackName === 'Ángel Guardián') {
+            effectLines.push({ text: `🛡 Escudo +2 HP a ${entry.shieldedCount} aliados`, color: 'text-blue-400' });
+            if (entry.healedId) {
+                effectLines.push({ text: `💚 [${entry.healedId}] ${l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 HP`, color: 'text-green-400' });
+            }
+        } else if (entry.attackName === 'Proteger') {
+            effectLines.push({ text: `🛡 [${entry.targetId}] ${l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 defensa`, color: 'text-blue-400' });
+        } else if (entry.modifiers) {
+            for (const m of entry.modifiers) effectLines.push({ text: m, color: 'text-zinc-300' });
+        }
+        return (
+            <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                    <div className="text-3xl">✨</div>
+                    <div>
+                        <div className="text-lg font-bold">{entry.attackName}</div>
+                        <div className="text-xs text-zinc-500">{l('board.turnLabel')} {entry.turn} · {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })}</div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                    <span className="text-blue-400 font-semibold">Origen</span>
+                    <span className="text-zinc-200">[{entry.attackerId}]{cls(entry.attackerClass)} · Escudo del Comandante</span>
+                </div>
+                <div className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 text-xs text-zinc-300 leading-relaxed">{abDesc}</div>
+                <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500">{l('attackDetail.paCost')}</span>
+                    <span className="font-bold text-yellow-400">{entry.paCost ?? 0} PA</span>
+                </div>
+                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wide">Efectos</div>
+                <div className="space-y-1">
+                    {effectLines.map((line, i) => (
+                        <div key={i} className={`${line.color} text-sm`}>{line.text}</div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-4">
             <div className="flex items-start gap-3">
@@ -266,37 +535,75 @@ function HistoryAttackDetail({ entry }: { entry: any }) {
                 </div>
             </div>
             <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-2 text-sm">
                     <span className="text-blue-400 font-semibold">{l('attackDetail.attacker')}</span>
                     <span className="text-zinc-200">[{entry.attackerId}]{cls(entry.attackerClass)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-2 text-sm">
                     <span className="text-red-400 font-semibold">{l('attackDetail.defender')}</span>
                     <span className="text-zinc-200">[{entry.targetId}]{cls(entry.targetClass)}</span>
                 </div>
             </div>
-            <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-1.5 text-xs">
+
+            {allItems.length > 0 && (
+                <div className="space-y-1">
+                    <div className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">{l('attackDetail.modifiers')}</div>
+                    {allItems.map((item, i) => (
+                        <div key={i} className="bg-zinc-800/50 border border-zinc-700 rounded px-2 py-1 text-xs flex items-center gap-2">
+                            <span className="text-zinc-300 font-bold text-sm w-5 text-right">{item.letter}.</span>
+                            <span className={item.color ?? 'text-zinc-300'}>{item.text}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-1.5 text-sm">
                 <div className="flex items-center justify-between">
                     <span className="text-zinc-500">{l('attackDetail.paCost')}</span>
                     <span className="text-zinc-200 font-semibold">{entry.paCost ?? 1} PA</span>
                 </div>
-                {entry.paModifiers && entry.paModifiers.length > 0 && (
-                    <div className="text-[10px] text-zinc-400 space-y-0.5">
-                        {entry.paModifiers.map((m: string, i: number) => <div key={i}>{m}</div>)}
-                    </div>
+                {paModLetters.length > 0 && (
+                    <div className="text-xs text-zinc-400 text-right">{entry.paCost} {paModLetters.map(l => `+${l}`).join(' ')}</div>
                 )}
                 <div className="flex items-center justify-between">
                     <span className="text-zinc-500">{l('attackDetail.baseDamage')}</span>
                     <span className="text-zinc-200">{entry.baseAttack}</span>
                 </div>
+                {dmgFormula && (
+                    <div className="text-xs text-zinc-400 text-right">{dmgFormula}</div>
+                )}
+                {dmgClamped && entry.hit && (
+                    <div className="text-[10px] text-zinc-500 text-right">{l('board.minDamageNote')}</div>
+                )}
+                {entry.baseDifficulty > 0 && (
                 <div className="flex items-center justify-between">
                     <span className="text-zinc-500">{l('attackDetail.baseDifficulty')}</span>
                     <span className="text-zinc-200">{entry.baseDifficulty}</span>
                 </div>
+                )}
+                {diffFormulaRef && (
+                <div className="text-xs text-zinc-400 text-right leading-relaxed">{diffFormulaRef}</div>
+                )}
+                {entry.difficulty > 0 && (
                 <div className="flex items-center justify-between">
                     <span className="text-zinc-500">{l('attackDetail.finalDifficulty')}</span>
                     <span className="text-zinc-200 font-semibold">{entry.difficulty}</span>
                 </div>
+                )}
+                {hasRangeBonus && (
+                <>
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('board.range')}</span>
+                        <span className="text-zinc-200">{baseRange}</span>
+                    </div>
+                    <div className="text-xs text-zinc-400 text-right">{baseRange} {rangeModLetters.map((l: string) => `+${l}`).join(' ')} = {finalRange}</div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('board.range')}</span>
+                        <span className="text-zinc-200 font-semibold">{finalRange}</span>
+                    </div>
+                </>
+                )}
+                {entry.total > 0 && (
                 <div className="flex items-center justify-between">
                     <span className="text-zinc-500">{l('attackDetail.dice')}</span>
                     <span className="text-zinc-200 font-semibold">
@@ -304,19 +611,10 @@ function HistoryAttackDetail({ entry }: { entry: any }) {
                         {isCritical && <span className="text-yellow-400 ml-1">💥</span>}
                     </span>
                 </div>
+                )}
             </div>
-            {entry.modifiers && entry.modifiers.length > 0 && (
-                <div className="space-y-1">
-                    <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('attackDetail.modifiers')}</div>
-                    <div className="space-y-1">
-                        {entry.modifiers.map((m: string, i: number) => (
-                            <div key={i} className="bg-zinc-800/50 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300">{m}</div>
-                        ))}
-                    </div>
-                </div>
-            )}
             <div className={[
-                'rounded-lg p-3 text-xs space-y-1',
+                'rounded-lg p-3 text-sm space-y-1',
                 entry.hit ? 'bg-green-900/20 border border-green-700/50' : 'bg-red-900/20 border border-red-700/50',
             ].join(' ')}>
                 <div className="flex items-center justify-between">
@@ -326,9 +624,15 @@ function HistoryAttackDetail({ entry }: { entry: any }) {
                 {entry.hit && entry.total >= 11 && (
                     <div className="text-yellow-400 text-[10px] font-bold">{l('attackDetail.critical')}</div>
                 )}
-                {entry.counterDamage > 0 && (
+                {showCounterOnMiss && (
                     <div className="flex items-center justify-between text-red-300">
                         <span>{l('attackDetail.counterattack')}</span>
+                        <span className="font-bold">-{entry.counterDamage} HP</span>
+                    </div>
+                )}
+                {showCounterOnHit && (
+                    <div className="flex items-center justify-between text-red-300">
+                        <span>Contraataque</span>
                         <span className="font-bold">-{entry.counterDamage} HP</span>
                     </div>
                 )}
@@ -367,7 +671,17 @@ function HistoryMoveDetail({ entry }: { entry: any }) {
                     <span className="text-zinc-200 font-mono">({entry.to.q}, {entry.to.r})</span>
                 </div>
             </div>
-            <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-1.5 text-xs">
+            {entry.modifiers && entry.modifiers.length > 0 && (
+                <div className="space-y-1">
+                    <div className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">{l('moveDetail.modifiers')}</div>
+                    <div className="space-y-1">
+                        {entry.modifiers.map((m: string, i: number) => (
+                            <div key={i} className="bg-zinc-800/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-300">{m}</div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-1.5 text-sm">
                 <div className="flex items-center justify-between">
                     <span className="text-zinc-500">{l('moveDetail.baseCost')}</span>
                     <span className="text-zinc-200">{entry.baseCost} PA</span>
@@ -377,21 +691,83 @@ function HistoryMoveDetail({ entry }: { entry: any }) {
                     <span className={entry.cost === 0 ? 'text-green-400 font-bold' : 'text-zinc-200 font-semibold'}>{entry.cost} PA</span>
                 </div>
             </div>
-            {entry.modifiers && entry.modifiers.length > 0 && (
-                <div className="space-y-1">
-                    <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('moveDetail.modifiers')}</div>
-                    <div className="space-y-1">
-                        {entry.modifiers.map((m: string, i: number) => (
-                            <div key={i} className="bg-zinc-800/50 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300">{m}</div>
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
 
 function HistoryCardDetail({ entry }: { entry: any }) {
+    const CARD_SUPPORT_DETAIL = new Set([
+        'rayo_celestial', 'meditacion', 'en_nombre_del_rey', 'liderar_tropas',
+        'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_guerrero', 'robar_ricos',
+        'cabalgar', 'a_la_carga', 'posicion_estrategica',
+    ]);
+    if (CARD_SUPPORT_DETAIL.has(entry.cardId)) {
+        const cls2 = (c: string) => l(`unit.class.${c}`) ?? c;
+        const effectLines: { text: string; color: string }[] = [];
+        if (entry.cardId === 'lanza_escudo') {
+            const isRange = entry.details?.includes('rango');
+            effectLines.push({ text: isRange ? `⚔ +1 rango` : `🛡 +1 defensa`, color: isRange ? 'text-red-400' : 'text-blue-400' });
+        } else if (entry.cardId === 'voz_de_mando') {
+            effectLines.push({ text: `⚔ +1 ataque`, color: 'text-red-400' });
+            effectLines.push({ text: `🛡 +1 defensa`, color: 'text-blue-400' });
+        } else if (entry.cardId === 'plan_batalla') {
+            const isAtk = entry.details?.includes('Avanzar');
+            effectLines.push({ text: isAtk ? `⚔ ${entry.details}` : `🛡 ${entry.details}`, color: isAtk ? 'text-red-400' : 'text-blue-400' });
+        } else if (entry.cardId === 'camino_guerrero') {
+            effectLines.push({ text: `⚔ +1 PA (kill a rango 1)`, color: 'text-yellow-400' });
+        } else if (entry.cardId === 'robar_ricos') {
+            effectLines.push({ text: `💚 [${entry.targetId}] ${cls2(entry.targetClass)} +1 HP`, color: 'text-green-400' });
+        } else if (entry.cardId === 'posicion_estrategica') {
+            effectLines.push({ text: `👟 ${entry.details}`, color: 'text-amber-400' });
+        } else if (entry.cardId === 'cabalgar' || entry.cardId === 'a_la_carga') {
+            const parts = (entry.details ?? '').split(' · ');
+            effectLines.push({ text: `👟 ${parts[0] ?? ''}`, color: 'text-amber-400' });
+            if (parts.length > 1) effectLines.push({ text: `  ${parts[1]}`, color: 'text-zinc-500' });
+        } else if (entry.cardId === 'meditacion') {
+            const healAmt = entry.healAmount ?? entry.details?.match(/(\d+)/)?.[1] ?? '?';
+            effectLines.push({ text: `💚 General +${healAmt} HP`, color: 'text-green-400' });
+        } else if (entry.cardId === 'liderar_tropas') {
+            const bonus = entry.details?.match(/\+(\d+)/)?.[1] ?? '1';
+            effectLines.push({ text: `⚔ Infantería +${bonus} ataque este turno`, color: 'text-red-400' });
+        } else if (entry.cardId === 'en_nombre_del_rey') {
+            effectLines.push({ text: `🛡 [${entry.targetId}] ${cls2(entry.targetClass)} Escudo +3 HP`, color: 'text-blue-400' });
+            effectLines.push({ text: `⚔ [${entry.targetId}] ${cls2(entry.targetClass)} Ataque +2`, color: 'text-red-400' });
+        } else if (entry.cardId === 'rayo_celestial') {
+            effectLines.push({ text: `⚔ [${entry.targetId}] ${cls2(entry.targetClass)} Ataque +3`, color: 'text-red-400' });
+        } else if (entry.details) {
+            effectLines.push({ text: entry.details, color: 'text-zinc-300' });
+        }
+        const abDesc = l(`ability.${entry.cardId}.desc`);
+        return (
+            <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                    <div className="text-3xl">✨</div>
+                    <div>
+                        <div className="text-lg font-bold">{entry.cardName}</div>
+                        <div className="text-xs text-zinc-500">{l('board.turnLabel')} {entry.turn} · {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })}</div>
+                    </div>
+                </div>
+                {entry.sourceClass && entry.sourceIdentity && (
+                    <div className="flex items-center gap-2 text-sm">
+                        <span className="text-blue-400 font-semibold">Origen</span>
+                        <span className="text-zinc-200">{cls2(entry.sourceClass)} · {entry.sourceIdentity}</span>
+                    </div>
+                )}
+                <div className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 text-xs text-zinc-300 leading-relaxed">{abDesc}</div>
+                <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500">{l('attackDetail.paCost')}</span>
+                    <span className="font-bold text-yellow-400">{entry.paCost ?? 0} PA</span>
+                </div>
+                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wide">Efectos</div>
+                <div className="space-y-1">
+                    {effectLines.map((line, i) => (
+                        <div key={i} className={`${line.color} text-sm`}>{line.text}</div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     const isCounter = entry.cardType === 'COUNTER';
     return (
         <div className="space-y-4">
@@ -563,12 +939,17 @@ function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: s
 
             {/* Unit stats */}
             <div className="grid grid-cols-2 gap-2">
-                <StatBox label={l('unitDetail.hp')} value={`${currentHp}/${maxHp}`} bar={poolEntry ? 100 : Math.round((currentHp / maxHp) * 100)} />
+                <StatBox label={l('unitDetail.hp')} value={`${liveUnit ? currentHp + (liveUnit.auraShield ?? 0) : currentHp}/${maxHp}`} hp={liveUnit ? currentHp : undefined} shield={liveUnit ? (liveUnit.auraShield ?? 0) : 0} maxHp={maxHp} />
                 <StatBox label={l('unitDetail.attack')} value={`${unit?.attack ?? projected?.stats.attack ?? 3}`} />
                 <StatBox label={l('unitDetail.difficulty')} value={`${unit?.difficulty ?? projected?.stats.difficulty ?? 6}`} />
                 <StatBox label={l('unitDetail.range')} value={`${unit?.range ?? projected?.stats.range ?? 1}`} />
                 <StatBox label={l('unitDetail.movement')} value={`${unit?.movementCost ?? projected?.stats.movementCost ?? 1}`} />
             </div>
+
+            {/* Aura buffs (general only) */}
+            {liveUnit && liveUnit.class === 'general' && AURA_CONFIG.isActive && (
+                <AuraBox state={state} playerId={liveUnit.owner} />
+            )}
 
             {/* Active effects */}
             {liveUnit && (() => {
@@ -677,7 +1058,7 @@ function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: s
 
             {poolEntry && (
                 <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3 text-[10px] text-zinc-400">
-                    Unidad en pool de despliegue. Las stats y habilidades mostradas son proyectadas según la identidad seleccionada.
+                    Unidad en {l('ui.poolUnitDesc')}
                 </div>
             )}
         </div>
@@ -745,17 +1126,32 @@ function findPoolEntry(state: GameState, unitId: string): { owner: string; unitC
     return undefined;
 }
 
-function StatBox({ label, value, bar }: { label: string; value: string; bar?: number }) {
+function StatBox({ label, value, hp, shield, maxHp }: { label: string; value: string; hp?: number; shield?: number; maxHp?: number }) {
+    const sh = shield ?? 0;
+    const hasShield = sh > 0 && hp !== undefined && maxHp !== undefined;
+    if (hasShield) {
+        const total = hp! + sh;
+        const hpWidth = (hp! / total) * 100;
+        const colorClass = hp! > maxHp! * 0.5 ? 'bg-green-500' : hp! > maxHp! * 0.25 ? 'bg-yellow-500' : 'bg-red-500';
+        return (
+            <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-2">
+                <div className="text-[10px] text-zinc-500 uppercase">{label}</div>
+                <div className="text-sm font-bold">{value}</div>
+                <div className="w-full h-2 bg-zinc-700 rounded-full mt-1 overflow-hidden relative">
+                    <div className="absolute h-full rounded-full bg-zinc-100/60" style={{ width: '100%' }} />
+                    <div className={`absolute h-full rounded-full ${colorClass}`} style={{ width: `${hpWidth}%` }} />
+                </div>
+            </div>
+        );
+    }
+    const bar = hp !== undefined && maxHp !== undefined ? Math.round((hp / maxHp) * 100) : undefined;
     return (
         <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-2">
             <div className="text-[10px] text-zinc-500 uppercase">{label}</div>
             <div className="text-sm font-bold">{value}</div>
             {bar !== undefined && (
-                <div className="w-full h-1 bg-zinc-700 rounded-full mt-1 overflow-hidden">
-                    <div
-                        className={`h-full rounded-full transition-all ${bar > 50 ? 'bg-green-500' : bar > 25 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.max(0, Math.min(100, bar))}%` }}
-                    />
+                <div className="w-full h-2 bg-zinc-700 rounded-full mt-1 overflow-hidden relative">
+                    <div className={`absolute h-full rounded-full ${bar > 50 ? 'bg-green-500' : bar > 25 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${bar}%` }} />
                 </div>
             )}
         </div>

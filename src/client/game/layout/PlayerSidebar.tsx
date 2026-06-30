@@ -453,11 +453,10 @@ function descriptionForStat(stat: string, value: number, operator: string): stri
         attack: `${t}: +${value}`,
         difficulty: `${t}: ${value > 0 ? '+' : ''}${value}`,
         damage: `${t}: ${value > 0 ? '+' : ''}${value}`,
-        attackCost: `Coste de ataque: +${value}`,
-        blocked: 'Unidad bloqueada, no puede actuar',
-        dotOnHit: `${t}: +1 en el próximo impacto`,
-        ap: `PA: ${value > 0 ? '+' : ''}${value}`,
-        passiveDamage: `${t} al inicio del turno`,
+        attackCost: l('ui.attackCost', { n: value }),
+        blocked: l('ui.blocked'),
+        dotOnHit: l('ui.dotOnHit'),
+        passiveDamage: `${t} ${l('ui.passiveDamageStart')}`,
     };
     return values[stat] ?? `${stat}: ${opStr} ${value}`;
 }

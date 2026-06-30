@@ -92,6 +92,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
         switch (state.preparationPhase) {
             case 'IDENTITY_SELECTION': return handleIdentity(state, action);
             case 'ROLL':               return handleRoll(state, action);
+            case 'ROLL_RESULT':        return handleDeployment(state, action);
             case 'DEPLOYMENT':         return handleDeployment(state, action);
             default:                   return state;
         }
@@ -126,16 +127,44 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
         case 'COMANDANTE_CHOICE': {
             if (action.playerId !== state.activePlayer) return state;
             if (!state.players[action.playerId]?.pendingPlanBatalla) return state;
-            let s = { ...state, players: { ...state.players, [action.playerId]: { ...state.players[action.playerId], pendingPlanBatalla: false } } };
-            const allies = Object.values(s.units).filter(u => u.owner === action.playerId);
-            for (const u of allies) {
-                if (action.choice === 'attack') {
-                    s = addModifier(s, action.playerId, u.id, 'attack', 1, 'ADD', 0, 1, 'ability', 'Avanzar');
-                } else {
-                    s = addModifier(s, action.playerId, u.id, 'damage', -1, 'ADD', 0, 1, 'ability', 'Reagruparse');
+            // Limpiar bonuses de plan anterior y Voz de mando de todas las unidades
+            let units = { ...state.units };
+            for (const id of Object.keys(units)) {
+                if (units[id].owner === action.playerId) {
+                    units[id] = { ...units[id], vozDeMandoAttackBonus: undefined, vozDeMandoDefenseBonus: undefined };
                 }
             }
-            return s;
+            const choiceName = action.choice === 'attack' ? 'Avanzar (+1 ataque)' : 'Reagruparse (+1 defensa)';
+            const bonus = action.choice === 'attack' ? { planBatallaBonus: 1 } : { planBatallaDefense: 1 };
+            return {
+                ...state,
+                units,
+                players: {
+                    ...state.players,
+                    [action.playerId]: {
+                        ...state.players[action.playerId],
+                        pendingPlanBatalla: false,
+                        ...bonus,
+                        planBatallaBonus: action.choice === 'attack' ? 1 : undefined,
+                        planBatallaDefense: action.choice === 'defense' ? 1 : undefined,
+                    },
+                },
+                gameHistory: [...state.gameHistory, {
+                    id: `h${state.nextHistoryId}`,
+                    turn: state.turn,
+                    actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
+                    playerId: action.playerId,
+                    type: 'card' as const,
+                    cardId: 'plan_batalla',
+                    cardName: 'Plan de batalla',
+                    cardType: 'BUFF' as const,
+                    details: choiceName,
+                    paCost: 0,
+                    sourceClass: 'general',
+                    sourceIdentity: 'Comandante Supremo',
+                }],
+                nextHistoryId: state.nextHistoryId + 1,
+            };
         }
         case 'ESPARTANO_CHOICE': {
             if (action.playerId !== state.activePlayer) return state;
@@ -144,11 +173,30 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             if (!general) return state;
             let s = { ...state, players: { ...state.players, [action.playerId]: { ...state.players[action.playerId], pendingEspartanoChoice: false } } };
             s = updateUnit(s, general.id, (u) => ({ ...u, espartanoRangeBonus: false, espartanoDefenseBonus: false }));
+            const choiceName = action.choice === 'range' ? '+1 rango' : '+1 defensa';
             if (action.choice === 'range') {
                 s = updateUnit(s, general.id, (u) => ({ ...u, espartanoRangeBonus: true }));
             } else {
                 s = updateUnit(s, general.id, (u) => ({ ...u, espartanoDefenseBonus: true }));
             }
+            s = {
+                ...s,
+                gameHistory: [...s.gameHistory, {
+                    id: `h${s.nextHistoryId}`,
+                    turn: s.turn,
+                    actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                    playerId: action.playerId,
+                    type: 'card' as const,
+                    cardId: 'lanza_escudo',
+                    cardName: 'Lanza y escudo',
+                    cardType: 'BUFF' as const,
+                    details: choiceName,
+                    paCost: 0,
+                    sourceClass: general.class,
+                    sourceIdentity: 'Espartano',
+                }],
+                nextHistoryId: s.nextHistoryId + 1,
+            };
             return s;
         }
         case 'CONTINUE_ATTACK_RESULT': {

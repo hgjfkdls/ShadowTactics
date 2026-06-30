@@ -107,22 +107,31 @@ export function handleMove(state: GameState, action: GameAction): GameState {
                 },
             };
         } else if (useVozBonus) {
-            // Aliado usó el bono → consumir para todos, marcar esta unidad y dar doble bono de Plan de Batalla
-            s = updateUnit(s, unit.id, (u) => ({ ...u, usedVozDeMando: true }));
-            // Dar doble bono: duplicar el valor del modificador de Plan de Batalla existente
-            const existingAttack = s.activeModifiers.find(m => m.targetId === unit.id && m.stat === 'attack' && m.value > 0);
-            const existingDamage = s.activeModifiers.find(m => m.targetId === unit.id && m.stat === 'damage' && m.value < 0);
-            if (existingAttack) {
-                s = { ...s, activeModifiers: s.activeModifiers.map(m => m.id === existingAttack.id ? { ...m, value: m.value + existingAttack.value } : m) };
-            } else if (existingDamage) {
-                s = { ...s, activeModifiers: s.activeModifiers.map(m => m.id === existingDamage.id ? { ...m, value: m.value + existingDamage.value } : m) };
-            }
+            // Aliado usó el bono → consumir y dar +1 ataque y +1 defensa adicionales
+            s = updateUnit(s, unit.id, (u) => ({ ...u, usedVozDeMando: true, vozDeMandoAttackBonus: 1, vozDeMandoDefenseBonus: 1 }));
             s = {
                 ...s,
                 players: {
                     ...s.players,
                     [playerId]: { ...s.players[playerId], vozDeMandoReady: false },
                 },
+                gameHistory: [...s.gameHistory, {
+                    id: `h${s.nextHistoryId}`,
+                    turn: s.turn,
+                    actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                    playerId,
+                    type: 'card' as const,
+                    cardId: 'voz_de_mando',
+                    cardName: 'Voz de mando',
+                    cardType: 'BUFF' as const,
+                    targetId: unit.id,
+                    targetClass: unit.class,
+                    details: '+1 ataque, +1 defensa',
+                    paCost: 0,
+                    sourceClass: 'general',
+                    sourceIdentity: 'Comandante Supremo',
+                }],
+                nextHistoryId: s.nextHistoryId + 1,
             };
         }
     }

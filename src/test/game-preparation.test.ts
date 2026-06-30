@@ -119,8 +119,8 @@ function prepIdentity() {
         'ROLL_DICE — semilla RNG se consumió en p2');
 
     if (r2.diceRolls['p1'] !== r2.diceRolls['p2']) {
-        assert(r2.preparationPhase === 'DEPLOYMENT',
-            'ROLL_DICE — avanza a DEPLOYMENT si no hay empate');
+        assert(r2.preparationPhase === 'ROLL_RESULT',
+            'ROLL_DICE — avanza a ROLL_RESULT si no hay empate');
 
         // deploymentOrder y deploymentCount
         assert(r2.deploymentOrder !== undefined,
@@ -212,8 +212,8 @@ function prepDeployment() {
 
 {
     const state = prepDeployment();
-    assertEqual(state.preparationPhase, 'DEPLOYMENT',
-        'deployment setup — fase DEPLOYMENT');
+    assertEqual(state.preparationPhase, 'ROLL_RESULT',
+        'deployment setup — fase ROLL_RESULT');
 
     const deployer = state.currentDeployingPlayer!;
     const entry = state.players[deployer].unitsToDeploy![0];

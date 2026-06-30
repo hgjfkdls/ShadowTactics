@@ -121,13 +121,12 @@ export function getLastDebuffSource(state: GameState): PlayerId | null {
 export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId): GameState {
     let mods = state.activeModifiers
         .map(m => {
-            // Decrementar remainingTurns para modificadores que aplican al jugador
-            if (m.remainingTurns > 0) {
+            if (m.remainingTurns !== undefined && m.remainingTurns >= 0) {
                 return { ...m, remainingTurns: m.remainingTurns - 1 };
             }
             return m;
         })
-        .filter(m => m.remainingTurns >= 0);
+        .filter(m => m.remainingTurns === undefined || m.remainingTurns >= 0);
 
     // Limpiar expirados
     mods = mods.filter(m => !(m.remainingUses !== undefined && m.remainingUses <= 0));

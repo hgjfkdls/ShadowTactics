@@ -155,8 +155,8 @@ function getMod(state: GameState, stat: string) {
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['mantenimiento_1'] } } };
     const result = playCard(withCard, 'mantenimiento_1');
 
-    const mod = getMod(result, 'damage');
-    assert(mod?.value === -1, 'Mantenimiento — damage -1');
+    const mod = getMod(result, 'attack');
+    assert(mod?.value === -1, 'Mantenimiento — attack -1');
     assert(mod?.remainingUses === 1, 'Mantenimiento — 1 uso');
     assert(result.effectDiscard.includes('mantenimiento_1'), 'Mantenimiento — descartada');
 }

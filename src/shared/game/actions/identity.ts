@@ -14,7 +14,6 @@ export function handleIdentityAbility(state: GameState, action: GameAction): Gam
     if (target.class === 'general') return state;
 
     let s = dealDamage(state, action.targetId, 1);
-
     const general = Object.values(s.units).find(u => u.owner === action.playerId && u.class === 'general');
     s = {
         ...s,

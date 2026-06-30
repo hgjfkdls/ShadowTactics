@@ -39,30 +39,30 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
                     Paso {step + 1} / 12
                     {isMyTurn
                         ? ` — Colocas ${step === 0 || step === 11 ? '1' : '2'} unidad(es)`
-                        : ' — Esperando oponente...'}
+                        : l('ui.waitingOpponentShort')}
                 </div>
             </div>
 
             {/* Panel A — Player info */}
             <div className="border-b border-zinc-700 p-3 space-y-2">
-                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Tu información</div>
+                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('ui.yourInfo')}</div>
                 <div className="flex items-center gap-2">
                     <div className="text-lg">🛡️</div>
                     <div>
                         <div className="text-sm font-bold">{getIdentityName(player?.selectedIdentity)}</div>
-                        <div className="text-xs text-zinc-400">Jugador {playerId}</div>
+                        <div className="text-xs text-zinc-400">{l('ui.playerLabel', { n: playerId === 'p1' ? '1' : '2' })}</div>
                     </div>
                 </div>
                 <div className="space-y-1 text-xs">
                     {state.activePlayer === playerId ? (
-                        <div className="text-green-400 font-semibold">✅ Eres el jugador activo</div>
+                        <div className="text-green-400 font-semibold">{l('ui.activePlayer', { player: 'tú' })}</div>
                     ) : (
-                        <div className="text-zinc-500">Jugador activo: {state.activePlayer === opponentId ? 'oponente' : `P${state.activePlayer}`}</div>
+                        <div className="text-zinc-500">{l('ui.activePlayer', { player: state.activePlayer === opponentId ? l('ui.oponente') : l('ui.playerShort', { id: state.activePlayer }) })}</div>
                     )}
                     {isMyTurn ? (
-                        <div className="text-yellow-400 font-semibold">⏳ Desplegando ahora</div>
+                        <div className="text-yellow-400 font-semibold">{l('deploy.deployingNow')}</div>
                     ) : (
-                        <div className="text-zinc-500">Despliega: {state.currentDeployingPlayer === opponentId ? 'oponente' : `P${state.currentDeployingPlayer}`}</div>
+                        <div className="text-zinc-500">{l('deploy.deployer', { player: state.currentDeployingPlayer === opponentId ? l('ui.oponente') : l('ui.playerShort', { id: state.currentDeployingPlayer }) })}</div>
                     )}
                     <div className="text-zinc-400">Unidades: {deployedCount} / 11</div>
                 </div>
@@ -122,7 +122,7 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
 
                         {selectedUnitId && (
                             <div className="mt-3 text-xs text-green-400 text-center">
-                                ✅ Haz clic en un hexágono válido para desplegar {selectedUnitId}
+                                {l('ui.clickHexDeploy', { unitId: selectedUnitId })}
                             </div>
                         )}
                     </div>
