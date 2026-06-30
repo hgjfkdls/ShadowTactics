@@ -5,6 +5,15 @@ export function effectivePrice(price: number, discountPercent: number, discountE
     return price;
 }
 
+export const SC_PACKAGES = [
+    { id: 'small',  name: 'Paquete Pequeño',   sc: 100,  usd: 199  },
+    { id: 'medium', name: 'Paquete Mediano',    sc: 600,  usd: 999  },
+    { id: 'large',  name: 'Paquete Grande',     sc: 1500, usd: 1999 },
+    { id: 'legend', name: 'Paquete Legendario', sc: 5000, usd: 4999 },
+] as const;
+
+export type PackageId = (typeof SC_PACKAGES)[number]['id'];
+
 export function computeCoins(
     isWinner: boolean,
     streak: number,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import ShopCard from './ShopCard';
 import BuyModal from './BuyModal';
 
@@ -183,10 +184,14 @@ export default function ShopContent() {
             </div>
 
             <div className="mb-6 text-right">
-                <span className="flex items-center gap-1 text-lg font-bold text-yellow-400">
+                <Link
+                    href="/tienda/recargar"
+                    className="inline-flex items-center gap-2 text-lg font-bold text-yellow-400 transition-colors hover:text-yellow-300"
+                >
                     <img src="/img/icons/shadow_coin_icon.png" alt="" className="h-10" />
-                    {coins} SC
-                </span>
+                    <span>{coins} SC</span>
+                    <span className="text-xs font-normal text-zinc-500 underline">Recargar</span>
+                </Link>
             </div>
 
             {items.length === 0 ? (
@@ -198,6 +203,16 @@ export default function ShopContent() {
                     ))}
                 </div>
             )}
+
+            <div className="mt-8 border-t border-zinc-800 pt-6 text-center">
+                <Link
+                    href="/tienda/recargar"
+                    className="inline-flex items-center gap-2 rounded-lg border border-yellow-700/40 bg-yellow-950/20 px-5 py-3 text-sm font-semibold text-yellow-400 transition-colors hover:bg-yellow-950/40"
+                >
+                    <img src="/img/icons/recarga_icon.png" alt="" className="h-16" />
+                    ¿Necesitas más ShadowCoins? <span className="underline">Recargar SC →</span>
+                </Link>
+            </div>
 
             {buyTarget && (
                 <BuyModal

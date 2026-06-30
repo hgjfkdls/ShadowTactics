@@ -23,9 +23,9 @@
 │  │ [Comprar]│  │ [Comprar]│  │ [Comprar]│  │ 🔒        │      │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │
 │                                                                 │
-│  ┌──────────┐  ┌──────────┐                                     │
-│  │ ...      │  │ ...      │                                     │
-│  └──────────┘  └──────────┘                                     │
+│  ══════════════════════════════════════════════════════════════ │
+│  💰 ¿Necesitas más ShadowCoins?  [Recargar SC →]               │
+│  ══════════════════════════════════════════════════════════════ │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,7 +40,8 @@
 ### ShopContent (client component)
 
 - Llama a `GET /api/shop/items` al montar.
-- Muestra el saldo de monedas en el header.
+- Muestra el saldo de monedas en el header (clickeable → `/tienda/recargar`).
+- Incluye banner de recarga al final: "¿Necesitas más ShadowCoins? [Recargar SC →]".
 - Filtros por categoría (agrupación lógica):
 
 | Grupo | Tipos incluidos |
@@ -53,6 +54,7 @@
 | Colección | LOADING_SCREEN, CURSOR, UI_THEME, MENU_BACKGROUND |
 
 - Filtro adicional por rareza (botones COMMON/RARE/EPIC/LEGENDARY).
+- Cuando el usuario tiene saldo insuficiente para un cosmético, se muestra `🔒` bloqueado.
 
 ### ShopCard (componente individual de cosmético)
 
@@ -121,18 +123,34 @@
 - Si hubo descuento, el toast incluye `("X% descuento aplicado")`.
 - El toast de éxito muestra el nuevo saldo.
 
-## Archivos a crear
+### Banner de recarga
+
+- Línea separadora + mensaje: "💰 ¿Necesitas más ShadowCoins? [Recargar SC →]"
+- El botón enlaza a `/tienda/recargar` (ver [stripe.md](./stripe.md)).
+- Se muestra siempre al final del grid de cosméticos.
+
+## Archivos creados
 
 | Archivo | Descripción |
 |---|---|
-| `app/tienda/page.tsx` | Página principal de la tienda (server component) |
-| `components/tienda/ShopContent.tsx` | Cliente con grid, filtros, lógica de compra |
-| `components/tienda/ShopCard.tsx` | Tarjeta individual de cosmético |
-| `components/tienda/RarityBadge.tsx` | Badge de rareza con color |
-| `components/tienda/BuyModal.tsx` | Modal de confirmación de compra |
+| `web/app/tienda/page.tsx` | Página principal de la tienda (server component) |
+| `web/components/tienda/ShopContent.tsx` | Cliente con grid, filtros, lógica de compra |
+| `web/components/tienda/ShopCard.tsx` | Tarjeta individual de cosmético |
+| `web/components/tienda/RarityBadge.tsx` | Badge de rareza con color |
+| `web/components/tienda/BuyModal.tsx` | Modal de confirmación de compra |
 
 ## Archivos a modificar
 
 | Archivo | Cambio |
 |---|---|
 | `components/Navbar.tsx` | Añadir enlace "Tienda" en el menú |
+
+## Integración con recarga de SC
+
+La tienda principal se integra con `/tienda/recargar` mediante:
+
+1. **Saldo clickeable** — el indicador de `{coins} SC` enlaza a `/tienda/recargar`.
+2. **Banner al final** — "¿Necesitas más ShadowCoins? [Recargar SC →]" con enlace a la página de recarga.
+3. **Saldo insuficiente** — los cosméticos bloqueados (`🔒`) invitan al usuario a recargar.
+
+Ver [stripe.md](./stripe.md) para la documentación completa del sistema de recarga.

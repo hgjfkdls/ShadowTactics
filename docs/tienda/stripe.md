@@ -2,8 +2,8 @@
 
 # Stripe — Pagos reales con tarjeta
 
-**Estado:** ⏳ Pendiente
-**Prioridad:** Baja (posterior a Fase 5)
+**Estado:** 🔜 En progreso (siguiente funcionalidad)
+**Prioridad:** Alta (después de tienda cosméticos)
 
 ## Objetivo
 
@@ -161,6 +161,14 @@ Historial de compras del usuario autenticado.
 
 ## 7. Frontend
 
+### Integración con la tienda principal
+
+Desde la tienda de cosméticos (`/tienda`) se accede a la recarga mediante:
+
+1. **Saldo clickeable** — el indicador `{coins} SC` en `ShopContent.tsx` se convierte en un `<Link href="/tienda/recargar">`.
+2. **Banner de recarga** — línea separadora al final del grid: "💰 ¿Necesitas más ShadowCoins? [Recargar SC →]".
+3. **Navbar** — enlace "Recargar" junto al botón de usuario (o en el menú de navegación).
+
 ### Página `/tienda/recargar`
 
 ```
@@ -196,39 +204,41 @@ Historial de compras del usuario autenticado.
 ### Flujo de compra
 
 ```
-1. Usuario selecciona paquete → modal con resumen
-2. Usuario hace clic en "Pagar"
-3. Frontend llama a POST /api/stripe/create-payment → obtiene clientSecret
-4. Se monta Stripe Elements (PaymentElement) con el clientSecret
-5. Usuario ingresa datos de tarjeta
-6. Stripe procesa el pago
-7. Éxito → Stripe llama al webhook → se acreditan SC
-8. Frontend detecta el completion via stripePromise.retrievePaymentIntent
-9. Toast + actualización del saldo
+1. Usuario navega a /tienda/recargar (desde saldo clickeable, banner o navbar)
+2. Selecciona un paquete → modal con resumen
+3. Hace clic en "Pagar"
+4. Frontend llama a POST /api/stripe/create-payment → obtiene clientSecret
+5. Se monta Stripe Elements (PaymentElement) con el clientSecret
+6. Usuario ingresa datos de tarjeta
+7. Stripe procesa el pago
+8. Éxito → Stripe llama al webhook → se acreditan SC
+9. Frontend detecta el completion via stripePromise.retrievePaymentIntent
+10. Toast + actualización del saldo
+11. Botón "Volver a la tienda" → redirige a /tienda
 ```
 
 ### Archivos a crear
 
 | Archivo | Descripción |
 |---|---|
-| `app/tienda/recargar/page.tsx` | Página de recarga con selección de paquetes |
-| `components/tienda/StripeCheckout.tsx` | Client component con Stripe Elements + PaymentElement |
-| `components/tienda/PackageCard.tsx` | Card de selección de paquete |
-| `lib/stripe.ts` | Inicialización del cliente Stripe (publishable key) |
-| `app/api/stripe/create-payment/route.ts` | POST — crear PaymentIntent |
-| `app/api/webhooks/stripe/route.ts` | POST — webhook para confirmar pagos |
-| `app/api/stripe/packages/route.ts` | GET — listar paquetes |
-| `app/api/stripe/history/route.ts` | GET — historial de compras |
+| `web/app/tienda/recargar/page.tsx` | Página de recarga con selección de paquetes |
+| `web/components/tienda/StripeCheckout.tsx` | Client component con Stripe Elements + PaymentElement |
+| `web/components/tienda/PackageCard.tsx` | Card de selección de paquete |
+| `web/lib/stripe.ts` | Inicialización del cliente Stripe (publishable key) |
+| `web/app/api/stripe/create-payment/route.ts` | POST — crear PaymentIntent |
+| `web/app/api/webhooks/stripe/route.ts` | POST — webhook para confirmar pagos |
+| `web/app/api/stripe/packages/route.ts` | GET — listar paquetes |
+| `web/app/api/stripe/history/route.ts` | GET — historial de compras |
 
 ### Archivos a modificar
 
 | Archivo | Cambio |
 |---|---|
-| `prisma/schema.prisma` | Modelo `Purchase` |
-| `lib/pricing.ts` | Constante `SC_PACKAGES` con catálogo de paquetes |
-| `components/Navbar.tsx` | Enlace "Recargar" o botón de SC en navbar |
-| `app/tienda/page.tsx` | Enlace/banner "¿Necesitas más SC? Recarga aquí" |
-| `app/perfil/page.tsx` | Sección de historial de compras (opcional) |
+| `web/prisma/schema.prisma` | Modelo `Purchase` |
+| `web/lib/pricing.ts` | Constante `SC_PACKAGES` con catálogo de paquetes |
+| `web/components/Navbar.tsx` | Enlace "Recargar" o botón de SC en navbar |
+| `web/components/tienda/ShopContent.tsx` | Saldo clickeable → enlace a `/tienda/recargar` + banner de recarga |
+| `web/app/perfil/page.tsx` | Sección de historial de compras (opcional) |
 
 ---
 
@@ -278,8 +288,8 @@ stripe trigger payment_intent.succeeded
  7. Frontend: PackageCard + StripeCheckout
  8. Frontend: /tienda/recargar page
  9. GET /api/stripe/history (opcional)
-10. Enlace "Recargar" en Navbar
-11. Banner en /tienda "¿Necesitas más SC?"
+10. Saldo clickeable + banner en ShopContent (enlace a /tienda/recargar)
+11. Enlace "Recargar" en Navbar
 ```
 
 ## 11. Tiempo estimado

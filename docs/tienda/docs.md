@@ -11,7 +11,7 @@ Sistema de monetización basado exclusivamente en **cosméticos y personalizaci�
 ## Documentos
 
 | Documento | Descripción |
-|---|---|
+|---|---|---|
 | [generalidades.md](./generalidades.md) | Visión de producto: tipos de cosméticos, filosofía de monetización |
 | [modelos.md](./modelos.md) | Schema Prisma: Cosmetic, UserCosmetic, Transaction, enums, attributes JSON |
 | [moneda.md](./moneda.md) | Economía virtual: ganancias por partida, precios por rareza, rachas |
@@ -20,6 +20,7 @@ Sistema de monetización basado exclusivamente en **cosméticos y personalizaci�
 | [frontend-inventario.md](./frontend-inventario.md) | UI de inventario y equipamiento en perfil |
 | [seed.md](./seed.md) | Catálogo inicial: 35 cosméticos con tipos, rarezas y precios |
 | [orden.md](./orden.md) | Orden de implementación: 14 pasos, dependencias, estimación ~10h |
+| [recarga-mock.md](./recarga-mock.md) | Recarga de SC simulada (mock): plan de implementación |
 | [stripe.md](./stripe.md) | Stripe: pagos reales con tarjeta, paquetes de SC, webhooks |
 
 ## Resumen técnico

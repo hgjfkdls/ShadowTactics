@@ -62,6 +62,7 @@ model User {
     performances  GamePlayerPerformance[]
     cosmetics     UserCosmetic[]
     transactions  Transaction[]
+    purchases     Purchase[]
 }
 
 model Game {
@@ -242,4 +243,18 @@ model Transaction {
     concept   String
     createdAt DateTime        @default(now())
     user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Purchase {
+    id          String    @id @default(uuid())
+    userId      String
+    packageId   String
+    amountSC    Int
+    amountUSD   Int
+    currency    String    @default("usd")
+    stripePiId  String    @unique
+    status      String    @default("succeeded")
+    createdAt   DateTime  @default(now())
+    succeededAt DateTime?
+    user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

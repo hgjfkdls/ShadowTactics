@@ -2,19 +2,26 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import AuthButton from './AuthButton';
 
-const links = [
+const publicLinks = [
     { href: '/', label: 'Inicio' },
     { href: '/como-jugar', label: 'Cómo jugar' },
     { href: '/cartas', label: 'Cartas' },
     { href: '/rankings', label: 'Rankings' },
+];
+
+const authLinks = [
     { href: '/tienda', label: 'Tienda' },
+    { href: '/tienda/recargar', label: 'Recargar' },
     { href: '/jugar', label: 'Jugar' },
 ];
 
 export default function Navbar() {
     const [open, setOpen] = useState(false);
+    const { data: session } = useSession();
+    const links = session ? [...publicLinks, ...authLinks] : publicLinks;
 
     return (
         <nav className="fixed top-0 z-50 w-full border-b border-white/10 bg-bg-dark/80 backdrop-blur-md">

@@ -166,4 +166,32 @@ Schema ──> Seed ──> Buy ──> Equip
 | 13-14 (Integración + Navbar) | ~1h |
 | **Total estimado** | **~10h** |
 
-> Todo el sistema está implementado y funcional. Consulta [stripe.md](./stripe.md) para la siguiente funcionalidad pendiente (pagos reales).
+## Siguiente: Stripe — Pagos reales 🚧
+
+El sistema de recarga de ShadowCoins con dinero real está planificado. Ver [stripe.md](./stripe.md) para el detalle completo.
+
+### Pasos pendientes (Stripe)
+
+```
+ 1. 🔲 Crear modelo Purchase + migración
+ 2. 🔲 Definir SC_PACKAGES en lib/pricing.ts
+ 3. 🔲 lib/stripe.ts (inicializar Stripe cliente)
+ 4. 🔲 GET /api/stripe/packages
+ 5. 🔲 POST /api/stripe/create-payment
+ 6. 🔲 POST /api/webhooks/stripe
+ 7. 🔲 Frontend: PackageCard + StripeCheckout
+ 8. 🔲 Frontend: /tienda/recargar
+ 9. 🔲 GET /api/stripe/history (opcional)
+10. 🔲 Saldo clickeable + banner en ShopContent
+11. 🔲 Enlace "Recargar" en Navbar
+```
+
+| Paso | Estimación |
+|---|---|
+| 1-3 (Modelo + configuración) | ~1h |
+| 4-6 (APIs Stripe + Webhook) | ~3h |
+| 7-9 (Frontend recarga) | ~2h |
+| 10-11 (Integración tienda + Navbar) | ~1h |
+| **Total** | **~7h** |
+
+> Tiempo estimado total: ~7h. Ver [stripe.md](./stripe.md) para documentación completa.
