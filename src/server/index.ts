@@ -146,7 +146,7 @@ io.on('connection', socket => {
                 const userIdMapping = room.getUserIdMapping();
                 room.onGameOverCallback = (finalState) => {
                     const history = room.getHistory();
-                    submitReport(gameId, finalState, history.actions, userIdMapping, room.getMatchType());
+                    submitReport(gameId, finalState, history.actions, userIdMapping, room.getMatchType(), history.initialDeployments);
                 };
             }
 
@@ -169,7 +169,6 @@ io.on('connection', socket => {
             });
         }
 
-        // console.log(room.debugInfo());
     });
 
     socket.on('ACTION', ({ gameId, action, playerId }) => {

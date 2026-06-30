@@ -6,6 +6,8 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useSocket } from '@/hooks/useSocket';
 
+const GAME_CLIENT_URL = process.env.NEXT_PUBLIC_GAME_CLIENT_URL ?? 'http://localhost:5173';
+
 type GameMode = 'quickplay' | 'ranked' | 'invite';
 type SearchStatus = 'idle' | 'searching' | 'matched' | 'timeout' | 'error';
 
@@ -74,11 +76,12 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ inviteId }),
         })
-            .then((r) => r.json())
+            .then((r) => r.json().catch(() => ({ error: 'Respuesta inválida del servidor' })))
             .then((data) => {
+                if (data.error) { console.warn('[accept]', data.error); return; }
                 if (data.status === 'accepted' && session?.user?.id) {
                     const params = new URLSearchParams({ userId: session.user.id, matchType: 'quickplay' });
-                    window.location.href = `http://localhost:5173/game/${data.gameId}?${params}`;
+                    window.location.href = `${GAME_CLIENT_URL}/game/${data.gameId}?${params}`;
                 }
             })
             .catch(() => {});
@@ -152,12 +155,13 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
     const [errorMsg, setErrorMsg] = useState('');
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const retryRef = useRef(0);
 
     const title = mode === 'ranked' ? 'Ranked' : 'Partida rápida';
     const accentBorder = mode === 'ranked' ? 'border-brand-500/50' : 'border-yellow-700/50';
     const accentBg = mode === 'ranked' ? 'bg-brand-950/20' : 'bg-yellow-950/20';
 
-    useSocket({
+    const { connected: socketConnected } = useSocket({
         onMatchFound: (data) => {
             setStatus('matched');
             setMatchedGameId(data.gameId);
@@ -167,7 +171,7 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
 
     function goToMatch(gameId: string) {
         const params = new URLSearchParams({ userId: session?.user?.id ?? '', matchType: mode });
-        window.location.href = `http://localhost:5173/game/${gameId}?${params}`;
+        window.location.href = `${GAME_CLIENT_URL}/game/${gameId}?${params}`;
     }
 
     function startSearch() {
@@ -176,14 +180,20 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
         setQueueLength(1);
         setMatchedGameId(null);
         setMatchedOpponent(null);
+        retryRef.current = 0;
 
         fetch('/api/matchmaking/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: mode }),
         })
-            .then((r) => r.json())
+            .then((r) => r.json().catch(() => ({ error: 'Respuesta inválida del servidor' })))
             .then((data) => {
+                if (data.error) {
+                    setStatus('error');
+                    setErrorMsg(data.error);
+                    return;
+                }
                 if (data.status === 'matched') {
                     setStatus('matched');
                     setMatchedGameId(data.gameId);
@@ -193,11 +203,14 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
                 if (data.status === 'searching') {
                     setStatus('searching');
                     setQueueLength(data.position);
+                    return;
                 }
+                setStatus('error');
+                setErrorMsg('Respuesta inesperada del servidor');
             })
             .catch(() => {
                 setStatus('error');
-                setErrorMsg('Error de conexión');
+                setErrorMsg('Error de conexión — no se pudo contactar al servidor');
             });
     }
 
@@ -231,7 +244,8 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, [status]);
 
-    // Poll para queueLength y timeout (cada 3s, ya no controla elapsed ni match)
+    // Poll con límite de reintentos
+    const MAX_POLL_RETRIES = 20; // ~60s máximo si falla todo
     useEffect(() => {
         if (status !== 'searching') {
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -239,9 +253,18 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
         }
 
         pollRef.current = setInterval(() => {
+            retryRef.current += 1;
+            if (retryRef.current > MAX_POLL_RETRIES) {
+                stopIntervals();
+                setStatus('timeout');
+                return;
+            }
+
             fetch('/api/matchmaking/status')
-                .then((r) => r.json())
+                .then((r) => r.json().catch(() => ({ error: 'Respuesta inválida del servidor' })))
                 .then((data) => {
+                    if (data.error) { return; }
+                    retryRef.current = 0;
                     if (data.status === 'matched') {
                         setStatus('matched');
                         setMatchedGameId(data.gameId);
@@ -257,9 +280,7 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
                     }
                 })
                 .catch(() => {
-                    stopIntervals();
-                    setStatus('error');
-                    setErrorMsg('Error al consultar estado');
+                    // No detener el polling en errores de red transitorios
                 });
         }, 3000);
 
@@ -307,6 +328,11 @@ function QueueMode({ mode, onBack }: { mode: 'quickplay' | 'ranked'; onBack: () 
                                 <span>Tiempo: {elapsed}s</span>
                                 <span>En cola: {queueLength}</span>
                             </div>
+                            {!socketConnected && (
+                                <p className="text-xs text-amber-500">
+                                    Conectando con el servidor de juego... Las notificaciones pueden tener latencia.
+                                </p>
+                            )}
                             <button
                                 onClick={cancelSearch}
                                 className="rounded-lg border border-zinc-700 px-6 py-2 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
@@ -383,7 +409,7 @@ function InviteMode({ onBack }: { onBack: () => void }) {
     useEffect(() => {
         if (acceptedGameId && session?.user?.id) {
             const params = new URLSearchParams({ userId: session.user.id, matchType: 'quickplay' });
-            window.location.href = `http://localhost:5173/game/${acceptedGameId}?${params}`;
+            window.location.href = `${GAME_CLIENT_URL}/game/${acceptedGameId}?${params}`;
         }
     }, [acceptedGameId, session]);
 

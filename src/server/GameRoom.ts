@@ -24,6 +24,8 @@ export type ActionRecord = {
     index: number;
     action: GameAction;
     playerId: 'p1' | 'p2';
+    phase: 'preparation' | 'game' | 'game_over';
+    turn: number;
     time: number;
 };
 
@@ -31,6 +33,14 @@ export type StateSnapshot = {
     actionIndex: number;
     state: GameState;
     time: number;
+};
+
+export type InitialDeployment = {
+    unitId: string;
+    unitClass: string;
+    playerId: 'p1' | 'p2';
+    position: { q: number; r: number };
+    step: number;
 };
 
 export type JoinResult =
@@ -62,6 +72,7 @@ export class GameRoom {
 
     private actions: ActionRecord[] = [];
     private snapshots: StateSnapshot[] = [];
+    private initialDeployments: InitialDeployment[] = [];
 
     private SNAPSHOT_EVERY_N_ACTIONS = 1;
 
@@ -124,14 +135,32 @@ export class GameRoom {
         };
         this.disconnectTimeout = setTimeout(() => {
             if (this.currentState.gamePhase !== 'GAME') return;
-            this.currentState = applyAction(this.currentState, {
-                type: 'SURRENDER',
+            const index = this.actions.length + 1;
+            this.actions.push({
+                index,
+                action: { type: 'SURRENDER', playerId },
                 playerId,
+                phase: 'game',
+                turn: this.currentState.turn,
+                time: Date.now(),
             });
+            this.currentState = applyAction(this.currentState, { type: 'SURRENDER', playerId });
             this.currentState = {
                 ...this.currentState,
                 gameOverReason: 'disconnect',
             };
+            this.actions.push({
+                index: this.actions.length + 1,
+                action: {
+                    type: 'GAME_OVER',
+                    reason: 'disconnect',
+                    winner: playerId === 'p1' ? 'p2' : 'p1',
+                },
+                playerId,
+                phase: 'game_over',
+                turn: this.currentState.turn,
+                time: Date.now(),
+            });
             this.onGameOverCallback?.(this.currentState);
             this.onDisconnectCallback?.(this.currentState);
         }, DISCONNECT_TIMEOUT_MS);
@@ -176,13 +205,29 @@ export class GameRoom {
 
     handleAction(action: GameAction, playerId: 'p1' | 'p2') {
         const index = this.actions.length + 1;
+        const phase = this.currentState.gamePhase === 'PREPARATION' ? 'preparation' : 'game';
+        const turn = this.currentState.turn;
 
         const record: ActionRecord = {
             index,
             action,
             playerId,
+            phase,
+            turn,
             time: Date.now(),
         };
+
+        if (action.type === 'DEPLOY_UNIT') {
+            const player = this.currentState.players[action.playerId];
+            const poolEntry = player?.unitsToDeploy?.find(u => u.unitId === action.unitId);
+            this.initialDeployments.push({
+                unitId: action.unitId,
+                unitClass: poolEntry?.unitClass ?? 'unknown',
+                playerId,
+                position: action.position,
+                step: this.currentState.deploymentStep,
+            });
+        }
 
         this.actions.push(record);
 
@@ -190,6 +235,19 @@ export class GameRoom {
         this.currentState = newState;
 
         if (newState.gamePhase === 'GAME_OVER') {
+            const gameOverAction: ActionRecord = {
+                index: this.actions.length + 1,
+                action: {
+                    type: 'GAME_OVER',
+                    reason: newState.gameOverReason ?? 'general_killed',
+                    winner: newState.winner ?? (playerId === 'p1' ? 'p2' : 'p1'),
+                },
+                playerId,
+                phase: 'game_over',
+                turn: newState.turn,
+                time: Date.now(),
+            };
+            this.actions.push(gameOverAction);
             this.onGameOverCallback?.(newState);
         }
 
@@ -208,6 +266,7 @@ export class GameRoom {
         return {
             actions: [...this.actions],
             snapshots: [...this.snapshots],
+            initialDeployments: [...this.initialDeployments],
         };
     }
 

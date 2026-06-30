@@ -10,6 +10,7 @@
 
 ### Subcarpetas
 - [fases](./fases/docs.md)
+- [servidor](./servidor/index.md)
 
 ### Archivos
 - [arquitectura.md](./arquitectura.md)

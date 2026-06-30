@@ -18,7 +18,7 @@ type ReportBody = {
     player2Id: string;
     type: 'quickplay' | 'ranked';
     rngSeed: number;
-    actions: { index: number; playerId: string; action: object }[];
+    actions: { index: number; playerId: string; phase: string; turn: number; action: object }[];
     gameHistory?: unknown[];
     duration: number;
     totalTurns: number;

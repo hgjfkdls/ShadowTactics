@@ -17,7 +17,7 @@ export default async function RankingsPage() {
     return (
         <>
             <Navbar />
-            <main className="mx-auto max-w-4xl px-4 pt-28 pb-20">
+            <main className="mx-auto max-w-5xl px-4 pt-28 pb-20">
                 <h1 className="mb-2 text-3xl font-bold text-white">Clasificación</h1>
                 <p className="mb-8 text-zinc-500">
                     Ranking global de jugadores ordenado por ELO.

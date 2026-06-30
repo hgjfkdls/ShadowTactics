@@ -18,12 +18,17 @@ export type ActiveMatchInfo = {
 const inviteTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 function emitToUser(userId: string, event: string, data: unknown) {
-    const doFetch = () => fetch(`${GAME_SERVER}/__emit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, event, data }),
-    });
-    doFetch().catch(() => setTimeout(() => doFetch().catch(() => {}), 500));
+    const attempt = (retries = 3) => {
+        fetch(`${GAME_SERVER}/__emit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, event, data }),
+        }).catch((err) => {
+            console.warn(`[emitToUser] falló (${retries} retries left):`, err.message);
+            if (retries > 0) setTimeout(() => attempt(retries - 1), 1000);
+        });
+    };
+    attempt();
 }
 
 function generateGameId(): string {
@@ -142,11 +147,14 @@ async function findMatchInDB(
         return candidates[0];
     }
 
-    // Ranked: filtrar por margen ELO progresivo según tiempo esperando del candidato
+    // Ranked: usar el margen más restrictivo entre ambos jugadores
+    const playerElapsed = (Date.now() - now.getTime()) / 1000;
+    const playerMargin = Math.min(50 + Math.floor(playerElapsed / 5) * 50, 300);
     for (const c of candidates) {
-        const cElapsed = (now.getTime() - c.joinedAt.getTime()) / 1000;
-        const margin = Math.min(50 + Math.floor(cElapsed / 5) * 50, 300);
-        if (Math.abs(c.elo - elo) <= margin) {
+        const cElapsed = (Date.now() - c.joinedAt.getTime()) / 1000;
+        const cMargin = Math.min(50 + Math.floor(cElapsed / 5) * 50, 300);
+        const effectiveMargin = Math.min(playerMargin, cMargin);
+        if (Math.abs(c.elo - elo) <= effectiveMargin) {
             return c;
         }
     }

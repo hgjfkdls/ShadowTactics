@@ -83,6 +83,15 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
     if (nextStep >= 12) {
         const postDeploy: GameState = {
             ...newState,
+            gameHistory: [...newState.gameHistory, {
+                id: `h${newState.nextHistoryId}`,
+                turn: newState.turn,
+                actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+                playerId: 'p1',
+                type: 'phase',
+                phaseName: 'game_start',
+            }],
+            nextHistoryId: newState.nextHistoryId + 1,
             deploymentCount: 0,
             deploymentStep: nextStep,
             gamePhase: 'GAME',

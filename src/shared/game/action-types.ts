@@ -121,4 +121,11 @@ export type GameAction =
     | {
         type: 'SURRENDER';
         playerId: PlayerId;
+    }
+
+    // FIN DE LA PARTIDA (se inyecta automáticamente al detectar GAME_OVER)
+    | {
+        type: 'GAME_OVER';
+        reason: 'general_killed' | 'surrender' | 'disconnect';
+        winner: PlayerId;
     };

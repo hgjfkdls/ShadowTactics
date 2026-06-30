@@ -426,6 +426,16 @@ export function handleDiscard(state: GameState, action: GameAction): GameState {
 
     return {
         ...state,
+        gameHistory: [...state.gameHistory, {
+            id: `h${state.nextHistoryId}`,
+            turn: state.turn,
+            actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
+            playerId: action.playerId,
+            type: 'phase',
+            phaseName: 'discard',
+            details: action.cardId,
+        }],
+        nextHistoryId: state.nextHistoryId + 1,
         turnPhase,
         effectDiscard: [...state.effectDiscard, action.cardId],
         players: {

@@ -12,3 +12,4 @@
 | [fase5.md](./fase5.md) | Detalle de Fase 5 — Tienda de cosméticos y moneda virtual |
 | [plan.md](./plan.md) | Plan de implementación: lo hecho, lo que falta, dependencias, orden |
 | [session.md](./session.md) | Registro de sesiones de trabajo |
+| [debug-matchmaking.md](./debug-matchmaking.md) | Depuración de errores de conexión en matchmaking |

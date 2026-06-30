@@ -1,5 +1,5 @@
 import type { GameState, Unit } from '@shared/game/state';
-import type { ActionRecord } from './GameRoom';
+import type { ActionRecord, InitialDeployment } from './GameRoom';
 
 const REPORT_API_URL = process.env.REPORT_API_URL ?? 'http://localhost:3001/api/games/report';
 const REPORT_API_KEY = process.env.REPORT_API_KEY ?? 'dev-key-change-me';
@@ -64,7 +64,8 @@ type ReportPayload = {
     player2Id: string;
     type: 'quickplay' | 'ranked';
     rngSeed: number;
-    actions: { index: number; playerId: string; action: object }[];
+    actions: { index: number; playerId: string; phase: string; turn: number; action: object }[];
+    initialDeployments: { unitId: string; unitClass: string; playerId: string; q: number; r: number; step: number }[];
     gameHistory: GameState['gameHistory'];
     duration: number;
     totalTurns: number;
@@ -86,6 +87,7 @@ function computeReport(
     actions: ActionRecord[],
     userIdMapping: { p1?: string; p2?: string },
     matchType: 'quickplay' | 'ranked',
+    initialDeployments?: InitialDeployment[],
 ): ReportPayload | null {
     const p1UserId = userIdMapping.p1;
     const p2UserId = userIdMapping.p2;
@@ -106,6 +108,47 @@ function computeReport(
 
     const allP1Units = [...p1Units, ...p1Graveyard];
     const allP2Units = [...p2Units, ...p2Graveyard];
+    const allUnits = { ...state.units, ...state.graveyard };
+
+    const unitClassMap = new Map<string, string>();
+    for (const u of Object.values(allUnits)) {
+        unitClassMap.set(u.id, u.class);
+    }
+
+    // Computar totalMoves y totalHexesMoved por jugador y clase
+    const moveCounts: Record<string, Record<string, { moves: number; hexes: number }>> = {
+        [p1UserId]: {},
+        [p2UserId]: {},
+    };
+    for (const a of actions) {
+        if (a.action.type === 'MOVE_UNIT' && a.action.unitId) {
+            const uid = mapPlayerToUserId(a.playerId, userIdMapping);
+            if (!uid) continue;
+            const cls = unitClassMap.get(a.action.unitId) ?? 'unknown';
+            if (!moveCounts[uid][cls]) moveCounts[uid][cls] = { moves: 0, hexes: 0 };
+            moveCounts[uid][cls].moves += 1;
+            const fromUnit = allUnits[a.action.unitId];
+            if (fromUnit) {
+                const dq = Math.abs(a.action.to.q - fromUnit.position.q);
+                const dr = Math.abs(a.action.to.r - fromUnit.position.r);
+                moveCounts[uid][cls].hexes += Math.max(dq, dr, Math.abs(dq + dr));
+            }
+        }
+    }
+
+    // Contar USE_CARD y USE_ABILITY por jugador
+    const cardCounts: Record<string, number> = { [p1UserId]: 0, [p2UserId]: 0 };
+    const abilityCounts: Record<string, number> = { [p1UserId]: 0, [p2UserId]: 0 };
+    for (const a of actions) {
+        const uid = mapPlayerToUserId(a.playerId, userIdMapping);
+        if (!uid) continue;
+        if (a.action.type === 'USE_CARD') cardCounts[uid] += 1;
+        if (a.action.type === 'USE_ABILITY' || a.action.type === 'IDENTITY_ABILITY') abilityCounts[uid] += 1;
+    }
+
+    function findUnit(id: string) {
+        return Object.values(allUnits).find(u => u.id === id);
+    }
 
     const classBuckets: Record<string, { p1: Unit[]; p2: Unit[] }> = {};
     for (const unit of allP1Units) {
@@ -155,6 +198,9 @@ function computeReport(
                 return targetUnit && targetUnit.owner !== (isP1 ? 'p1' : 'p2') && c.counterDamage > 0;
             }).length;
 
+            const userId = isP1 ? p1UserId : p2UserId;
+            const classMoveStats = moveCounts[userId]?.[unitClass];
+
             const entry: ClassStatEntry = {
                 unitClass,
                 count: units.length,
@@ -171,8 +217,8 @@ function computeReport(
                 kills,
                 killsByCounter,
                 timesKilled: units.filter(u => state.graveyard[u.id] !== undefined).length,
-                totalMoves: 0,
-                totalHexesMoved: 0,
+                totalMoves: classMoveStats?.moves ?? 0,
+                totalHexesMoved: classMoveStats?.hexes ?? 0,
             };
 
             if (isP1) {
@@ -216,12 +262,6 @@ function computeReport(
     const gameStartTime = state.gameStartTime ?? 0;
     const duration = gameStartTime > 0 ? Math.floor((Date.now() - gameStartTime) / 1000) : 0;
 
-    const allUnits = { ...state.units, ...state.graveyard };
-
-    function findUnit(id: string) {
-        return Object.values(allUnits).find(u => u.id === id);
-    }
-
     function computePerf(playerId: string, userId: string): PerformanceEntry {
         const isWinner = winnerPlayerId === playerId;
         const myUnits = Object.values(state.units).filter(u => u.owner === playerId);
@@ -258,7 +298,7 @@ function computeReport(
 
         const pActions = actions.filter(a =>
             a.playerId === playerId &&
-            (a.action.type === 'USE_CARD' || a.action.type === 'PLAY_CARD')
+            a.action.type === 'USE_CARD'
         );
         const cardsPlayedPerTurn = pActions.length / (state.turn || 1);
 
@@ -329,11 +369,28 @@ function computeReport(
         player2Id: p2UserId,
         type: matchType,
         rngSeed: state.rngSeed,
-        actions: actions.map(a => ({ index: a.index, playerId: a.playerId, action: a.action })),
+        actions: actions.map(a => ({ index: a.index, playerId: a.playerId, phase: a.phase, turn: a.turn, action: a.action })),
+        initialDeployments: (initialDeployments ?? []).map(d => ({
+            unitId: d.unitId,
+            unitClass: d.unitClass,
+            playerId: d.playerId,
+            q: d.position.q,
+            r: d.position.r,
+            step: d.step,
+        })),
         gameHistory: state.gameHistory,
         duration,
         totalTurns: state.turn,
-        deployment,
+        deployment: initialDeployments && initialDeployments.length > 0
+            ? {
+                [p1UserId]: initialDeployments.filter(d => d.playerId === 'p1').map(d => ({
+                    unitId: d.unitId, class: d.unitClass, q: d.position.q, r: d.position.r, step: d.step,
+                })),
+                [p2UserId]: initialDeployments.filter(d => d.playerId === 'p2').map(d => ({
+                    unitId: d.unitId, class: d.unitClass, q: d.position.q, r: d.position.r, step: d.step,
+                })),
+            }
+            : deployment,
         classStats: {
             [p1UserId]: p1ClassStats,
             [p2UserId]: p2ClassStats,
@@ -344,16 +401,16 @@ function computeReport(
                 kills: p1Kills,
                 damageDealt: p1DamageDealt,
                 damageReceived: p1DamageReceived,
-                abilityUses: 0,
-                cardsPlayed: 0,
+                abilityUses: abilityCounts[p1UserId],
+                cardsPlayed: cardCounts[p1UserId],
             },
             [p2UserId]: {
                 identityId: p2IdentityId,
                 kills: p2Kills,
                 damageDealt: p2DamageDealt,
                 damageReceived: p2DamageReceived,
-                abilityUses: 0,
-                cardsPlayed: 0,
+                abilityUses: abilityCounts[p2UserId],
+                cardsPlayed: cardCounts[p2UserId],
             },
         },
         performance: {
@@ -369,8 +426,9 @@ export async function submitReport(
     actions: ActionRecord[],
     userIdMapping: { p1?: string; p2?: string },
     matchType: 'quickplay' | 'ranked' = 'quickplay',
+    initialDeployments?: InitialDeployment[],
 ): Promise<boolean> {
-    const payload = computeReport(gameId, state, actions, userIdMapping, matchType);
+    const payload = computeReport(gameId, state, actions, userIdMapping, matchType, initialDeployments);
     if (!payload) {
         console.error(`[report] No se pudo computar reporte para ${gameId}`);
         return false;

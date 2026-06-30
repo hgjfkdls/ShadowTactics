@@ -57,6 +57,16 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
 
     const newState: GameState = {
         ...state,
+        gameHistory: [...state.gameHistory, {
+            id: `h${state.nextHistoryId}`,
+            turn: state.turn,
+            actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
+            playerId: currentPlayer,
+            type: 'phase',
+            phaseName: 'turn_end',
+            details: currentAP > 0 ? `Carry over: ${carryOver} PA` : undefined,
+        }],
+        nextHistoryId: state.nextHistoryId + 1,
         units,
         activeModifiers: cleanExpired,
         turn: state.turn + 1,
@@ -126,6 +136,15 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
 
     let newState: GameState = {
         ...state,
+        gameHistory: [...state.gameHistory, {
+            id: `h${state.nextHistoryId}`,
+            turn: state.turn,
+            actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
+            playerId,
+            type: 'phase',
+            phaseName: 'turn_start',
+        }],
+        nextHistoryId: state.nextHistoryId + 1,
         units,
         turnPhase: 'DRAW',
         players: {
@@ -146,6 +165,19 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
 
     // Robar carta
     newState = drawCard(newState, playerId);
+    // Registrar robo en historial
+    newState = {
+        ...newState,
+        gameHistory: [...newState.gameHistory, {
+            id: `h${newState.nextHistoryId}`,
+            turn: newState.turn,
+            actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+            playerId,
+            type: 'phase',
+            phaseName: 'draw',
+        }],
+        nextHistoryId: newState.nextHistoryId + 1,
+    };
 
     // Procesar modificadores activos (decrementar turnos, aplicar AP, limpiar expirados)
     newState = processModifiersAtTurnStart(newState, playerId);

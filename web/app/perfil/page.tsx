@@ -31,7 +31,7 @@ export default async function PerfilPage() {
     return (
         <>
             <Navbar />
-            <main className="mx-auto max-w-4xl px-4 pt-28 pb-20">
+            <main className="mx-auto max-w-5xl px-4 pt-28 pb-20">
                 <h1 className="mb-8 text-3xl font-bold text-white">Mi perfil</h1>
 
                 <div className="rounded-xl border border-white/10 bg-bg-card p-6">

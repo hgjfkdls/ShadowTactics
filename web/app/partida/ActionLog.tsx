@@ -19,6 +19,8 @@ type GameAction = {
 type ActionRecord = {
     index: number;
     playerId: string;
+    phase: string;
+    turn: number;
     action: GameAction;
 };
 
@@ -27,7 +29,7 @@ type GameHistoryEntry = {
     turn: number;
     actionNumber: number;
     playerId: string;
-    type: 'attack' | 'move' | 'card';
+    type: 'attack' | 'move' | 'card' | 'ability' | 'phase';
     attackerId?: string;
     targetId?: string;
     die1?: number;
@@ -54,6 +56,14 @@ type GameHistoryEntry = {
     targetClass?: string;
     details?: string;
     healAmount?: number;
+    // ability type
+    abilityId?: string;
+    abilityName?: string;
+    sourceClass?: string;
+    sourceIdentity?: string;
+    paCost?: number;
+    // phase type
+    phaseName?: string;
 };
 
 type Players = Record<string, { username: string; identityId: string | null }>;
@@ -146,11 +156,21 @@ function targetName(action: GameAction, historyEntries: GameHistoryEntry[]): str
     return raw.length > 6 ? raw.slice(0, 4) + '…' : raw;
 }
 
+type InitialDeployment = {
+    unitId: string;
+    unitClass: string;
+    playerId: string;
+    q: number;
+    r: number;
+};
+
 export function ActionLog({ gameId }: Props) {
     const [actions, setActions] = useState<ActionRecord[]>([]);
     const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>([]);
     const [players, setPlayers] = useState<Players>({});
     const [playerMapping, setPlayerMapping] = useState<Record<string, string>>({});
+    const [initialDeployments, setInitialDeployments] = useState<InitialDeployment[]>([]);
+    const [diceResults, setDiceResults] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -165,6 +185,8 @@ export function ActionLog({ gameId }: Props) {
                 setGameHistory(data.gameHistory ?? []);
                 setPlayers(data.players ?? {});
                 setPlayerMapping(data.playerMapping ?? {});
+                setInitialDeployments(data.initialDeployments ?? []);
+                setDiceResults(data.diceResults ?? []);
             })
             .catch((e) => setError(e.message))
             .finally(() => setLoading(false));
@@ -222,13 +244,23 @@ export function ActionLog({ gameId }: Props) {
         );
     }
 
-    // Build map: action index → turn number
-    let currentTurn = 1;
+    let declaredTurns = 0;
+    const seenTurns = new Set<number>();
+    for (const rec of actions) {
+        if (rec.turn && !seenTurns.has(rec.turn)) {
+            seenTurns.add(rec.turn);
+            declaredTurns++;
+        }
+    }
+
+    // Build map: action index → turn number (from actual record turn field)
     const turnByIndex = new Map<number, number>();
     for (const rec of actions) {
-        turnByIndex.set(rec.index, currentTurn);
-        if (rec.action.type === 'END_TURN') currentTurn++;
+        turnByIndex.set(rec.index, rec.turn ?? 1);
     }
+
+    const lastPrepIndex = [...actions].reverse().findIndex(r => r.phase === 'preparation');
+    const lastPrepIdx = lastPrepIndex >= 0 ? actions.length - 1 - lastPrepIndex : -1;
 
     function producesHistory(rec: ActionRecord): boolean {
         switch (rec.action.type) {
@@ -276,15 +308,32 @@ export function ActionLog({ gameId }: Props) {
         <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6">
             <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">Registro de acciones</h3>
-                <span className="text-xs text-zinc-600">{actions.length} acciones · {currentTurn - 1} turnos</span>
+                <span className="text-xs text-zinc-600">{actions.length} acciones · {declaredTurns} turnos</span>
             </div>
             <div className="space-y-0.5">
                 {actions.map((rec, i) => {
                     const historyEntries = historyByAction.get(rec.index) ?? [];
                     const turn = turnByIndex.get(rec.index) ?? 1;
                     const prevTurn = i > 0 ? turnByIndex.get(actions[i - 1].index) ?? 1 : turn;
+                    const prevPhase = i > 0 ? actions[i - 1].phase : null;
+                    const isFirstPrep = rec.phase === 'preparation' && prevPhase !== 'preparation';
+                    const isLastPrep = rec.phase !== 'preparation' && prevPhase === 'preparation';
                     return (
                         <Fragment key={rec.index}>
+                            {isFirstPrep && (
+                                <div className="flex items-center gap-3 py-2">
+                                    <div className="h-px flex-1 bg-purple-700/50" />
+                                    <span className="text-xs font-semibold text-purple-400">📦 Fase de despliegue</span>
+                                    <div className="h-px flex-1 bg-purple-700/50" />
+                                </div>
+                            )}
+                            {isLastPrep && (
+                                <div className="flex items-center gap-3 py-2">
+                                    <div className="h-px flex-1 bg-brand-600/50" />
+                                    <span className="text-xs font-semibold text-emerald-400">⚔️ Inicio del juego</span>
+                                    <div className="h-px flex-1 bg-brand-600/50" />
+                                </div>
+                            )}
                             {turn !== prevTurn && (
                                 <div className="flex items-center gap-3 py-2">
                                     <div className="h-px flex-1 bg-zinc-700/50" />
@@ -297,6 +346,8 @@ export function ActionLog({ gameId }: Props) {
                                 historyEntries={historyEntries}
                                 pStr={pStr}
                                 playerBadge={playerBadge}
+                                initialDeployments={initialDeployments}
+                                diceResults={diceResults}
                             />
                         </Fragment>
                     );
@@ -311,11 +362,15 @@ function ActionRow({
     historyEntries,
     pStr,
     playerBadge,
+    initialDeployments: deps,
+    diceResults: dices,
 }: {
     rec: ActionRecord;
     historyEntries: GameHistoryEntry[];
     pStr: (pid: string) => string;
     playerBadge: (pid: string) => React.ReactNode;
+    initialDeployments: InitialDeployment[];
+    diceResults: string[];
 }) {
     const action = rec.action;
 
@@ -326,7 +381,7 @@ function ActionRow({
                 <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                         {playerBadge(rec.playerId)}
-                        <span className="text-zinc-300">{actionSummary(action, pStr(rec.playerId), historyEntries)}</span>
+                        <span className="text-zinc-300">{actionSummary(action, pStr(rec.playerId), historyEntries, deps, dices)}</span>
                     </div>
                     {historyEntries.length > 0 && (
                         <div className="mt-1 space-y-0.5">
@@ -355,19 +410,27 @@ function iconFor(action: GameAction): string {
         case 'SURRENDER': return '🏳️';
         case 'PASS_COUNTER': return '⏭️';
         case 'DISCARD_CARD': return '🗑️';
+        case 'GAME_OVER': return '🏁';
         default: return '•';
     }
 }
 
-function actionSummary(action: GameAction, p: string, history: GameHistoryEntry[]): string {
-    switch (action.type) {
-        case 'SELECT_IDENTITY':
-            return `seleccionó ${IDENTITY_NAMES[action.cardId ?? ''] ?? action.cardId}`;
-        case 'ROLL_DICE':
-            return `tiró los dados`;
-        case 'DEPLOY_UNIT':
-            return `desplegó una unidad`;
-        case 'MOVE_UNIT': {
+    function actionSummary(action: GameAction, p: string, history: GameHistoryEntry[], deps: InitialDeployment[], dices: string[]): string {
+        switch (action.type) {
+            case 'SELECT_IDENTITY':
+                return `seleccionó ${IDENTITY_NAMES[action.cardId ?? ''] ?? action.cardId}`;
+            case 'ROLL_DICE': {
+                const diceInfo = dices.length > 0 ? ` — ${dices[0]}` : '';
+                return `tiró los dados${diceInfo}`;
+            }
+            case 'DEPLOY_UNIT': {
+                const dep = deps.find(d => d.unitId === action.unitId);
+                const cls = dep?.unitClass ?? '';
+                const pos = action.position ? `(${action.position.q},${action.position.r})` : '';
+                const clsLabel = cls ? `${CLASS_ICONS[cls] ?? ''} ${CLASS_LABELS[cls] ?? cls}` : 'unidad';
+                return `desplegó ${clsLabel} en ${pos}`;
+            }
+            case 'MOVE_UNIT': {
             const cls = history.find(e => e.type === 'move')?.unitClass;
             const name = cls ? CLASS_LABELS[cls] ?? cls : (action.unitId ?? '').slice(0, 4);
             return `movió ${name}`;
@@ -391,6 +454,14 @@ function actionSummary(action: GameAction, p: string, history: GameHistoryEntry[
             return `terminó su turno`;
         case 'SURRENDER':
             return `se rindió`;
+        case 'GAME_OVER': {
+            const reasonLabels: Record<string, string> = {
+                general_killed: 'General eliminado',
+                surrender: 'Rendición',
+                disconnect: 'Desconexión',
+            };
+            return `fin de la partida — ${reasonLabels[(action as any).reason] ?? (action as any).reason ?? 'desconocida'}`;
+        }
         case 'IDENTITY_ABILITY':
             return `usó habilidad de identidad en ${action.targetId ?? ''}`;
         case 'ESPARTANO_CHOICE':
@@ -475,6 +546,77 @@ function HistoryDetail({ entry }: { entry: GameHistoryEntry }) {
                     {entry.healAmount != null && (
                         <div className="text-xs text-emerald-400">+{entry.healAmount} HP</div>
                     )}
+                </div>
+            );
+        }
+        case 'ability': {
+            return (
+                <div className="ml-4 border-l-2 border-purple-500/30 pl-3 space-y-0.5">
+                    <div className="flex flex-wrap gap-x-2 text-xs">
+                        <span className="text-purple-300">
+                            ⚡ {ABILITY_NAMES[entry.abilityId ?? ''] ?? entry.abilityName ?? entry.abilityId}
+                        </span>
+                        {entry.sourceClass && (
+                            <span className="text-zinc-500">{clsIcon(entry.sourceClass)} {CLASS_LABELS[entry.sourceClass] ?? entry.sourceClass}</span>
+                        )}
+                        {entry.sourceIdentity && (
+                            <span className="text-zinc-600">[{IDENTITY_NAMES[entry.sourceIdentity] ?? entry.sourceIdentity}]</span>
+                        )}
+                        {entry.targetId && (
+                            <span className="text-zinc-500">→ {entry.targetId}</span>
+                        )}
+                        {entry.paCost != null && (
+                            <span className="text-zinc-600">{entry.paCost} PA</span>
+                        )}
+                    </div>
+                    {entry.hit != null && (
+                        <div className="flex flex-wrap gap-x-3 text-xs">
+                            {entry.die1 != null && entry.die2 != null && (
+                                <span className="text-zinc-400">🎲 {entry.die1}+{entry.die2}={entry.total}</span>
+                            )}
+                            {entry.hit !== undefined && (
+                                <span className={entry.hit ? 'text-emerald-400' : 'text-red-400'}>
+                                    {entry.hit ? '✅ Impacto' : '❌ Fallo'}
+                                </span>
+                            )}
+                            {entry.damage != null && entry.damage > 0 && (
+                                <span className="text-zinc-400">💥 <strong className="text-white">{entry.damage}</strong> daño</span>
+                            )}
+                            {entry.targetKilled && <span className="text-red-400">💀 Eliminado</span>}
+                        </div>
+                    )}
+                    {entry.details && (
+                        <div className="text-xs text-zinc-500">{entry.details}</div>
+                    )}
+                    {entry.modifiers && entry.modifiers.length > 0 && (
+                        <div className="flex flex-wrap gap-1 text-xs text-zinc-500">
+                            {entry.modifiers.map((m, i) => (
+                                <span key={i} className="rounded bg-zinc-800/50 px-1.5 py-0.5">{m}</span>
+                            ))}
+                        </div>
+                    )}
+                    {entry.healAmount != null && (
+                        <div className="text-xs text-emerald-400">+{entry.healAmount} HP</div>
+                    )}
+                </div>
+            );
+        }
+        case 'phase': {
+            const phaseLabels: Record<string, string> = {
+                turn_start: 'Inicio del turno',
+                turn_end: 'Fin del turno',
+                draw: 'Robó una carta',
+                discard: 'Descartó una carta',
+                identity_select: 'Seleccionó identidad',
+                roll: 'Resultado de dados',
+                game_start: 'Inicio de la partida',
+            };
+            return (
+                <div className="ml-4 border-l-2 border-zinc-600/30 pl-3">
+                    <div className="flex flex-wrap gap-x-2 text-xs text-zinc-500">
+                        <span>{phaseLabels[entry.phaseName ?? ''] ?? entry.phaseName}</span>
+                        {entry.details && <span className="text-zinc-600">{entry.details}</span>}
+                    </div>
                 </div>
             );
         }

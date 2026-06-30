@@ -15,13 +15,23 @@ export function handleIdentity(state: GameState, action: GameAction): GameState 
 
     let newState: GameState = {
         ...state,
+        gameHistory: [...state.gameHistory, {
+            id: `h${state.nextHistoryId}`,
+            turn: state.turn,
+            actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
+            playerId,
+            type: 'phase',
+            phaseName: 'identity_select',
+            details: action.cardId,
+        }],
+        nextHistoryId: state.nextHistoryId + 1,
         identityDeck: [...state.identityDeck, ...returned],
         players: {
             ...state.players,
             [playerId]: {
                 ...player,
                 selectedIdentity: action.cardId,
-                identityCards: [],  // limpiar — ya no se necesitan
+                identityCards: [],
             }
         }
     };

@@ -30,6 +30,16 @@ export function handleRoll(state: GameState, action: GameAction): GameState {
 
     let s: GameState = {
         ...newState,
+        gameHistory: [...newState.gameHistory, {
+            id: `h${newState.nextHistoryId}`,
+            turn: newState.turn,
+            actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+            playerId: first,
+            type: 'phase',
+            phaseName: 'roll',
+            details: `${first}(dado=${p1Roll}) vs ${second}(dado=${p2Roll})`,
+        }],
+        nextHistoryId: newState.nextHistoryId + 1,
         deploymentOrder: [first, second],
         currentDeployingPlayer: first,
         activePlayer: second,

@@ -197,6 +197,37 @@ export type GameState = {
         sourceClass?: string;
         sourceIdentity?: string;
         healAmount?: number;
+    } | {
+        id: string;
+        turn: number;
+        actionNumber: number;
+        playerId: string;
+        type: 'ability';
+        abilityId: string;
+        abilityName: string;
+        sourceClass?: string;
+        sourceIdentity?: string;
+        targetId?: string;
+        targetClass?: string;
+        details?: string;
+        paCost?: number;
+        damage?: number;
+        hit?: boolean;
+        die1?: number;
+        die2?: number;
+        total?: number;
+        difficulty?: number;
+        targetKilled?: boolean;
+        modifiers?: string[];
+        healAmount?: number;
+    } | {
+        id: string;
+        turn: number;
+        actionNumber: number;
+        playerId: string;
+        type: 'phase';
+        phaseName: 'turn_start' | 'turn_end' | 'draw' | 'discard' | 'identity_select' | 'roll' | 'deployment_start' | 'deployment_end' | 'game_start' | 'game_over';
+        details?: string;
     }>;
     nextHistoryId: number;
 
