@@ -489,14 +489,18 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                                 {buffs.length > 0 && (
                                     <circle cx={-4} cy={0} r={3} fill="#22c55e" stroke="#1f2937" strokeWidth={1} />
                                 )}
-                                {(unit.fuegoCoberturaCharges ?? 0) > 0
-                                    ? Array.from({ length: unit.fuegoCoberturaCharges! }, (_, i) => (
-                                        <circle key={i} cx={4 + i * 8} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
-                                    ))
-                                    : debuffs.length > 0 && (
+                                {(() => {
+                                    const actionCostMods = state.activeModifiers.filter(m => m.stat === 'actionCost' && m.targetId === unit.id && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
+                                    const totalCharges = actionCostMods.reduce((s, m) => s + (m.remainingUses ?? 1), 0);
+                                    if (totalCharges > 0) {
+                                        return Array.from({ length: totalCharges }, (_, i) => (
+                                            <circle key={i} cx={4 + i * 8} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
+                                        ));
+                                    }
+                                    return debuffs.length > 0 && (
                                         <circle cx={4} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
-                                    )
-                                }
+                                    );
+                                })()}
                             </g>
                         )}
 
@@ -523,7 +527,7 @@ function isEnemyInAbilityRange(from: { q: number; r: number }, to: { q: number; 
         case 'fuego_cobertura':
         case 'doble_ataque':
         case 'avance': return d <= unit.range;
-        case 'ventaja_alcance': return d <= unit.range + 1;
+        case 'ventaja_alcance': return d === unit.range + 1;
         case 'desenvainado_veloz': return d <= unit.range;
         default: return false;
     }
@@ -533,7 +537,7 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const buffs: string[] = [];
     const debuffs: string[] = [];
 
-    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
+    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'actionCost', 'bloqueo', 'inmovil'];
     const helpfulStats = ['attack', 'dotOnHit'];
     const passiveStats: string[] = [];
 
@@ -571,6 +575,9 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (stat === 'damage') {
             if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
             else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
+        } else if (stat === 'attack') {
+            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
+            else { if (!debuffs.includes(stat)) debuffs.push(stat); }
         } else if (harmfulStats.includes(stat)) {
             if (!debuffs.includes(stat)) debuffs.push(stat);
         } else if (helpfulStats.includes(stat)) {
@@ -578,11 +585,6 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         } else if (passiveStats.includes(stat)) {
             if (!debuffs.includes(stat)) debuffs.push(stat);
         }
-    }
-
-    // Check unit flags for debuffs/buffs not in activeModifiers
-    if ((unit.fuegoCoberturaCharges ?? 0) > 0) {
-        if (!debuffs.includes('movementPenalty')) debuffs.push('movementPenalty');
     }
 
     return { buffs, debuffs };

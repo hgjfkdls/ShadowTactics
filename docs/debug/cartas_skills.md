@@ -299,8 +299,8 @@ modificado: cambio de paradigma daño -> ataque, cambios en las restricciones pa
 
 | ID | Nombre | Tipo | Descripción |
 |----|--------|------|-------------|
-| anti_caballeria | Anti-caballería | Pasiva | `Al atacar caballería, +1 ataque` |
-| formacion_defensiva | Formación defensiva | Pasiva | `Anula el bono de Carga. Si gana el combate, el atacante recibe +1 daño` |
+| anti_caballeria | Anti-caballería | Pasiva | `Ataque básico a caballería, +1 ataque` |
+| formacion_defensiva | Formación defensiva | Pasiva | `Anula el bono de Carga (dificultad y ataque)` |
 | ventaja_alcance | Ventaja de alcance | Activa (1 PA) | `Reemplaza el ataque básico. Ataque a rango +1` — *Restricción: No puede combinarse con Doble ataque. Reemplaza el ataque básico* |
 | doble_ataque | Doble ataque | Activa (1 PA) | `Realiza un segundo ataque básico contra el mismo objetivo con -1 ataque` |
 modificado: cambio de paradigma daño -> ataque, formacion defensiva sigue como daño, ya que ese +1 daño no es afectado por ataque o defensa

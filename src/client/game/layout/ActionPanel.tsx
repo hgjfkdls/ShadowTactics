@@ -36,8 +36,9 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
 
     const effectiveMoveCost = unit ? (() => {
         let cost = unit.movementCost;
-        const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
-        if (hasSurcharge) cost += 1;
+        cost += state.activeModifiers
+            .filter(m => m.stat === 'actionCost' && m.targetId === unit.id && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0)
+            .reduce((s, m) => s + m.value, 0);
         const moveMods = state.activeModifiers.filter(
             m => m.stat === 'movementCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
         );
@@ -74,9 +75,8 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
         ? activeAbilities.map((a, i) => {
             const cost = a.id === 'a_la_carga' ? aLaCargaCost : (a.def!.cost ?? 0);
             const disabled =
-                (a.id === 'accion_evasiva' && (!!unit.movedThisTurn || !hasAdjacentEnemy)) ||
                 (a.id === 'patada_acrobatica' && (!!unit.usedPatadaAcrobatica || !hasAdjacentEnemy)) ||
-                (a.id === 'doble_ataque' && (!!unit.usedCarga || !unit.attackedThisTurn || !!unit.usedDobleAtaque || !!unit.usedVentajaAlcance)) ||
+                (a.id === 'doble_ataque' && (!unit.attackedThisTurn || !!unit.usedDobleAtaque || !!unit.usedVentajaAlcance)) ||
                 (a.id === 'cabalgar' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
                 (a.id === 'cabalgar_2' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
                 (a.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)) ||
@@ -89,7 +89,8 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
                 (a.id === 'en_nombre_del_rey' && !!unit.usedEnNombreDelRey) ||
                 (a.id === 'desenvainado_veloz' && !!unit.usedDesenvainadoVeloz) ||
                 (a.id === 'sacrificar' && (unit.hp >= BASE_STATS[unit.class].hp || !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) ||
-                (a.id === 'angel_guardian' && ap < 2) ||
+                (a.id === 'ejecutar' && (!!unit.attackedThisTurn || !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2))) ||
+                (a.id === 'angel_guardian' && (!!unit.usedAngelGuardian || ap < 2)) ||
                 (a.id === 'proteger' && !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) <= 3)) ||
                 ap < cost;
             const abBinding = i === 0 ? bindings.ABILITY_1 : i === 1 ? bindings.ABILITY_2 : bindings.ABILITY_3;
@@ -128,7 +129,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
             const ab = abilityActions.find(a => a.id === actionId);
             if (ab?.disabled) {
                 addAlert?.(l('alert.abilityNotAvailable'), 'warning');
-            } else if (!ab?.def?.requiresTarget && !['cabalgar', 'cabalgar_2', 'accion_evasiva', 'posicion_estrategica'].includes(actionId) && unit) {
+            } else if (!ab?.def?.requiresTarget && !['cabalgar', 'cabalgar_2', 'posicion_estrategica'].includes(actionId) && unit) {
                 sendAction?.({ type: 'USE_ABILITY', playerId, unitId: unit.id, abilityId: actionId });
             } else {
                 onRequestAbilityTarget?.(actionId, unit.id);

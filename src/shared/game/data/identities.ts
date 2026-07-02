@@ -27,13 +27,11 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   caballos_guerra: {
     unitClassOverride: 'cavalry',
     copyStats: true,
-    statsToCopy: ['range', 'movementCost'],
     abilitiesOverride: ['romper_filas', 'cabalgar_2', 'carga', 'a_la_carga'],
   },
   cazadores: {
     unitClassOverride: 'cavalry',
     copyStats: true,
-    statsToCopy: ['range', 'movementCost'],
     abilitiesOverride: ['romper_filas', 'cabalgar', 'carga'],
   },
   punta_lanza: {
@@ -57,7 +55,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   },
   inspiracion_real: {
     unitClassOverride: 'general',
-    abilitiesOverride: ['en_nombre_del_rey'],
+    abilitiesOverride: ['en_nombre_del_rey', 'guardia_real'],
   },
   samurai: {
     unitClassOverride: 'general',

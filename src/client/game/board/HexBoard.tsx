@@ -5,6 +5,7 @@ import { UnitsLayer } from './UnitsLayer';
 import { useSelection } from './useSelection';
 import { useViewport } from './useViewport';
 import { getMoveRange } from './movementRange';
+import { getAbilityMoveTargets as getCfgMoveTargets, getAbilityTargets as getCfgTargets, getAllyAbilityTargets as getCfgAllyTargets, getRangeHexes as getCfgRangeHexes, isAbilityDisabled, getAbilityUI } from '../abilityUI';
 import { HistoryPanel } from '../layout/AttackResultPanel';
 import { GameModals } from '../layout/modals/GameModals';
 import { useHexClick } from './handlers/useHexClick';
@@ -114,8 +115,9 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             }
             if (key === bindings.MOVE) {
                 let effectiveMoveCost = unit.movementCost;
-                const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
-                if (hasSurcharge) effectiveMoveCost += 1;
+                effectiveMoveCost += state.activeModifiers
+                    .filter(m => m.stat === 'actionCost' && m.targetId === unit.id && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0)
+                    .reduce((s, m) => s + m.value, 0);
                 const moveMods = state.activeModifiers.filter(
                     m => m.stat === 'movementCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
                 );
@@ -151,9 +153,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         .some(u => hexDistance(unit.position, u.position) === 1);
                     const aLaCargaCost = state.players[myPlayerId]?.aLaCargaCost ?? 0;
                     const disabled =
-                        (ab.id === 'accion_evasiva' && (!!unit.movedThisTurn || !hasAdjacentEnemy)) ||
                         (ab.id === 'patada_acrobatica' && (!!unit.usedPatadaAcrobatica || !hasAdjacentEnemy)) ||
-                        (ab.id === 'doble_ataque' && (!!unit.usedCarga || !unit.attackedThisTurn || !!unit.usedDobleAtaque || !!unit.usedVentajaAlcance)) ||
+                        (ab.id === 'doble_ataque' && (!unit.attackedThisTurn || !!unit.usedDobleAtaque || !!unit.usedVentajaAlcance)) ||
                         (ab.id === 'cabalgar' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
                         (ab.id === 'cabalgar_2' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
                         (ab.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)) ||
@@ -167,7 +168,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         (ab.id === 'rayo_celestial' && !!unit.usedRayoCelestial) ||
                         (ab.id === 'a_la_carga' && (!!unit.aLaCargaActive || !!unit.usedCabalgar || !!unit.movedThisTurn || !!unit.attackedThisTurn || ap < aLaCargaCost)) ||
                         (ab.id === 'sacrificar' && (unit.hp >= BASE_STATS[unit.class].hp || !Object.values(state.units).some(u => u.owner === myPlayerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) ||
-                        (ab.id === 'angel_guardian' && ap < 2) ||
+                        (ab.id === 'ejecutar' && (!!unit.attackedThisTurn || !Object.values(state.units).some(u => u.owner !== myPlayerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2))) ||
+                        (ab.id === 'angel_guardian' && (!!unit.usedAngelGuardian || ap < 2)) ||
                         (ab.id === 'proteger' && !Object.values(state.units).some(u => u.owner === myPlayerId && u.id !== unit.id && hexDistance(unit.position, u.position) <= 3));
                     const cost = ab.id === 'a_la_carga' ? aLaCargaCost : (ab.def?.cost ?? 0);
                     if (disabled) {
@@ -181,7 +183,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         } else if (ab.id === 'angel_guardian') {
                             setPendingAbility({ abilityId: 'angel_guardian', unitId: unit.id });
                             setPendingAngelGuardian(true);
-                        } else if (!ab.def?.requiresTarget && !['torbellino', 'cabalgar', 'cabalgar_2', 'accion_evasiva', 'posicion_estrategica'].includes(ab.id)) {
+                        } else if (!ab.def?.requiresTarget && !['torbellino', 'cabalgar', 'cabalgar_2', 'posicion_estrategica'].includes(ab.id)) {
                             sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: unit.id, abilityId: ab.id });
                         } else {
                             setPendingAbility({ abilityId: ab.id, unitId: unit.id });
@@ -228,7 +230,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         if (noTargets && !noAtaqueTargetAlerted.current) {
             noAtaqueTargetAlerted.current = true;
             setTimeout(() => {
-                addAlert?.('No hay unidades que hayan atacado este turno', 'warning');
+                addAlert?.(l('alert.noUnitsAttacked'), 'warning');
                 onInfoSelect?.(null);
             }, 0);
         }
@@ -292,8 +294,13 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     const highlightedHexes = (() => {
         if (selectedInfo?.type === 'historyAttack') {
             const e = selectedInfo.entry;
+            const ids = [e.attackerId, e.targetId];
+            if (e.configId === 'torbellino') {
+                if (e.alliesHit) ids.push(...e.alliesHit);
+                if (e.enemiesHit) ids.push(...e.enemiesHit);
+            }
             return Object.values(state.units)
-                .filter(u => u.id === e.attackerId || u.id === e.targetId)
+                .filter(u => ids.includes(u.id))
                 .map(u => u.position);
         }
         if (selectedInfo?.type === 'historyMove') {
@@ -519,7 +526,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         onRequestMove={unitId => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
                             if (state.activeModifiers.some(m => m.stat === 'inmovil' && m.targetId === unitId && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) {
-                                addAlert?.('Unidad inmovilizada: 1 turno', 'warning');
+                                addAlert?.(l('alert.inmovilized'), 'warning');
                                 return;
                             }
                             setSelectedUnitId(unitId);
@@ -677,40 +684,7 @@ function getBasicAttackRange(unit: Unit, state: GameState): number {
 }
 
 function getAllyAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, playerId: string): HexCoord[] {
-    const unit = state.units[unitId];
-    if (!unit) return [];
-
-    if (abilityId === 'rayo_celestial') {
-        return Object.values(state.units)
-            .filter(u => u.owner === playerId && hexDistance(unit.position, u.position) <= 2)
-            .map(u => u.position);
-    }
-
-    if (abilityId === 'sacrificar') {
-        return Object.values(state.units)
-            .filter(u => u.owner === playerId && u.id !== unitId && hexDistance(unit.position, u.position) <= 1)
-            .map(u => u.position);
-    }
-
-    if (abilityId === 'en_nombre_del_rey') {
-        return Object.values(state.units)
-            .filter(u => u.owner === playerId && u.id !== unitId && hexDistance(unit.position, u.position) <= 2)
-            .map(u => u.position);
-    }
-
-    if (abilityId === 'angel_guardian') {
-        return Object.values(state.units)
-            .filter(u => u.owner === playerId && u.id !== unitId && u.class !== 'general')
-            .map(u => u.position);
-    }
-
-    if (abilityId === 'proteger') {
-        return Object.values(state.units)
-            .filter(u => u.owner === playerId && hexDistance(unit.position, u.position) <= 3)
-            .map(u => u.position);
-    }
-
-    return [];
+    return getCfgAllyTargets(state, unitId, abilityId, playerId);
 }
 
 function getAbilityRange(unit: Unit, state: GameState): number {
@@ -752,8 +726,14 @@ function getAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, 
                 .filter(u => u.owner !== playerId && u.position.q === projQ && u.position.r === projR)
                 .map(u => u.position);
         }
-        case 'ventaja_alcance': range = unit.range + 1; break;
+        case 'ventaja_alcance': {
+            const bonusRange = unit.range + 1;
+            return Object.values(state.units)
+                .filter(u => u.owner !== playerId && hexDistance(unit.position, u.position) === bonusRange)
+                .map(u => u.position);
+        }
         case 'desenvainado_veloz': range = unit.range; break;
+        case 'ejecutar': range = 1; break;
         default: return [];
     }
 
@@ -764,58 +744,7 @@ function getAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, 
 }
 
 function getAbilityMoveTargets(state: GameState, unitId: UnitId, abilityId: string, targetId?: UnitId): HexCoord[] {
-    const unit = state.units[unitId];
-    if (!unit) return [];
-    const hexes = generateHexMap(state.map);
-
-    if (abilityId === 'accion_evasiva') {
-        const hasAdjacentEnemy = Object.values(state.units)
-            .filter(u => u.owner !== unit.owner)
-            .some(u => hexDistance(unit.position, u.position) === 1);
-        if (!hasAdjacentEnemy) return [];
-        return hexes.filter(h => !isHexOccupied(state, h) && hexDistance(unit.position, h) === 1);
-    }
-
-    if (abilityId === 'cabalgar') {
-        return hexes.filter(h => {
-            const d = hexDistance(unit.position, h);
-            if (d !== 2) return false;
-            if (isHexOccupied(state, h)) return false;
-            const dq = h.q - unit.position.q;
-            const dr = h.r - unit.position.r;
-            if (dq !== 0 && dr !== 0 && dq !== -dr) return false;
-            const mid = { q: unit.position.q + dq / 2, r: unit.position.r + dr / 2 };
-            if (isHexOccupied(state, mid)) return false;
-            return true;
-        });
-    }
-
-    if (abilityId === 'cabalgar_2') {
-        return hexes.filter(h => hexDistance(unit.position, h) === 1 && !isHexOccupied(state, h));
-    }
-
-    if (abilityId === 'patada_acrobatica' && targetId) {
-        const target = state.units[targetId];
-        if (!target) return [];
-        return hexes.filter(h => {
-            if (isHexOccupied(state, h)) return false;
-            if (hexDistance(unit.position, h) !== 1) return false;
-            if (hexDistance(h, target.position) <= 1) return false;
-            return true;
-        });
-    }
-
-    if (abilityId === 'posicion_estrategica') {
-        return hexes.filter(h => {
-            if (hexDistance(unit.position, h) !== 1) return false;
-            if (isHexOccupied(state, h)) return false;
-            const hasAdjacentAlly = Object.values(state.units)
-                .some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(h, u.position) === 1);
-            return hasAdjacentAlly;
-        });
-    }
-
-    return [];
+    return getCfgMoveTargets(state, unitId, abilityId, targetId);
 }
 
 function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pendingAbility: { abilityId: string; unitId: UnitId } | null): HexCoord[] {
@@ -860,7 +789,11 @@ function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pending
             }
             case 'avance': range = unit.range; break;
             case 'fuego_cobertura': range = getAbilityRange(unit, state); break;
-            case 'ventaja_alcance': range = unit.range + 1; break;
+            case 'ventaja_alcance': {
+                const bonusRange = unit.range + 1;
+                const hexes = generateHexMap(state.map);
+                return hexes.filter(h => hexDistance(unit.position, h) === bonusRange && isWithinBounds(h, state.map.radius));
+            }
             case 'rayo_celestial': range = 2; break;
             case 'en_nombre_del_rey': range = 2; break;
             case 'sacrificar': range = 1; break;
@@ -868,6 +801,7 @@ function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pending
             case 'angel_guardian': range = 0; break;
             case 'cabalgar_2': range = 1; break;
             case 'desenvainado_veloz': range = unit.range; break;
+            case 'ejecutar': range = 1; break;
             default: return [];
         }
     }

@@ -32,7 +32,6 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
                     ...u,
                     didMovePreviousTurn: u.movedThisTurn ?? false,
                     movedThisTurn: false,
-                    fuegoCoberturaCharges: undefined,
                     espartanoRangeBonus: false,
                     auraShield: 0,
                     ataqueExtraCharges: 0,
@@ -47,7 +46,8 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
         if (m.stat === 'ap') return true;
         if (m.stat === 'movementCost') return false;
         if (m.stat === 'damage' && !m.targetId) return false;
-        if (m.stat === 'attackCost') return false;
+        if (m.stat === 'attackCost' && !m.targetId) return false;
+        if (m.stat === 'actionCost') return false;
         if (m.stat === 'bloqueo') return false;
         if (m.stat === 'dotOnHit') return false;
 
@@ -112,6 +112,8 @@ function resetUnitTracking(unit: Unit): Unit {
         usedEnNombreDelRey: false,
         usedDesenvainadoVeloz: false,
         usedRayoCelestial: false,
+        usedAngelGuardian: false,
+        aLaCargaActive: false,
     };
 }
 

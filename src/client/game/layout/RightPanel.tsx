@@ -248,9 +248,9 @@ function AuraResultInfo({ result, state }: { result: { attackerId?: string; atta
 }
 
 function AttackResultDetail({ result, state }: { result: NonNullable<GameState['attackResults']>[number]; state: GameState }) {
-    const attackerName = `[${result.attackerId}]${result.attackerClass === 'torbellino' ? 'Torbellino' : cls(result.attackerClass)}`;
+    const attackerName = `[${result.attackerId}]${result.attackerClass === 'torbellino' ? l('ability.torbellino.name') : cls(result.attackerClass)}`;
     const targetName = result.targetId ? `[${result.targetId}]${cls(result.targetClass)}` : '';
-    const isCritical = result.total >= 11;
+    const isCritical = !result.noCritical && result.total >= 11;
 
     const dieFaces: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
 
@@ -262,18 +262,18 @@ function AttackResultDetail({ result, state }: { result: NonNullable<GameState['
             <div className="flex items-start gap-3">
                 <div className="text-3xl">⚔️</div>
                 <div>
-                    <div className="text-lg font-bold">{result.attackName ?? 'Ataque básico'}</div>
-                    <div className="text-xs text-zinc-500">Turno {result.turn}{result.attackInTurn ? `.${result.attackInTurn}` : ''}</div>
+                    <div className="text-lg font-bold">{result.attackName ? (result.attackName.startsWith('ability.') || result.attackName.startsWith('button.') ? l(result.attackName) : result.attackName) : l('button.basicAttack')}</div>
+                    <div className="text-xs text-zinc-500">{l('board.turnLabel')} {result.turn}{result.attackInTurn ? `.${result.attackInTurn}` : ''}</div>
                 </div>
             </div>
 
             <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs">
-                    <span className="text-blue-400 font-semibold">Atacante</span>
+                    <span className="text-blue-400 font-semibold">{l('attackDetail.attacker')}</span>
                     <span className="text-zinc-200">{attackerName}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                    <span className="text-red-400 font-semibold">Defensor</span>
+                    <span className="text-red-400 font-semibold">{l('attackDetail.defender')}</span>
                     <span className="text-zinc-200">{targetName || '—'}</span>
                 </div>
             </div>
@@ -282,14 +282,14 @@ function AttackResultDetail({ result, state }: { result: NonNullable<GameState['
 
             <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                    <span className="text-zinc-500">Dificultad</span>
+                    <span className="text-zinc-500">{l('cat.diff')}</span>
                     <span className="text-zinc-200 font-semibold">{result.difficulty}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                    <span className="text-zinc-500">Dados</span>
+                    <span className="text-zinc-500">{l('attackDetail.dice')}</span>
                     <span className="text-zinc-200 font-semibold">
                         {dieFaces[result.die1] ?? result.die1} + {dieFaces[result.die2] ?? result.die2} = <span className="text-white">{result.total}</span>
-                        {isCritical && <span className="text-yellow-400 ml-1">CRÍTICO</span>}
+                        {isCritical && <span className="text-yellow-400 ml-1">{l('attackDetail.critical')}</span>}
                     </span>
                 </div>
             </div>
@@ -299,7 +299,7 @@ function AttackResultDetail({ result, state }: { result: NonNullable<GameState['
                 result.hit ? 'bg-green-900/20 border border-green-700/50' : 'bg-red-900/20 border border-red-700/50',
             ].join(' ')}>
                 <div className="flex items-center justify-between">
-                    <span className="font-semibold">{result.hit ? '✅ Acierta' : '❌ Fallo'}</span>
+                    <span className="font-semibold">{result.hit ? l('attackDetail.hit') : l('attackDetail.miss')}</span>
                     {result.hit && <span className="text-green-300 font-bold">-{result.damage} HP</span>}
                 </div>
                 {!result.hit && result.counterDamage > 0 && (
@@ -310,21 +310,21 @@ function AttackResultDetail({ result, state }: { result: NonNullable<GameState['
                 )}
                 {result.hit && result.counterDamage > 0 && result.counterDamage !== 2 && (
                     <div className="flex items-center justify-between text-red-300">
-                        <span>Contraataque</span>
+                        <span>{l('attackDetail.counterattack')}</span>
                         <span className="font-bold">-{result.counterDamage} HP</span>
                     </div>
                 )}
                 {(result.targetKilled || result.attackerKilled) && (
                     <div className="text-yellow-400 font-semibold pt-1 border-t border-zinc-700 mt-1">
-                        {result.targetKilled && '⚫ Objetivo eliminado'}
-                        {result.attackerKilled && ' ⚫ Atacante eliminado'}
+                        {result.targetKilled && l('attackDetail.targetKilled')}
+                        {result.attackerKilled && ' ' + l('attackDetail.attackerKilled')}
                     </div>
                 )}
             </div>
 
             {result.elapsed !== undefined && (
                 <div className="text-[10px] text-zinc-600">
-                    Tiempo: {Math.floor(result.elapsed / 60)}:{(result.elapsed % 60).toString().padStart(2, '0')}
+                    {l('attackDetail.time')}: {Math.floor(result.elapsed / 60)}:{(result.elapsed % 60).toString().padStart(2, '0')}
                 </div>
             )}
         </div>
@@ -332,7 +332,7 @@ function AttackResultDetail({ result, state }: { result: NonNullable<GameState['
 }
 
 function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState }) {
-    const isCritical = entry.total >= 11;
+    const isCritical = !entry.noCritical && entry.total >= 11;
     const dieFaces: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
 
     const showCounterOnHit = entry.hit && entry.counterDamage > 0 && entry.counterDamage !== 2;
@@ -366,17 +366,17 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
     }
 
     // Also add aura to catMap for categorized display (keep category grouping)
-    const catLabels: Record<string, string> = { diff: l('cat.diff'), atk: l('cat.atk'), range: l('cat.range'), def: l('cat.def'), pa: l('cat.pa'), mixed: l('cat.mixed') };
-    const catColors: Record<string, string> = { diff: 'text-amber-400', atk: 'text-red-400', range: 'text-cyan-400', def: 'text-blue-400', pa: 'text-yellow-400' };
+    const catLabels: Record<string, string> = { diff: l('cat.diff'), atk: l('cat.atk'), range: l('cat.range'), def: l('cat.def'), pa: l('cat.pa'), cost: l('cat.pa'), mixed: l('cat.mixed') };
+    const catColors: Record<string, string> = { diff: 'text-amber-400', atk: 'text-red-400', range: 'text-cyan-400', def: 'text-blue-400', pa: 'text-yellow-400', cost: 'text-yellow-400' };
     const grouped: { cat: string; items: { letter: string; text: string }[] }[] = [];
-    const catOrder = ['diff', 'atk', 'range', 'def', 'pa', 'mixed'];
+    const catOrder = ['diff', 'atk', 'range', 'def', 'pa', 'cost', 'mixed'];
     const catMap = new Map<string, { letter: string; text: string }[]>();
     for (const m of rawMods) {
         const match = m.match(/^\[(\w+)\]\s*/);
         const l = nextLetter();
         if (match) {
             const cat = match[1];
-            const text = m.slice(match[0].length);
+            const text = m.slice(match[0].length);  // raw text includes [id:xxx] for ability matching
             if (!catMap.has(cat)) catMap.set(cat, []);
             catMap.get(cat)!.push({ letter: l, text });
         } else {
@@ -397,16 +397,82 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
         }
     }
 
-    // Resolve Romper filas reference: replace %% with letter of ignored modifier
-    let ignoredLetter = '';
-    const rfIdx = allItems.findIndex(i => i.text.includes('Romper filas'));
-    if (rfIdx >= 0) {
-        const ignored = allItems.slice(0, rfIdx).find(i => i.text.includes('Resistencia') || i.text.includes('Línea defensiva'));
-        ignoredLetter = ignored?.letter ?? '';
-        if (ignored) {
-            allItems[rfIdx] = { ...allItems[rfIdx], text: l('ui.romperFilasIgnore', { letter: ignored.letter }) };
-        } else {
-            allItems[rfIdx] = { ...allItems[rfIdx], text: l('ui.romperFilasIgnore', { letter: '?' }) };
+    // Generic resolver for [ignores:...] tags: find modifiers that nullify others
+    // Build a map of [id:xxx] -> letters for all items, then resolve ignores references
+    const idToLetters = new Map<string, string[]>();
+    for (const item of allItems) {
+        const idMatch = item.text.match(/\[id:(\w+)\]/);
+        if (idMatch) {
+            if (!idToLetters.has(idMatch[1])) idToLetters.set(idMatch[1], []);
+            idToLetters.get(idMatch[1])!.push(item.letter);
+        }
+    }
+    const ignoredLetters = new Set<string>();
+    for (const item of allItems) {
+        const ignoresMatch = item.text.match(/\[ignores:([\w,]+)\]/);
+        if (ignoresMatch) {
+            for (const ignoredId of ignoresMatch[1].split(',')) {
+                const letters = idToLetters.get(ignoredId);
+                if (letters) letters.forEach(l => ignoredLetters.add(l));
+            }
+        }
+    }
+
+    // Strip embedded [id:xxx] and [ignores:xxx] tags from display text,
+    // then translate ability names using the [id:xxx] reference
+    const MODIFIER_TRANSLATIONS: Record<string, string> = {
+        ataque: l('cat.atk').toLowerCase(),
+        atk: l('cat.atk').toLowerCase(),
+        defensa: l('cat.def').toLowerCase(),
+        def: l('cat.def').toLowerCase(),
+        dificultad: l('cat.diff').toLowerCase(),
+        diff: l('cat.diff').toLowerCase(),
+        daño: l('cat.diff').toLowerCase() === 'difficulty' ? 'dmg' : 'daño',
+        'Línea defensiva': l('ability.linea_defensiva.name'),
+        'Resistencia': l('ability.resistencia.name'),
+        'Contraataque': l('ability.contraataque.name'),
+    };
+    const PHRASE_TRANSLATIONS: Record<string, string> = {
+        'ignora Línea defensiva': l('ui.combat.romperFilas.ignoreLineaDef'),
+        'ignora Resistencia': l('ui.combat.romperFilas.ignoreResistencia'),
+        'anula Carga': l('ui.combat.formacionDefensiva.anulaCarga'),
+        'Liderar a las tropas': l('ability.liderar_tropas.name'),
+        'Coste ataque': l('cat.pa') + ' ataque',
+        'Coste acción': l('cat.pa') + ' acción',
+        'Bonificación rango': l('cat.range') + ' bonus',
+        'Avanzar': l('planBatalla.attack'),
+        'Reagruparse': l('planBatalla.defense'),
+        '+1 daño': '+1 daño',  // fallback
+    };
+    for (const item of allItems) {
+        const rawText = item.text;
+        item.text = item.text.replace(/\[(?:id|ignores):[\w,]+\]\s*/g, '');
+        // If we stripped an [id:xxx] tag, try to translate the ability name
+        const idMatch = rawText.match(/\[id:(\w+)\]/);
+        if (idMatch) {
+            const translated = l(`ability.${idMatch[1]}.name`);
+            if (translated && translated !== `ability.${idMatch[1]}.name`) {
+                // Replace the first word (the ability name) with the translation
+                const colonIdx = item.text.indexOf(':');
+                if (colonIdx > 0) {
+                    const rest = item.text.slice(colonIdx);
+                    item.text = translated + rest;
+                }
+            }
+        }
+        // Translate stat names in the modifier text
+        const statPart = item.text.match(/:\s*([+-]?\d+)\s+(\w+)/);
+        if (statPart) {
+            const translatedStat = MODIFIER_TRANSLATIONS[statPart[2]];
+            if (translatedStat) {
+                item.text = item.text.replace(statPart[0], `: ${statPart[1]} ${translatedStat}`);
+            }
+        }
+        // Translate known phrases (ignora, anula, etc.)
+        for (const [phrase, translation] of Object.entries(PHRASE_TRANSLATIONS)) {
+            if (item.text.includes(phrase) && translation !== phrase) {
+                item.text = item.text.replace(phrase, translation);
+            }
         }
     }
 
@@ -417,7 +483,7 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
     }
 
     // Build formula references by category
-    const diffModLetters = [...modItems.filter(m => m.text.includes('dificultad') || m.text.includes('difficulty')), ...(catMap.get('diff') ?? [])].map(m => m.letter);
+    const diffModLetters = [...modItems.filter(m => m.text.includes('dificultad') || m.text.includes('difficulty')), ...(catMap.get('diff') ?? [])].map(m => m.letter).filter(l => l && !ignoredLetters.has(l));
     const rangeModLetters = [...(catMap.get('range') ?? [])].map(m => m.letter);
     const paModLetters = [...(catMap.get('pa') ?? [])].map(m => m.letter);
     const rangeStats: Record<string, number> = { archer: 3, infantry: 1, cavalry: 1, lancer: 1, general: 1 };
@@ -451,7 +517,10 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
     interface DmgLetter { letter: string; sign: string }
     const dmgLetters: DmgLetter[] = [
         ...(catMap.get('def') ?? []).map(m => ({ letter: m.letter, sign: '-' as const })),
-        ...(catMap.get('atk') ?? []).map(m => ({ letter: m.letter, sign: '+' as const })),
+        ...(catMap.get('atk') ?? []).map(m => {
+            const signMatch = m.text.match(/([+-])\s*\d/);
+            return { letter: m.letter, sign: (signMatch ? signMatch[1] : '+') as string };
+        }),
         ...modItems.filter(m => m.text.includes('daño') || m.text.includes('damage')).map(m => {
             const text = m.text ?? '';
             const signMatch = text.match(/([+-])\s*\d/);
@@ -461,7 +530,7 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
             letter: m.letter, sign: '-' as const,
         })),
         ...(critApplied ? [{ letter: allItems.find(i => i.text.includes('Crítico') || i.text.includes('Critical'))?.letter ?? '', sign: '+' as const }] : []),
-    ].filter(l => l.letter && l.letter !== ignoredLetter);
+    ].filter(l => l.letter && !ignoredLetters.has(l.letter));
     // Raw damage (before clamping to minimum 1)
     const rawDamage = dmgLetters.reduce((sum, l) => {
         const item = allItems.find(i => i.letter === l.letter);
@@ -475,51 +544,121 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
         ? `${entry.baseAttack} ${dmgLetters.map(l => `${l.sign}${l.letter}`).join(' ')} = ${rawDamage}`
         : null;
 
-    // Support abilities
-    const SUPPORT_NAMES: Record<string, string> = {
-        'Ángel Guardián': 'angel_guardian',
-        'Proteger': 'proteger',
-        'Rayo celestial': 'rayo_celestial',
-        'Meditación': 'meditacion',
-        'En nombre del rey': 'en_nombre_del_rey',
-    };
-    if (SUPPORT_NAMES[entry.attackName]) {
-        const abKey = SUPPORT_NAMES[entry.attackName];
-        const abDesc = l(`ability.${abKey}.desc`);
+    // Support abilities - detect by configId or attackName
+    if (entry.configId === 'angel_guardian' || entry.attackName === 'Ángel Guardián' || entry.configId === 'proteger' || entry.attackName === 'Proteger') {
+        const abDesc = entry.configId ? l(`ability.${entry.configId}.desc`) : null;
         const effectLines: { text: string; color: string }[] = [];
-        if (entry.attackName === 'Ángel Guardián') {
-            effectLines.push({ text: `🛡 Escudo +2 HP a ${entry.shieldedCount} aliados`, color: 'text-blue-400' });
+        const isAngel = entry.configId === 'angel_guardian' || entry.attackName === 'Ángel Guardián';
+        if (isAngel) {
+            effectLines.push({ text: `🛡 ${l('aura.shieldName')} +2 HP a ${entry.shieldedCount} aliados`, color: 'text-blue-400' });
             if (entry.healedId) {
                 effectLines.push({ text: `💚 [${entry.healedId}] ${l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 HP`, color: 'text-green-400' });
             }
-        } else if (entry.attackName === 'Proteger') {
-            effectLines.push({ text: `🛡 [${entry.targetId}] ${l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 defensa`, color: 'text-blue-400' });
-        } else if (entry.modifiers) {
-            for (const m of entry.modifiers) effectLines.push({ text: m, color: 'text-zinc-300' });
+        } else {
+            effectLines.push({ text: `🛡 [${entry.targetId}] ${l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 ${l('cat.def')}`, color: 'text-blue-400' });
         }
         return (
             <div className="space-y-4">
                 <div className="flex items-start gap-3">
                     <div className="text-3xl">✨</div>
                     <div>
-                        <div className="text-lg font-bold">{entry.attackName}</div>
+                        <div className="text-lg font-bold">{entry.attackName?.startsWith('ability.') || entry.attackName?.startsWith('button.') ? l(entry.attackName) : entry.attackName}</div>
                         <div className="text-xs text-zinc-500">{l('board.turnLabel')} {entry.turn} · {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })}</div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                    <span className="text-blue-400 font-semibold">Origen</span>
-                    <span className="text-zinc-200">[{entry.attackerId}]{cls(entry.attackerClass)} · Escudo del Comandante</span>
+                    <span className="text-blue-400 font-semibold">{l('cardDetail.source')}</span>
+                    <span className="text-zinc-200">[{entry.attackerId}]{cls(entry.attackerClass)} · {l('identity.escudo_comandante.name')}</span>
                 </div>
-                <div className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 text-xs text-zinc-300 leading-relaxed">{abDesc}</div>
+                {abDesc && (<div className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 text-xs text-zinc-300 leading-relaxed">{abDesc}</div>)}
                 <div className="flex items-center justify-between text-sm">
                     <span className="text-zinc-500">{l('attackDetail.paCost')}</span>
                     <span className="font-bold text-yellow-400">{entry.paCost ?? 0} PA</span>
                 </div>
-                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wide">Efectos</div>
+                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
                 <div className="space-y-1">
                     {effectLines.map((line, i) => (
                         <div key={i} className={`${line.color} text-sm`}>{line.text}</div>
                     ))}
+                </div>
+            </div>
+        );
+    }
+
+    // ── Torbellino: panel especial ──
+    if (entry.configId === 'torbellino') {
+        const dieFaces: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
+        return (
+            <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                    <div className="text-3xl">🌪️</div>
+                    <div>
+                        <div className="text-lg font-bold">{entry.attackName?.startsWith('ability.') || entry.attackName?.startsWith('button.') ? l(entry.attackName) : entry.attackName}</div>
+                        <div className="text-xs text-zinc-500">{l('board.turnLabel')} {entry.turn} · {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })}</div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm">
+                    <span className="text-blue-400 font-semibold">{l('attackDetail.attacker')}</span>
+                    <span className="text-zinc-200">[{entry.attackerId}]{cls(entry.attackerClass)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500">{l('attackDetail.paCost')}</span>
+                    <span className="font-bold text-yellow-400">{entry.paCost ?? 0} PA</span>
+                </div>
+
+                <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-1.5 text-sm">
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('attackDetail.baseDamage')}</span>
+                        <span className="text-zinc-200">2</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('attackDetail.baseDifficulty')}</span>
+                        <span className="text-zinc-200">6</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('attackDetail.finalDifficulty')}</span>
+                        <span className="text-zinc-200 font-semibold">{entry.difficulty}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('attackDetail.dice')}</span>
+                        <span className="text-zinc-200 font-semibold">
+                            {dieFaces[entry.die1] ?? entry.die1} + {dieFaces[entry.die2] ?? entry.die2} = <span className="text-white">{entry.total}</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div className={`rounded-lg p-3 text-sm ${entry.hit ? 'bg-green-900/20 border border-green-700/50' : 'bg-red-900/20 border border-red-700/50'}`}>
+                    <span className="font-semibold">{entry.hit ? l('attackDetail.hit') : l('attackDetail.miss')}</span>
+                </div>
+
+                <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 space-y-1.5 text-sm">
+                    <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">{l('cardDetail.effects')}</div>
+                    {(() => {
+                        const items: { text: string; color: string }[] = [];
+                        if (entry.hit) {
+                            for (const eid of (entry.enemiesHit ?? [])) {
+                                const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === eid);
+                                items.push({ text: `[${eid}] ${u ? cls(u.class) : '?'}`, color: 'text-green-400' });
+                            }
+                        } else {
+                            for (const aid of (entry.alliesHit ?? [])) {
+                                const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === aid);
+                                items.push({ text: `[${aid}] ${u ? cls(u.class) : '?'}`, color: 'text-red-400' });
+                            }
+                            for (const eid of (entry.enemiesHit ?? [])) {
+                                const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === eid);
+                                items.push({ text: `[${eid}] ${u ? cls(u.class) : '?'}`, color: 'text-green-400' });
+                            }
+                        }
+                        return items.map((item, i) => (
+                            <div key={i} className={`flex items-center justify-between ${item.color}`}>
+                                <span>{item.text}</span>
+                                <span className="font-bold">{entry.hit ? '-2' : '-1'} HP</span>
+                            </div>
+                        ));
+                    })()}
                 </div>
             </div>
         );
@@ -530,7 +669,7 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
             <div className="flex items-start gap-3">
                 <div className="text-3xl">⚔️</div>
                 <div>
-                    <div className="text-lg font-bold">{entry.attackName ?? l('button.basicAttack')}</div>
+                    <div className="text-lg font-bold">{entry.attackName ? (entry.attackName.startsWith('ability.') || entry.attackName.startsWith('button.') ? l(entry.attackName) : entry.attackName) : l('button.basicAttack')}</div>
                     <div className="text-xs text-zinc-500">{l('board.turnLabel')} {entry.turn} · {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })}</div>
                 </div>
             </div>
@@ -541,7 +680,20 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                     <span className="text-red-400 font-semibold">{l('attackDetail.defender')}</span>
-                    <span className="text-zinc-200">[{entry.targetId}]{cls(entry.targetClass)}</span>
+                    {entry.configId === 'torbellino' ? (
+                        <div className="text-xs leading-relaxed space-y-0.5">
+                            {entry.hit ? (
+                                <span className="text-green-400">{l('ui.torbellinoHit', { count: entry.hitEnemies ?? '?', ids: `[${(entry.enemiesHit ?? []).join('], [')}]` })}</span>
+                            ) : (
+                                <>
+                                    <div className="text-red-400">{l('ui.torbellinoMissAllies', { count: entry.hitAllies ?? '?', ids: `[${(entry.alliesHit ?? []).join('], [')}]` })}</div>
+                                    <div className="text-green-400">{l('ui.torbellinoMissEnemies', { count: entry.hitEnemies ?? '?', ids: `[${(entry.enemiesHit ?? []).join('], [')}]` })}</div>
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        <span className="text-zinc-200">[{entry.targetId}]{cls(entry.targetClass)}</span>
+                    )}
                 </div>
             </div>
 
@@ -632,7 +784,7 @@ function HistoryAttackDetail({ entry, state }: { entry: any; state: GameState })
                 )}
                 {showCounterOnHit && (
                     <div className="flex items-center justify-between text-red-300">
-                        <span>Contraataque</span>
+                        <span>{l('attackDetail.counterattack')}</span>
                         <span className="font-bold">-{entry.counterDamage} HP</span>
                     </div>
                 )}
@@ -699,22 +851,24 @@ function HistoryCardDetail({ entry }: { entry: any }) {
     const CARD_SUPPORT_DETAIL = new Set([
         'rayo_celestial', 'meditacion', 'en_nombre_del_rey', 'liderar_tropas',
         'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_guerrero', 'robar_ricos',
-        'cabalgar', 'a_la_carga', 'posicion_estrategica',
+        'cabalgar', 'cabalgar_2', 'a_la_carga', 'posicion_estrategica',
+        'angel_guardian', 'proteger', 'torbellino', 'sacrificar', 'desenvainado_veloz',
+        'proyeccion',
     ]);
     if (CARD_SUPPORT_DETAIL.has(entry.cardId)) {
         const cls2 = (c: string) => l(`unit.class.${c}`) ?? c;
         const effectLines: { text: string; color: string }[] = [];
         if (entry.cardId === 'lanza_escudo') {
             const isRange = entry.details?.includes('rango');
-            effectLines.push({ text: isRange ? `⚔ +1 rango` : `🛡 +1 defensa`, color: isRange ? 'text-red-400' : 'text-blue-400' });
+            effectLines.push({ text: isRange ? `⚔ +1 ${l('cat.range')}` : `🛡 +1 ${l('cat.def')}`, color: isRange ? 'text-red-400' : 'text-blue-400' });
         } else if (entry.cardId === 'voz_de_mando') {
-            effectLines.push({ text: `⚔ +1 ataque`, color: 'text-red-400' });
-            effectLines.push({ text: `🛡 +1 defensa`, color: 'text-blue-400' });
+            effectLines.push({ text: `⚔ +1 ${l('cat.atk')}`, color: 'text-red-400' });
+            effectLines.push({ text: `🛡 +1 ${l('cat.def')}`, color: 'text-blue-400' });
         } else if (entry.cardId === 'plan_batalla') {
             const isAtk = entry.details?.includes('Avanzar');
             effectLines.push({ text: isAtk ? `⚔ ${entry.details}` : `🛡 ${entry.details}`, color: isAtk ? 'text-red-400' : 'text-blue-400' });
         } else if (entry.cardId === 'camino_guerrero') {
-            effectLines.push({ text: `⚔ +1 PA (kill a rango 1)`, color: 'text-yellow-400' });
+            effectLines.push({ text: `⚔ +1 PA (${l('ui.killAtRange', { n: 1 })}`, color: 'text-yellow-400' });
         } else if (entry.cardId === 'robar_ricos') {
             effectLines.push({ text: `💚 [${entry.targetId}] ${cls2(entry.targetClass)} +1 HP`, color: 'text-green-400' });
         } else if (entry.cardId === 'posicion_estrategica') {
@@ -728,12 +882,25 @@ function HistoryCardDetail({ entry }: { entry: any }) {
             effectLines.push({ text: `💚 General +${healAmt} HP`, color: 'text-green-400' });
         } else if (entry.cardId === 'liderar_tropas') {
             const bonus = entry.details?.match(/\+(\d+)/)?.[1] ?? '1';
-            effectLines.push({ text: `⚔ Infantería +${bonus} ataque este turno`, color: 'text-red-400' });
+            effectLines.push({ text: `⚔ ${l('unit.class.infantry')} +${bonus} ${l('cat.atk')}`, color: 'text-red-400' });
         } else if (entry.cardId === 'en_nombre_del_rey') {
-            effectLines.push({ text: `🛡 [${entry.targetId}] ${cls2(entry.targetClass)} Escudo +3 HP`, color: 'text-blue-400' });
-            effectLines.push({ text: `⚔ [${entry.targetId}] ${cls2(entry.targetClass)} Ataque +2`, color: 'text-red-400' });
+            effectLines.push({ text: `🛡 [${entry.targetId}] ${cls2(entry.targetClass)} ${l('unit.status.royalShieldSavedHp')} +3 HP`, color: 'text-blue-400' });
+            effectLines.push({ text: `⚔ [${entry.targetId}] ${cls2(entry.targetClass)} ${l('cat.atk')} +2`, color: 'text-red-400' });
         } else if (entry.cardId === 'rayo_celestial') {
-            effectLines.push({ text: `⚔ [${entry.targetId}] ${cls2(entry.targetClass)} Ataque +3`, color: 'text-red-400' });
+            effectLines.push({ text: `⚔ [${entry.targetId}] ${cls2(entry.targetClass)} ${l('cat.atk')} +3`, color: 'text-red-400' });
+        } else if (entry.cardId === 'angel_guardian') {
+            const count = entry.details?.match(/(\d+)/)?.[1] ?? '?';
+            effectLines.push({ text: `🛡️ ${l('aura.shieldName')} +2 HP a ${count} aliados`, color: 'text-blue-400' });
+            if (entry.targetId) {
+                effectLines.push({ text: `💚 [${entry.targetId}] +1 HP`, color: 'text-green-400' });
+            }
+        } else if (entry.cardId === 'proteger') {
+            effectLines.push({ text: `🛡 [${entry.targetId}] ${cls2(entry.targetClass)} +1 ${l('cat.def')}`, color: 'text-blue-400' });
+        } else if (entry.cardId === 'proyeccion') {
+            const targets = (entry.details ?? '').split('|').filter(Boolean);
+            for (const t of targets) {
+                effectLines.push({ text: `⚔ ${t} -1 HP`, color: 'text-red-400' });
+            }
         } else if (entry.details) {
             effectLines.push({ text: entry.details, color: 'text-zinc-300' });
         }
@@ -743,14 +910,14 @@ function HistoryCardDetail({ entry }: { entry: any }) {
                 <div className="flex items-start gap-3">
                     <div className="text-3xl">✨</div>
                     <div>
-                        <div className="text-lg font-bold">{entry.cardName}</div>
+                        <div className="text-lg font-bold">{entry.cardName?.startsWith('ability.') || entry.cardName?.startsWith('button.') ? l(entry.cardName) : entry.cardName}</div>
                         <div className="text-xs text-zinc-500">{l('board.turnLabel')} {entry.turn} · {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })}</div>
                     </div>
                 </div>
-                {entry.sourceClass && entry.sourceIdentity && (
+                {entry.sourceClass && (entry.sourceIdentity || entry.sourceIdentityKey) && (
                     <div className="flex items-center gap-2 text-sm">
-                        <span className="text-blue-400 font-semibold">Origen</span>
-                        <span className="text-zinc-200">{cls2(entry.sourceClass)} · {entry.sourceIdentity}</span>
+                        <span className="text-blue-400 font-semibold">{l('cardDetail.source')}</span>
+                        <span className="text-zinc-200">{cls2(entry.sourceClass)} · {entry.sourceIdentityKey ? l(`identity.${entry.sourceIdentityKey}.name`) || entry.sourceIdentityKey : entry.sourceIdentity}</span>
                     </div>
                 )}
                 <div className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 text-xs text-zinc-300 leading-relaxed">{abDesc}</div>
@@ -758,7 +925,7 @@ function HistoryCardDetail({ entry }: { entry: any }) {
                     <span className="text-zinc-500">{l('attackDetail.paCost')}</span>
                     <span className="font-bold text-yellow-400">{entry.paCost ?? 0} PA</span>
                 </div>
-                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wide">Efectos</div>
+                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
                 <div className="space-y-1">
                     {effectLines.map((line, i) => (
                         <div key={i} className={`${line.color} text-sm`}>{line.text}</div>
@@ -833,7 +1000,7 @@ function HistoryCardDetail({ entry }: { entry: any }) {
 }
 
 function EffectDetail({ stat, label, description, source, sourceName, value }: { stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number }) {
-    const isDebuff = ['movementCost', 'difficulty', 'attackCost', 'blocked', 'passiveDamage', 'movementPenalty'].includes(stat) || (stat === 'damage' && value !== undefined && value < 0);
+    const isDebuff = ['movementCost', 'difficulty', 'attackCost', 'actionCost', 'blocked', 'passiveDamage', 'movementPenalty'].includes(stat) || (stat === 'damage' && value !== undefined && value < 0);
     const cardDesc = source === 'card' && sourceName ? getCardDescriptionBySourceName(sourceName) : null;
     return (
         <div className="space-y-4">
@@ -888,7 +1055,6 @@ function getProjectedPoolUnitInfo(
 
   if (key === 'robin_hood' && (cls === 'archer' || cls === 'general')) {
     stats.movementCost = 1;
-    abilities = abilities.filter(a => a !== 'accion_evasiva');
   }
   if (key === 'caballos_guerra' && cls === 'cavalry') {
     abilities = abilities.map(a => a === 'cabalgar' ? 'cabalgar_2' : a);
@@ -1189,7 +1355,7 @@ function getMaxHp(cls: string): number {
 function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: string[]; debuffs: string[] } {
     const buffs: string[] = [];
     const debuffs: string[] = [];
-    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
+    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'actionCost', 'bloqueo', 'inmovil'];
     const helpfulStats = ['attack', 'dotOnHit'];
     const passiveStats: string[] = [];
     for (const m of modifiers) {
@@ -1219,13 +1385,15 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
             else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
             continue;
         }
+        if (stat === 'attack') {
+            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
+            else { if (!debuffs.includes(stat)) debuffs.push(stat); }
+            continue;
+        }
         if (stat === 'ap') continue;
         if (harmfulStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
         else if (helpfulStats.includes(stat)) { if (!buffs.includes(stat)) buffs.push(stat); }
         else if (passiveStats.includes(stat)) { if (!debuffs.includes(stat)) debuffs.push(stat); }
-    }
-    if ((unit.fuegoCoberturaCharges ?? 0) > 0) {
-        if (!debuffs.includes('movementPenalty')) debuffs.push('movementPenalty');
     }
     return { buffs, debuffs };
 }

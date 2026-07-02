@@ -19,9 +19,9 @@ Basado en `cartas_skills.md` modificado manualmente.
 | 11 | Cartas BUFF — ataque_extra, flechas_fuego (+1 ataque) | Pendiente |
 | 12 | Cartas DEBUFF — mantenimiento (-1 ataque) | Pendiente |
 | 13 | Cartas COUNTER — descripciones menores | Pendiente |
-| 14 | Caballería — carga/doble_ataque (+1/-1 ataque) | Pendiente |
-| 15 | Lancero — anti_caballeria (+1 ataque), formacion_defensiva (daño verdadero) | Pendiente |
-| 16 | Infantería — resistencia/linea_defensiva (+1 defensa), presion (+1 ataque), avance→ejecutar | Pendiente |
+| 14 | Caballería — carga/doble_ataque (+1/-1 ataque) | Completado |
+| 15 | Lancero — anti_caballeria (+1 ataque basico), formacion_defensiva (ignora carga) | Completado |
+| 16 | Infantería — resistencia/linea_defensiva (+1 defensa), presion (+1 ataque), avance→ejecutar | Completado |
 | 17 | en_nombre_del_rey — +2 ataque | Pendiente |
 | 18 | meditacion — +1 defensa si no se cura | Pendiente |
 | 19 | terror — +2 dificultad | Pendiente |

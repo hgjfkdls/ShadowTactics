@@ -41,10 +41,11 @@ export type Unit = {
     usedAccionEvasiva?: boolean;
     usedAvance?: boolean;
     hasCargaBonus?: boolean;         // true si usó Cabalgar + Carga
-    fuegoCoberturaCharges?: number;  // cargas restantes de Fuego de cobertura (coste +1)
+
 
     usedTorbellino?: boolean;          // Punta de Lanza: Torbellino usado este turno
     usedRayoCelestial?: boolean;        // Dios del Trueno: Rayo celestial usado este turno
+    usedAngelGuardian?: boolean;        // Escudo Comandante: Ángel guardián usado este turno
 
     aLaCargaActive?: boolean;          // Caballos de Guerra: Cabalgar potenciado (3 hex)
     espartanoRangeBonus?: boolean;     // Espartano: +1 rango este turno

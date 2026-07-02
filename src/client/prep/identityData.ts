@@ -9,7 +9,7 @@ export const IDENTITY_INFO: Record<string, { name: string; className: string; de
             'Tu General se considera arquero. Al comienzo de cada turno, elige una unidad enemiga e inflige 1 de daño sin coste. No puedes elegir al general enemigo.',
             '',
             'Global — Robar a los ricos (Pasiva)',
-            'Tus arqueros tienen coste movimiento 1 y pierden acción evasiva. El primer arquero que acierta un ataque cada turno recupera 1 HP.',
+            'Tus arqueros tienen coste movimiento 1. El primer arquero que acierta un ataque cada turno recupera 1 HP.',
         ].join('\n'),
     },
     francotirador: {

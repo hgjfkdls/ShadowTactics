@@ -52,7 +52,7 @@ export function applyIdentityEffects(state: GameState): GameState {
         units[uid] = {
           ...unit,
           movementCost: 1,
-          abilities: unit.abilities?.filter(a => a !== 'accion_evasiva') ?? [],
+          abilities: unit.abilities ?? [],
         };
       } else if (key === 'francotirador' && isArcherOrGeneral(unit.class)) {
         // Global +1 range for basic attacks is handled dynamically in attack.ts

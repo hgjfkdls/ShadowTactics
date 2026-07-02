@@ -1,0 +1,47 @@
+import type { AbilityConfig } from './types';
+
+export const LANCER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
+    anti_caballeria: {
+        id: 'anti_caballeria',
+        nameKey: 'ability.anti_caballeria.name',
+        displayName: 'Anti-caballería',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🔱',
+        targetType: 'none',
+        isPassive: true,
+        base: {},
+        allowedModifiers: [],
+    },
+    formacion_defensiva: {
+        id: 'formacion_defensiva',
+        nameKey: 'ability.formacion_defensiva.name',
+        displayName: 'Formación defensiva',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🛡',
+        targetType: 'none',
+        isPassive: true,
+        base: {},
+        allowedModifiers: [],
+    },
+    ventaja_alcance: {
+        id: 'ventaja_alcance',
+        nameKey: 'ability.ventaja_alcance.name',
+        displayName: 'Ventaja de alcance',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🏹',
+        targetType: 'enemy',
+        range: 'unit.range',
+        rangeBonus: 1,
+        base: { attack: 'unit.attack', difficulty: 'unit.difficulty', paCost: 1 },
+        replacesAttack: true,
+        requires: {
+            notUnitFlags: { attackedThisTurn: true, usedVentajaAlcance: true, usedDobleAtaque: true },
+        },
+        flags: { consumesUnitAction: true },
+        allowedModifiers: ['attack', 'defense', 'difficulty', 'attackCost', 'actionCost', 'range'],
+        restrictions: ['Reemplaza ataque básico', 'No combinable con Doble ataque'],
+    },
+};

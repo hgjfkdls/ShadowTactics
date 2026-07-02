@@ -242,11 +242,11 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 const isDebuff = (m: { stat: string; value: number; operator?: string }) => {
                     if (m.stat === 'movementCost' && m.value === 0 && m.operator === 'SET') return false;
                     if (m.stat === 'damage' && m.value > 0) return false;
-                    return ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil', 'passiveDamage'].includes(m.stat) || m.stat === 'damage' || (m.stat === 'ap' && m.value < 0);
+                    return ['movementCost', 'difficulty', 'attackCost', 'actionCost', 'bloqueo', 'inmovil', 'passiveDamage'].includes(m.stat) || m.stat === 'damage' || (m.stat === 'ap' && m.value < 0);
                 };
                 return (
                     <div className="px-3 py-1.5 space-y-1">
-                        <div className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wide">Efectos</div>
+                        <div className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
                         <div className="flex flex-wrap gap-1">
                             {playerMods.map((m, i) => (
                                 <button
@@ -454,6 +454,7 @@ function descriptionForStat(stat: string, value: number, operator: string): stri
         difficulty: `${t}: ${value > 0 ? '+' : ''}${value}`,
         damage: `${t}: ${value > 0 ? '+' : ''}${value}`,
         attackCost: l('ui.attackCost', { n: value }),
+        actionCost: `${l('ui.attackCost', { n: value })}`,
         blocked: l('ui.blocked'),
         dotOnHit: l('ui.dotOnHit'),
         passiveDamage: `${t} ${l('ui.passiveDamageStart')}`,

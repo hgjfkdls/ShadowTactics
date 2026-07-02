@@ -23,7 +23,7 @@ export function DeploymentScreen({ state, sendAction, role, selectedInfo, onInfo
     if (role.role !== 'player') {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">
-                <div className="text-xl font-bold">Despliegue</div>
+                <div className="text-xl font-bold">{l('deploy.title')}</div>
                 <div className="text-zinc-400">{l('ui.waitingDeploy')}</div>
             </div>
         );

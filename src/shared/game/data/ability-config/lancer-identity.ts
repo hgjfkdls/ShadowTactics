@@ -1,0 +1,56 @@
+import type { AbilityConfig } from './types';
+
+export const LANCER_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
+    // ── PUNTA DE LANZA ──
+    torbellino: {
+        id: 'torbellino',
+        nameKey: 'ability.torbellino.name',
+        displayName: 'Torbellino',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🌪️',
+        targetType: 'none',
+        base: { paCost: 3 },
+        isPassive: false,
+        requires: { notUnitFlags: { usedCarga: true, usedTorbellino: true } },
+        flags: { noCritical: true, consumesUnitAction: true },
+        allowedModifiers: ['attackCost', 'actionCost'],
+    },
+    proyeccion: {
+        id: 'proyeccion',
+        nameKey: 'ability.proyeccion.name',
+        displayName: 'Proyección',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🗡',
+        targetType: 'none',
+        isPassive: true,
+        base: {},
+        allowedModifiers: [],
+    },
+    // ── ESPARTANO ──
+    lanza_escudo: {
+        id: 'lanza_escudo',
+        nameKey: 'ability.lanza_escudo.name',
+        displayName: 'Lanza y escudo',
+        type: 'support',
+        displayType: 'support',
+        icon: '🛡',
+        targetType: 'self',
+        isPassive: true,
+        base: {},
+        allowedModifiers: [],
+    },
+    muro_espartano: {
+        id: 'muro_espartano',
+        nameKey: 'ability.muro_espartano.name',
+        displayName: 'Muro espartano',
+        type: 'support',
+        displayType: 'support',
+        icon: '🛡',
+        targetType: 'none',
+        isPassive: true,
+        base: {},
+        allowedModifiers: [],
+    },
+};

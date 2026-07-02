@@ -1,6 +1,6 @@
-import { assert, assertEqual } from './shared';
-import { createInitialGameState } from '../shared/game/init';
-import { applyAction } from '../shared/game/reducer';
+import { assert, assertEqual } from '../shared';
+import { createInitialGameState } from '../../shared/game/init';
+import { applyAction } from '../../shared/game/reducer';
 
 console.log('\n--- Preparation Phase ---\n');
 
@@ -111,14 +111,23 @@ function prepIdentity() {
 
     // p2 tira
     const r2 = applyAction(r1, { type: 'ROLL_DICE', playerId: 'p2' });
-    assert(typeof r2.diceRolls['p2'] === 'number',
-        'ROLL_DICE — p2 obtiene un número');
 
     // RNG avanza en cada tirada (incluso en empate)
     assert(r2.rngSeed !== r1.rngSeed,
         'ROLL_DICE — semilla RNG se consumió en p2');
 
-    if (r2.diceRolls['p1'] !== r2.diceRolls['p2']) {
+    if (r2.diceRolls['p1'] !== undefined && r2.diceRolls['p1'] === r2.diceRolls['p2']) {
+        // Empate: ambos dados se resetearon
+        assert(r2.diceRolls['p1'] === undefined &&
+               r2.diceRolls['p2'] === undefined,
+            'ROLL_DICE — empate reinicia dados a undefined');
+        assert(r2.lastTieRoll !== undefined && typeof r2.lastTieRoll === 'number' && r2.lastTieRoll >= 2 && r2.lastTieRoll <= 12,
+            'ROLL_DICE — lastTieRoll almacena el valor del empate');
+        assertEqual(r2.preparationPhase, 'ROLL',
+            'ROLL_DICE — sigue en ROLL tras empate');
+    } else {
+        assert(typeof r2.diceRolls['p2'] === 'number',
+            'ROLL_DICE — p2 obtiene un número');
         assert(r2.preparationPhase === 'ROLL_RESULT',
             'ROLL_DICE — avanza a ROLL_RESULT si no hay empate');
 
@@ -150,14 +159,6 @@ function prepIdentity() {
             assertEqual(r2.activePlayer, 'p1',
                 'ROLL_DICE — activePlayer es el mayor (p1)');
         }
-    } else {
-        assert(r2.diceRolls['p1'] === undefined &&
-               r2.diceRolls['p2'] === undefined,
-            'ROLL_DICE — empate reinicia dados a undefined');
-        assert(r2.lastTieRoll !== undefined && typeof r2.lastTieRoll === 'number' && r2.lastTieRoll >= 2 && r2.lastTieRoll <= 12,
-            'ROLL_DICE — lastTieRoll almacena el valor del empate');
-        assertEqual(r2.preparationPhase, 'ROLL',
-            'ROLL_DICE — sigue en ROLL tras empate');
     }
 }
 

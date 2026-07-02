@@ -135,9 +135,11 @@ export function GameModals(props: Props) {
                                 if (startPos) {
                                     enqueue({ id: `cabalgar2_${pendingAbility!.unitId}_${Date.now()}`, type: 'move', unitId: pendingAbility!.unitId, path: [startPos, ...cabalgarPath], duration: 700 * cabalgarPath.length });
                                 }
+                                const c2Uid = pendingAbility!.unitId;
                                 setPendingAbility(null);
                                 setCabalgarPath([]);
                                 setCabalgarIsLaCarga(false);
+                                setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: c2Uid }), 150);
                             }}>
                                 {l('confirmActions.confirm')}
                             </button>
@@ -176,8 +178,12 @@ export function GameModals(props: Props) {
                         <div className="flex gap-3 justify-center mt-2">
                             <button className="bg-amber-700 hover:bg-amber-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => {
                                 const gen = Object.values(state.units).find(u => u.owner === myPlayerId && u.class === 'general');
-                                if (gen) sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: gen.id, abilityId: 'angel_guardian' });
-                                setPendingAngelGuardian(false);
+                                if (gen) {
+                                    sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: gen.id, abilityId: 'angel_guardian' });
+                                    setPendingAbility(null);
+                                    setPendingAngelGuardian(false);
+                                    setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: gen.id }), 150);
+                                }
                             }}>
                                 {l('confirmActions.confirm')}
                             </button>

@@ -1,7 +1,8 @@
 import type { GameState, HexCoord, PlayerId } from './state';
 import type { GameAction } from './action-types';
 import { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
-import { handleMove, handleAttack, handleCard, handleAbility, handlePassCounter, handleDiscard, handleIdentityAbility } from './actions/index';
+import { handleMove, handleAttack, handleCard, handlePassCounter, handleDiscard, handleIdentityAbility } from './actions/index';
+import { handleAbility } from './data/ability-config/handler';
 import { simulatePreparation } from './phases/simulate';
 import { updateUnit } from './utils';
 import { applyFormationModifiers } from './formations';
@@ -229,7 +230,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     path: pathStr,
                     cost: 0,
                     baseCost: 0,
-                    modifiers: [unit?.abilities?.includes('avance') ? 'Avance' : 'Desenvainado veloz'],
+                    modifiers: [(unit?.abilities ?? []).includes('ejecutar') ? 'Ejecutar' : 'Desenvainado veloz'],
                 }],
                 nextHistoryId: s.nextHistoryId + 1,
             };

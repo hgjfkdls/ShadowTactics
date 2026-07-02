@@ -10,6 +10,7 @@ export type CombatResult = {
     difficulty: number;
     damage: number;
     attackCost: number;
+    actionCost: number;
     ignoresPassives: boolean;
 };
 
@@ -45,6 +46,9 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     },
     anti_caballeria: {
         onDamage: (ctx, r) => {
+            // Solo bonifica ataque básico (no habilidades)
+            const isBasicAttack = !ctx.ctx.configId || ctx.ctx.configId === 'ataque_basico';
+            if (!isBasicAttack) return;
             if (ctx.defender.class === 'cavalry' || (ctx.defender.class === 'general' && (ctx.state.players[ctx.defender.owner]?.selectedIdentity ?? '').match(/^(caballos_guerra|cazadores)/))) r.damage += 1;
         },
     },
@@ -59,10 +63,15 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     },
     formacion_defensiva: {
         onDifficulty: (ctx, r) => {
-            if (ctx.ctx.isCarga) r.difficulty += 1;
+            // Anula el -1 dificultad de Carga
+            if (ctx.ctx.configId === 'carga') r.difficulty += 1;
+        },
+        onDefense: (ctx, r) => {
+            // Anula el +1 ataque de Carga (defensor)
+            if (ctx.abilitySide === 'defender' && ctx.ctx.configId === 'carga') r.damage -= 1;
         },
         onPostHit: (ctx, s, hit) => {
-            if (!ctx.ctx.isCarga || hit) return s;
+            if (ctx.ctx.configId !== 'carga' || hit) return s;
             return dealDamage(s, ctx.attacker.id, 1);
         },
     },
@@ -106,12 +115,13 @@ const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
     },
 };
 
-export function getUnitModifiers(state: GameState, playerId: string, unitId?: string): { difficulty: number; attackMod: number; defenseMod: number; attackCost: number } {
+export function getUnitModifiers(state: GameState, playerId: string, unitId?: string): { difficulty: number; attackMod: number; defenseMod: number; attackCost: number; actionCost: number } {
     return {
         difficulty: getModifierSum(state, playerId, unitId ?? null, 'difficulty'),
         attackMod: getModifierSum(state, playerId, unitId ?? null, 'attack'),
         defenseMod: getModifierSum(state, playerId, unitId ?? null, 'defense'),
         attackCost: getModifierSum(state, playerId, unitId ?? null, 'attackCost'),
+        actionCost: getModifierSum(state, playerId, unitId ?? null, 'actionCost'),
     };
 }
 
@@ -214,6 +224,7 @@ export function applyCostAbilities(ctx: AbilityContext, result: CombatResult): v
     }
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
     result.attackCost += mods.attackCost;
+    result.actionCost += mods.actionCost;
 }
 
 export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult): void {

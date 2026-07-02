@@ -13,6 +13,7 @@ export const es = {
       damage: 'Daño alterado',
       difficulty: 'Dificultad modificada',
       attackCost: 'Coste ataque aumentado',
+      actionCost: 'Coste acción aumentado',
       bloqueo: 'Bloqueado',
       inmovil: 'Inmovilizado',
       dotOnHit: 'Daño pasivo preparado',
@@ -23,10 +24,15 @@ export const es = {
   },
 
   ability: {
+    ataque_basico: { name: 'Ataque básico', desc: 'Ataque cuerpo a cuerpo o a distancia según el arma de la unidad' },
+    movimiento: { name: 'Movimiento', desc: 'Desplaza a la unidad 1 casilla adyacente' },
     blanco_facil: { name: 'Blanco fácil', desc: 'Si el objetivo no se movió el turno anterior, -1 dificultad' },
     patada_acrobatica: { name: 'Patada acrobática', desc: 'Si el arquero está adyacente a un enemigo, hace 1 de daño y se mueve a una casilla adyacente no ocupada que no esté adyacente al enemigo', restriction: 'Requiere enemigo adyacente y casilla de escape disponible' },
-    fuego_cobertura: { name: 'Fuego de cobertura', desc: 'Si impacta, inflige 2 de daño y el objetivo tiene coste +1 en su próximo turno (max 2 acciones)', restriction: '1 vez por turno por arquero, no se acumula' },
-    accion_evasiva: { name: 'Acción evasiva', desc: 'Si hay enemigos adyacentes al inicio del turno, reemplaza al primer movimiento' },
+    fuego_cobertura: { name: 'Fuego de cobertura', desc: 'Si impacta, inflige 2 de daño y el objetivo tiene coste +1 en su próximo turno (max 2 acciones)', restriction: '1 vez por turno por arquero, no se acumula',
+        effect: {
+            surcharge: 'Coste +1 en las próximas 2 acciones',
+        },
+    },
     romper_filas: { name: 'Romper filas', desc: 'Ignora Resistencia y Línea defensiva de la infantería' },
     doble_ataque: { name: 'Doble ataque', desc: 'Realiza un segundo ataque contra el mismo objetivo con -1 daño' },
     cabalgar: { name: 'Cabalgar', desc: 'Mueve 2 casillas en línea recta. Reemplaza el movimiento normal', restriction: '1 vez por turno' },
@@ -41,17 +47,32 @@ export const es = {
     torbellino: { name: 'Torbellino', desc: 'Dificultad 6. Inflige 2 de daño a todos los enemigos adyacentes. Fallo: 1 de daño a todos los adyacentes (excepto generales). No puede ser crítico.', restriction: '1 vez por turno. No puede ser crítico (11-12 hacen daño normal). Afecta a todas las casillas a rango 1.' },
     a_la_carga: { name: 'A la carga', desc: 'Potencia Cabalgar: avanza 3 casillas en lugar de 2. El coste aumenta con cada uso.', restriction: 'Coste progresivo: +0/+1/+2 (se mantiene en 2). Solo hacia un enemigo.' },
     rayo_celestial: { name: 'Rayo celestial', desc: 'Elige un aliado a rango ≤ 2. Su siguiente ataque tiene +3 de ataque', restriction: 'El objetivo debe estar a rango ≤ 2. El efecto se consume tras el ataque.' },
-    avance: { name: 'Avance', desc: 'Al eliminar un enemigo con ataque básico, permite ocupar su posición' },
+    ejecutar: { name: 'Ejecutar', desc: 'Si el enemigo tiene 2 HP o menos, este ataque lo ejecuta si acierta. Puedes ocupar su posición' },
     en_nombre_del_rey: { name: 'En nombre del rey', desc: 'Un aliado a rango ≤ 2 obtiene +2 ataque y escudo 3 HP hasta tu siguiente turno. El General no puede atacar este turno.', restriction: '2 PA. El General queda marcado como atacado.' },
     posicion_estrategica: { name: 'Posición estratégica', desc: 'Mueve a tu General 1 casilla a una posición adyacente a un aliado', restriction: '1 vez por turno. El destino debe estar adyacente a un aliado.' },
     meditacion: { name: 'Meditación', desc: 'Si no usaste meditación en tu turno, tu General gana +1 de defensa hasta el próximo turno. Activar: recupera 3 HP a tu General.', restriction: 'El General debe tener al menos 2 PA disponibles y no estar a full HP.' },
-    desenvainado_veloz: { name: 'Desenvainado veloz', desc: '-1 dificultad. Si acierta, el objetivo no puede moverse en su siguiente turno (puede atacar). Se resetea si elimina al objetivo.', restriction: '1 vez por turno. Si el hex detrás del objetivo está vacío, puedes ocuparlo al impactar.' },
+    desenvainado_veloz: { name: 'Desenvainado veloz', desc: '-1 dificultad. Si acierta, el objetivo no puede moverse en su siguiente turno (puede atacar). Se resetea si elimina al objetivo.', restriction: '1 vez por turno. Si el hex detrás del objetivo está vacío, puedes ocuparlo al impactar.',
+        effect: {
+            inmovil: 'Objetivo no puede moverse en su siguiente turno',
+            occupation: 'Ocupa el hex detrás del objetivo si está libre',
+        },
+    },
+    karma: { name: 'Karma', desc: 'Cuando una unidad aliada es eliminada, la unidad que la eliminó recibe 2 de daño' },
     camino_del_guerrero: { name: 'Camino del guerrero', desc: 'Una vez por turno, cuando un aliado elimina a un enemigo a rango 1, recuperas 1 PA.' },
+    acechar: { name: 'Acechar', desc: 'Ataca a unidades aisladas con +1 ataque (+2 si el General ataca a general enemigo). Caballería recibe mitad del bonus' },
+    hostigar: { name: 'Hostigar', desc: 'Caballería tiene -1 dificultad al atacar a enemigos con 50% o menos de HP' },
     angel_guardian: { name: 'Ángel Guardián', desc: 'Todos los aliados reciben un escudo de +2 HP. Además, cura 1 HP al aliado (incluye General) que más HP le falte (aleatorio si hay empate).' },
     proteger: { name: 'Proteger', desc: 'Un aliado a rango ≤ 3 recibe +1 defensa hasta tu siguiente turno. Se acumula con otras defensas. Si no se usa, el efecto va al General.' },
     sacrificar: { name: 'Sacrificar', desc: 'Un aliado a rango 1 pierde 2 HP. El General recupera 3 HP. Si el aliado muere, recupera 5 HP.', restriction: 'No puede usarse si el General está a full HP.' },
     terror: { name: 'Terror', desc: 'Cuando un aliado elimina a un enemigo a rango 1, los enemigos adyacentes al atacante o al objetivo tienen dificultad +1 en su siguiente ataque.' },
+    furia_berserker: { name: 'Furia berserker', desc: 'El General y las unidades de infantería tienen +1 de ataque mientras tengan 50% o menos de HP' },
+    contraataque: { name: 'Contraataque', desc: 'Cuando el General recibe un ataque de rango 1, inflige 1 daño al atacante' },
     liderar_tropas: { name: 'Liderar a las tropas', desc: 'Cuando el General ataca, la infantería y el General ganan ataque adicional este turno.' },
+    proyeccion: { name: 'Proyección', desc: '1 vez por turno, cuando un lancero acierta un ataque cuerpo a cuerpo, hace 1 de daño a las 2 casillas detrás del objetivo' },
+    muro_espartano: { name: 'Muro espartano', desc: 'Los lanceros adyacentes entre sí tienen +1 defensa' },
+    formacion_linea: { name: 'Formación línea', desc: 'Si hay 3 o más unidades aliadas adyacentes en línea recta, todas reciben +1 defensa' },
+    formacion_triangulo: { name: 'Formación triángulo', desc: 'Si 3 unidades aliadas están adyacentes entre sí, todas tienen ataque +1' },
+    guardia_real: { name: 'Guardia real', desc: 'Unidades que iniciaron el turno adyacentes al General tienen +1 de ataque y +1 de defensa' },
     lanza_escudo: { name: 'Lanza y escudo', desc: 'Elige entre +1 rango o +1 defensa para el General cada turno.' },
     voz_de_mando: { name: 'Voz de mando', desc: 'La unidad aliada que se mueve tras el General recibe +1 ataque y +1 defensa.' },
     plan_batalla: { name: 'Plan de batalla', desc: 'Elige una orden para tu ejército: Avanzar (+1 ataque) o Reagruparse (+1 defensa).' },
@@ -76,7 +97,7 @@ export const es = {
   },
 
   identity: {
-    robin_hood: { name: 'Robin Hood', className: 'Arquero', desc: 'Especial: Daño gratis por turno. Global: Arqueros móviles + sustain.', descVerbose: 'Forajido de Sherwood, roba a los ricos para dar a los pobres. Arquero certero y defensor del pueblo.\n\nEspecial — En la mira (Pasiva)\nTu General se considera arquero. Al comienzo de cada turno, elige una unidad enemiga e inflige 1 de daño sin coste. No puedes elegir al general enemigo.\n\nGlobal — Robar a los ricos (Pasiva)\nTus arqueros tienen coste movimiento 1 y pierden acción evasiva. El primer arquero que acierta un ataque cada turno recupera 1 HP.' },
+    robin_hood: { name: 'Robin Hood', className: 'Arquero', desc: 'Especial: Daño gratis por turno. Global: Arqueros móviles + sustain.', descVerbose: 'Forajido de Sherwood, roba a los ricos para dar a los pobres. Arquero certero y defensor del pueblo.\n\nEspecial — En la mira (Pasiva)\nTu General se considera arquero. Al comienzo de cada turno, elige una unidad enemiga e inflige 1 de daño sin coste. No puedes elegir al general enemigo.\n\nGlobal — Robar a los ricos (Pasiva)\nTus arqueros tienen coste movimiento 1. El primer arquero que acierta un ataque cada turno recupera 1 HP.' },
     francotirador: { name: 'Francotirador del Bosque', className: 'Arquero', desc: 'Especial: +1 rango habilidades de arquero. Global: Rango y precisión para arqueros.', descVerbose: 'Cazador solitario. Una flecha, un muerto. Nadie ve de dónde vino el disparo.\n\nEspecial — Francotirador (Pasiva)\nTu General se considera arquero. Tu General tiene +1 rango de habilidades de arquero.\n\nGlobal — Tiro a distancia (Pasiva)\nTus arqueros obtienen +1 de rango para ataques básicos. Mejora Blanco fácil: -2 dificultad si el objetivo no se movió el turno anterior (en lugar de -1).' },
     dios_trueno: { name: 'Dios del Trueno', className: 'Infantería', desc: 'Especial: Bendice aliado [+3 ataque] + pasivas. Global: +1 ataque al 50% HP.', descVerbose: 'Thor, el dios nórdico del trueno. Su martillo forja tormentas y bendice a los suyos con rayos divinos.\n\nEspecial — Rayo celestial (coste 2)\nTu General gana las pasivas Resistencia y Presión de infantería. Elige un aliado a rango ≤ 2: su siguiente ataque tiene +3 de ataque. El efecto termina después de ejecutar el ataque.\n\nGlobal — Furia berserker (Pasiva)\nEl General y tus unidades de infantería tienen +1 de ataque mientras tengan 50% o menos de HP.' },
     capitan_guardia: { name: 'Capitán de la Guardia', className: 'Infantería', desc: 'Especial: Contraataque + pasivas. Global: Infantería gana ataque tras ataque del General.', descVerbose: 'Veterano de mil batallas, lidera desde el frente. No pide a nadie lo que él no haría primero.\n\nEspecial — Contraataque (Pasiva)\nTu General gana las pasivas Resistencia y Presión de infantería. Cuando tu General recibe un ataque de rango 1, inflige 1 daño al atacante.\n\nGlobal — Liderar a las tropas (Pasiva)\nCuando el General ataca, tu infantería y el General ganan +1 de ataque este turno. Si ese ataque elimina a una unidad, el bono es de +2 de ataque.' },
@@ -177,6 +198,13 @@ export const es = {
     meditacionHeal: '🧘 El Monje Shaolin ha recuperado 3 HP con Meditación',
     inmovilized: 'Unidad inmovilizada: 1 turno',
     cardRejected: 'No puedes usar esta carta si tu general fue atacado el turno anterior',
+    alreadyUsedThisTurn: 'Ya usado este turno',
+    fullHPorNoAllies: 'HP completo o sin aliados',
+    fullHPorNoPA: 'HP completo o PA insuficiente',
+    ejecutableUnavailable: 'Ya atacó o sin objetivo ejecutable',
+    cabalgarFullRoute: 'Ya seleccionaste la ruta completa. Confirma o cancela.',
+    selectAdjacentHex: 'Selecciona una casilla adyacente a la unidad',
+    selectEnemyNotGeneral: 'Selecciona un enemigo que no sea el general',
   },
 
   button: {
@@ -268,6 +296,8 @@ export const es = {
     statsBase: 'Stats base de {cls}',
     selectIdentity: 'Seleccionar carta',
     bothConnected: 'Esperando a que los jugadores desplieguen...',
+    placingOne: 'Colocas 1 unidad',
+    placingTwo: 'Colocas 2 unidades',
       roll: {
         title: '🎲 Tirada de dados',
         rollButton: 'Tirar dados',
@@ -374,6 +404,8 @@ export const es = {
     counters: '↩ Contrarresta',
     playerPlays: 'Jugador {n} juega',
     butOpponentCounters: '↩ pero el rival contrarresta con',
+    source: 'Origen',
+    effects: 'Efectos',
   },
 
   preparation: {
@@ -545,6 +577,10 @@ export const es = {
     dotOnHit: '+1 en el próximo impacto',
     passiveDamageStart: 'al inicio del turno',
     torbellino: '🌪️ Torbellino',
+    killAtRange: 'kill a rango {n}',
+    torbellinoHit: '-2 HP a {count} enemigos {ids}',
+    torbellinoMissAllies: '-1 HP a {count} aliados {ids}',
+    torbellinoMissEnemies: '-1 HP a {count} enemigos {ids}',
     playerLabel: 'Jugador {n}',
     activePlayer: 'Jugador activo: {player}',
     waitingDeploy: 'Esperando a que los jugadores desplieguen...',
@@ -553,5 +589,15 @@ export const es = {
     blockedTurn: 'Unidad bloqueada: {n} turno',
     oponente: 'oponente',
     playerShort: 'P{id}',
+
+    combat: {
+        romperFilas: {
+            ignoreLineaDef: 'ignora Línea defensiva',
+            ignoreResistencia: 'ignora Resistencia',
+        },
+        formacionDefensiva: {
+            anulaCarga: 'anula Carga',
+        },
+    },
   },
 };
