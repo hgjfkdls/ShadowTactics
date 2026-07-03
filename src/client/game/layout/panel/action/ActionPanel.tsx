@@ -2,7 +2,7 @@ import { hexDistance } from '@shared';
 import { ABILITIES } from '@shared/game/data/abilities';
 import { BASE_STATS } from '@shared/game/units';
 import { getPlayerAP } from '@shared/game/actions';
-import { useKeyBindings } from '../KeyBindingsContext';
+import { useKeyBindings } from '../../../KeyBindingsContext';
 import type { GameState, UnitId, GameAction } from '@shared';
 import { l } from '@shared/i18n';
 

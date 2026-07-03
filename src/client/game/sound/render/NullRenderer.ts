@@ -3,7 +3,7 @@ import type { SoundRenderer } from './SoundRenderer';
 
 export class NullRenderer implements SoundRenderer {
   async load(_url: string): Promise<void> {}
-  async play(_url: string, _layer: SoundLayer, _options?: SoundOptions): Promise<()> {
+  async play(_url: string, _layer: SoundLayer, _options?: SoundOptions): Promise<() => void> {
     return () => {};
   }
   setMasterVolume(_volume: number): void {}

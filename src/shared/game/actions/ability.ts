@@ -9,7 +9,7 @@ import { addModifier, consumeModifier, getModifierSum } from '../modifiers/engin
 
 // ── buildAttackModifiers ──
 
-export function buildAttackModifiers(s: GameState, attackerId: string, targetId: string, configId?: string): { combat: string[]; paMods: string[] } {
+export function buildAttackModifiers(s: GameState, attackerId: string, targetId: string, configId?: string, preTimesDamaged?: number): { combat: string[]; paMods: string[] } {
     const attacker = s.units[attackerId];
     const target = s.units[targetId];
     if (!attacker || !target) return { combat: [], paMods: [] };
@@ -136,26 +136,29 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
         }
     }
 
-    // Resistencia / Línea defensiva
-    if (abils.includes('linea_defensiva') && target.didMovePreviousTurn === false) {
+    // Resistencia / Línea defensiva (del defensor, mutuamente excluyentes)
+    const tgtAbils2 = target.abilities ?? [];
+    const timesDamaged = preTimesDamaged ?? 0;
+    const hasLineaDef = tgtAbils2.includes('linea_defensiva') && target.didMovePreviousTurn === false;
+    const hasResistencia = tgtAbils2.includes('resistencia') && !timesDamaged;
+    if (hasLineaDef) {
         combat.push('[def] [id:linea_defensiva] Línea defensiva: +1 defensa');
-    }
-    if (abils.includes('resistencia') && !target.resistenciaUsedThisTurn) {
+    } else if (hasResistencia) {
         combat.push('[def] [id:resistencia] Resistencia: +1 defensa');
     }
 
-    // Romper filas
+    // Romper filas: solo anula la passiva que está activa
     if (abils.includes('romper_filas')) {
-        if (target.abilities?.includes('linea_defensiva')) {
+        if (hasLineaDef) {
             combat.push('[mixed] [id:romper_filas] [ignores:linea_defensiva] Romper filas: ignora Línea defensiva');
-        }
-        if (target.abilities?.includes('resistencia')) {
+        } else if (hasResistencia) {
             combat.push('[mixed] [id:romper_filas] [ignores:resistencia] Romper filas: ignora Resistencia');
         }
     }
 
-    // Formación defensiva
-    if (abils.includes('formacion_defensiva') && configId !== 'ataque_basico') {
+    // Formación defensiva (solo cuando el defensor la tiene y el atacante usa Carga)
+    const targetAbils = target.abilities ?? [];
+    if (targetAbils.includes('formacion_defensiva') && configId === 'carga') {
         combat.push('[mixed] [id:formacion_defensiva] [ignores:carga] Formación defensiva: anula Carga');
     }
 
@@ -165,14 +168,20 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
         combat.push('[dmg] [id:contraataque] Contraataque (Capitán de la Guardia): 1 daño');
     }
 
+    // Range bonus from ability config (ventaja_alcance, etc.)
+    const rangeBonusCfg = configId ? ABILITY_CONFIG[configId]?.rangeBonus : undefined;
+    if (rangeBonusCfg && rangeBonusCfg > 0) {
+        combat.push(`[range] [id:${configId}] ${ABILITY_CONFIG[configId]?.displayName ?? configId}: +${rangeBonusCfg} rango`);
+    }
+
     return { combat, paMods };
 }
 
 // ── storeAttackResult ──
 
-export function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[]): GameState {
+export function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[], preTimesDamaged?: number): GameState {
     let s = result.state;
-    const { combat: modsFromBuild, paMods: costModsFromBuild } = buildAttackModifiers(s, attackerId, targetId, result.configId);
+    const { combat: modsFromBuild, paMods: costModsFromBuild } = buildAttackModifiers(s, attackerId, targetId, result.configId, preTimesDamaged);
     const mods = modsFromBuild;
     // Merge config-driven extras from compute (extraAttack, extraDifficulty)
     if (result.compute) {
@@ -186,10 +195,11 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
     }
     const atkUnit = s.units[attackerId];
     const allPaMods = [...(paModifiers ?? []), ...costModsFromBuild];
+    // Compute distance from positions
+    const dist = atkUnit && s.units[targetId] ? hexDistance(atkUnit.position, s.units[targetId].position) : 0;
     // Prepend difficulty formula
     if (atkUnit) {
         const target = s.units[targetId];
-        const dist = target ? hexDistance(atkUnit.position, target.position) : 0;
         const hasBlancoFacil = (atkUnit.abilities ?? []).includes('blanco_facil');
         const baseDiff = hasBlancoFacil ? 5 : atkUnit.difficulty;
         const raw = hasBlancoFacil ? baseDiff + dist : baseDiff;
@@ -231,9 +241,11 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
             attackerClass, targetClass,
             attackName: attackName ?? 'button.basicAttack',
             noCritical: result.noCritical,
+            configId: result.configId,
             modifiers: mods,
             paCost,
             paModifiers: allPaMods,
+            distance: dist,
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };

@@ -20,6 +20,7 @@ export const es = {
       ap: 'PA modificados',
       passiveDamage: 'Recibiendo daño pasivo',
       movementPenalty: 'Penalización de movimiento (×2)',
+      royalShieldSavedHp: 'Escudo',
     },
   },
 
@@ -36,7 +37,7 @@ export const es = {
     romper_filas: { name: 'Romper filas', desc: 'Ignora Resistencia y Línea defensiva de la infantería' },
     doble_ataque: { name: 'Doble ataque', desc: 'Realiza un segundo ataque contra el mismo objetivo con -1 daño' },
     cabalgar: { name: 'Cabalgar', desc: 'Mueve 2 casillas en línea recta. Reemplaza el movimiento normal', restriction: '1 vez por turno' },
-    carga: { name: 'Carga', desc: 'Tras Cabalgar, ataque con -1 dificultad y +1 daño en la misma línea recta', restriction: 'Si usa carga, no puede volver a atacar este turno' },
+    carga: { name: 'Carga', desc: 'Tras Cabalgar, ataque con -1 dificultad y +1 ataque en la misma línea recta', restriction: 'Si usa carga, no puede volver a atacar este turno' },
     anti_caballeria: { name: 'Anti-caballería', desc: 'Al atacar caballería, +1 daño' },
     formacion_defensiva: { name: 'Formación defensiva', desc: 'Anula el bono de Carga. Si gana el combate, el atacante recibe +1 daño' },
     ventaja_alcance: { name: 'Ventaja de alcance', desc: 'Reemplaza el ataque básico. Ataque a rango +1', restriction: 'No puede combinarse con Doble ataque. Reemplaza el ataque básico' },
@@ -77,6 +78,7 @@ export const es = {
     voz_de_mando: { name: 'Voz de mando', desc: 'La unidad aliada que se mueve tras el General recibe +1 ataque y +1 defensa.' },
     plan_batalla: { name: 'Plan de batalla', desc: 'Elige una orden para tu ejército: Avanzar (+1 ataque) o Reagruparse (+1 defensa).' },
     camino_guerrero: { name: 'Camino del guerrero', desc: 'Cuando un aliado elimina a un enemigo a rango 1, recuperas 1 PA (una vez por turno).' },
+    en_la_mira: { name: 'En la mira', desc: 'Tu General se considera arquero. Al comienzo de cada turno, elige una unidad enemiga e inflige 1 de daño sin coste.' },
     robar_ricos: { name: 'Robar a los ricos', desc: 'El primer arquero que acierta cada turno recupera 1 HP.' },
   },
 
@@ -140,7 +142,7 @@ export const es = {
     counter: 'Contraataque',
     difAbbrev: 'Dif',
     baseLabel: 'base',
-    distanceLabel: 'distancia',
+    distanceLabel: 'Distancia',
     player1: 'Jugador 1',
     player2: 'Jugador 2',
     yourTurn: 'EN TURNO',
@@ -172,6 +174,8 @@ export const es = {
     counterReturns: '↩ contrarresta',
     player: 'Jugador {n}',
     difficultyAbbrev: 'Dif {n}',
+    alliesAffected: 'Aliados afectados: {count}',
+    enemiesAffected: 'Enemigos afectados: {count}',
   },
 
   alert: {
@@ -406,6 +410,7 @@ export const es = {
     butOpponentCounters: '↩ pero el rival contrarresta con',
     source: 'Origen',
     effects: 'Efectos',
+    unitsAffected: 'Unidades afectadas',
   },
 
   preparation: {

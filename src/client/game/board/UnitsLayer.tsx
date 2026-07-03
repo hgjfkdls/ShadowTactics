@@ -296,8 +296,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                     .filter(u => u.owner !== playerId)
                     .some(u => hexDistance(unit.position, u.position) === 1);
 
-                const fill = unit.owner === 'p1' ? '#166534' : '#991b1b';
-                const stroke = selected ? '#fde047' : unit.owner === 'p1' ? '#22c55e' : '#ef4444';
+                const fill = unit.owner === 'p1' ? '#4c1d95' : '#155e75';
+                const stroke = selected ? '#fde047' : unit.owner === 'p1' ? '#a78bfa' : '#22d3ee';
                 const strokeW = selected ? 2.5 : 1.5;
 
                 return (
@@ -338,8 +338,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             opacity={0.92}
                         />
 
-                        <g transform="translate(-9, -9)">
-                            <ClassIcon cls={unit.class} size={18} />
+                        <g transform="translate(-9, -12)">
+                            <BustSvg cls={unit.class} size={18} />
                         </g>
 
                         <text
@@ -356,10 +356,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {isBlancoFacilTarget && (
                             <g transform="translate(14, -14)">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" pointerEvents="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} pointerEvents="none" />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} pointerEvents="none" />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" pointerEvents="none" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" pointerEvents="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} pointerEvents="none" />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} pointerEvents="none" />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" pointerEvents="none" />
                             </g>
                         )}
 
@@ -372,62 +372,62 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {showSword && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {showAnticaballeria && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {(showFormacionTrianguloDiana || showAvanzarDiana || showGuardiaDiana) && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {hasRoyalShield && (
                             <g transform="translate(-14, -14)" pointerEvents="none">
-                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#fbbf24" stroke="#fbbf24" strokeWidth={0.8} />
-                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#fde047" stroke="#fbbf24" strokeWidth={0.8} />
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
                             </g>
                         )}
 
                         {hasTerror && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {showCazadorDiana && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {unit.espartanoRangeBonus && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
@@ -451,8 +451,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {showFormacionDefensiva && (
                             <g transform="translate(-14, -14)" pointerEvents="none">
-                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#f59e0b" stroke="#f59e0b" strokeWidth={0.8} />
-                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#fbbf24" stroke="#f59e0b" strokeWidth={0.8} />
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
                             </g>
                         )}
 
@@ -472,10 +472,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             </g>
                         ) : showFuriaBerserker ? (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         ) : showLiderarTropas && (
                             <g transform="translate(14, -14)" pointerEvents="none">
@@ -590,52 +590,16 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     return { buffs, debuffs };
 }
 
-function ClassIcon({ cls, size }: { cls: string; size: number }) {
-    switch (cls) {
-        case 'archer':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
-                    <path d="M7 16 L17 8 M11 8 L17 8 L17 12" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round" />
-                    <circle cx="12" cy="7" r="3.5" stroke="#fbbf24" strokeWidth="1.4" fill="none" />
-                </svg>
-            );
-        case 'infantry':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#60a5fa" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#60a5fa" strokeWidth="1.5" fill="none" />
-                    <rect x="7" y="8" width="10" height="8" rx="1.5" stroke="#60a5fa" strokeWidth="1.4" fill="none" />
-                    <line x1="12" y1="8" x2="12" y2="16" stroke="#60a5fa" strokeWidth="1.4" />
-                </svg>
-            );
-        case 'cavalry':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#a78bfa" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#a78bfa" strokeWidth="1.5" fill="none" />
-                    <path d="M4 17 C4 12 8 5 12 4 C16 5 20 12 20 17" stroke="#a78bfa" strokeWidth="1.3" fill="none" />
-                    <circle cx="12" cy="9" r="2" fill="#a78bfa" />
-                </svg>
-            );
-        case 'lancer':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#f87171" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#f87171" strokeWidth="1.5" fill="none" />
-                    <line x1="12" y1="10" x2="12" y2="3" stroke="#f87171" strokeWidth="1.6" />
-                    <line x1="12" y1="3" x2="15" y2="6" stroke="#f87171" strokeWidth="1.6" />
-                </svg>
-            );
-        case 'general':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#facc15" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#facc15" strokeWidth="1.5" fill="none" />
-                    <path d="M12 4 L13.5 7 L17 7.5 L14.5 9.5 L15 12.5 L12 11 L9 12.5 L9.5 9.5 L7 7.5 L10.5 7 Z" stroke="#facc15" strokeWidth="1" fill="none" />
-                </svg>
-            );
-        default:
-            return <text y={4} textAnchor="middle" fontSize={12} fill="white" pointerEvents="none">?</text>;
-    }
+function BustSvg({ cls, size }: { cls: string; size: number }) {
+    const CLASS_FILL: Record<string, string> = {
+        archer: 'var(--color-class-archer)', infantry: 'var(--color-class-infantry)',
+        cavalry: 'var(--color-class-cavalry)', lancer: 'var(--color-class-lancer)', general: 'var(--color-class-general)',
+    };
+    const fill = CLASS_FILL[cls] ?? 'var(--color-effect-other)';
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="5" r="4.5" fill={fill} stroke="black" strokeWidth="1.2" />
+            <path d="M4 22 C4 14 8 11 12 11 C16 11 20 14 20 22" fill={fill} stroke="black" strokeWidth="1" />
+        </svg>
+    );
 }

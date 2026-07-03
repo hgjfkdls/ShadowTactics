@@ -2,6 +2,38 @@ export type AbilityType = 'attack' | 'support' | 'move';
 export type DisplayType = 'attack' | 'support' | 'move';
 export type TargetType = 'self' | 'ally' | 'enemy' | 'position' | 'all_allies' | 'all_enemies' | 'none';
 
+export type PanelElements = {
+    title?: boolean;
+    showAttacker?: boolean;
+    showDefender?: boolean;
+    showTarget?: boolean;
+    showSource?: boolean;
+    showDescription?: boolean;
+    showModifiers?: boolean;
+    showFormula?: ('PA' | 'diff' | 'dmg' | 'range')[];
+    showMovement?: boolean;
+    showUnitsAffected?: boolean;
+};
+
+export type LogElements = {
+    showGameTime?: boolean;
+    showTurn?: boolean;
+    showActionNumber?: boolean;
+    showActionName?: boolean;
+    showAttacker?: boolean;
+    showDefender?: boolean;
+    showTarget?: boolean;
+    showSource?: boolean;
+    showMovement?: boolean;
+    showEffects?: boolean;
+    showCost?: boolean;
+    showResult?: boolean;
+    showDmg?: boolean;
+    showUnitsAffected?: boolean;
+    countAllies?: boolean;
+    countEnemies?: boolean;
+};
+
 export type ConfigEffect = {
     type: string;
     target: string;
@@ -11,21 +43,13 @@ export type ConfigEffect = {
 };
 
 export type AbilityRequires = {
-    /** Flags que la unidad debe tener activos */
     unitFlags?: Record<string, boolean>;
-    /** Flags que la unidad NO debe tener */
     notUnitFlags?: Record<string, boolean>;
-    /** HP debe ser menor que el máximo */
     hpBelowMax?: boolean;
-    /** Debe haber un enemigo adyacente */
     hasAdjacentEnemy?: boolean;
-    /** Debe haber un hex de escape libre no adyacente al enemigo */
     hasFreeEscapeHex?: boolean;
-    /** Requiere Cabalgar previo */
     requiresCabalgar?: boolean;
-    /** PA mínima requerida (sobre cfg.base.paCost) */
     minPA?: number;
-    /** Habilidades mutuamente excluyentes (no pueden usarse en el mismo turno) */
     notWithAbility?: string[];
 };
 
@@ -38,7 +62,7 @@ export type AbilityConfig = {
     icon: string;
     targetType: TargetType;
     range?: number | 'unit.range';
-    rangeBonus?: number;  // bonificación de rango (ej: +1 de ventaja_alcance)
+    rangeBonus?: number;
     base: {
         attack?: number | 'unit.attack';
         difficulty?: number | 'unit.difficulty';
@@ -50,7 +74,7 @@ export type AbilityConfig = {
         setFlags?: Record<string, any>;
     };
     effects?: ConfigEffect[];
-    setFlags?: Record<string, any>;  // flags to set on the acting unit after the ability
+    setFlags?: Record<string, any>;
     extraDifficulty?: number;
     extraAttack?: number;
     requires?: AbilityRequires;
@@ -69,5 +93,7 @@ export type AbilityConfig = {
     replacesAttack?: boolean;
     requiresCabalgarDir?: boolean;
     allowedModifiers: string[];
+    panel?: PanelElements;
+    log?: LogElements;
     restrictions?: string[];
 };

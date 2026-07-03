@@ -296,6 +296,7 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
             playerId,
             type: 'attack' as const,
+            attackName: 'button.basicAttack',
             paCost: cost,
             paModifiers: paMods,
             attackerId: action.unitId,
@@ -314,6 +315,7 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             targetKilled: killed(s, action.targetId).dead,
             distance,
             modifiers: histMods,
+            configId: 'ataque_basico',
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
@@ -386,6 +388,9 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     // Liderar a las tropas (Capitán de la Guardia): cuando el General ataca, infantería gana ataque
     if (unit.class === 'general' && s.players[playerId]?.selectedIdentity?.startsWith('capitan_guardia')) {
         const bonus = dead ? 2 : 1;
+        const affectedIds = Object.values(s.units)
+            .filter(u => u.owner === playerId && (u.class === 'infantry' || u.id === unit.id))
+            .map(u => u.id);
         s = {
             ...s,
             players: {
@@ -401,7 +406,8 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
                 cardId: 'liderar_tropas',
                 cardName: 'ability.liderar_tropas.name',
                 cardType: 'BUFF' as const,
-                details: `+${bonus}`,
+                details: `+${bonus} · ${affectedIds.join(',')}`,
+                alliesHit: affectedIds,
                 paCost: 0,
                 sourceClass: unit.class,
                 sourceIdentityKey: 'capitan_guardia',

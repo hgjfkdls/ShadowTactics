@@ -19,10 +19,10 @@ type Props = {
 };
 
 const AURA_LABELS: { key: keyof AuraBuffs; fmt: (v: number) => string; color: string }[] = [
-    { key: 'shieldPoints', fmt: (v) => l('aura.shield', { n: v }), color: '#3b82f6' },
-    { key: 'difficultyReduction', fmt: (v) => l('aura.precision', { n: v }), color: '#f59e0b' },
-    { key: 'difficultyPenalty', fmt: (v) => l('aura.evasion', { n: v }), color: '#8b5cf6' },
-    { key: 'defenseBonus', fmt: (v) => l('aura.defense', { n: v }), color: '#3b82f6' },
+    { key: 'shieldPoints', fmt: (v) => l('aura.shield', { n: v }), color: 'var(--color-class-infantry)' },
+    { key: 'difficultyReduction', fmt: (v) => l('aura.precision', { n: v }), color: 'var(--color-class-archer)' },
+    { key: 'difficultyPenalty', fmt: (v) => l('aura.evasion', { n: v }), color: 'var(--color-class-cavalry)' },
+    { key: 'defenseBonus', fmt: (v) => l('aura.defense', { n: v }), color: 'var(--color-class-lancer)' },
 ];
 
 export function UnitTooltip({ unit, maxHp, buffs, debuffs, attackInfo, passiveLabels, auraBuffs }: Props) {
@@ -92,7 +92,7 @@ export function UnitTooltip({ unit, maxHp, buffs, debuffs, attackInfo, passiveLa
 
             {showAura && (
                 <>
-                    <text x={colX} y={y(auraHeaderRow)} fontSize={8} fill="#c084fc" fontWeight="bold" pointerEvents="none">{l('aura.title')}</text>
+                    <text x={colX} y={y(auraHeaderRow)} fontSize={8} fill="var(--color-class-general)" fontWeight="bold" pointerEvents="none">{l('aura.title')}</text>
                     {AURA_LABELS.map((item, i) => (
                         <text key={item.key} x={colX + 6} y={y(auraStartRow + i)} fontSize={8} fill={item.color} pointerEvents="none">
                             {item.fmt(auraBuffs![item.key])}

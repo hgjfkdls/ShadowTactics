@@ -16,15 +16,19 @@ function unitHasAbility(unit: Unit, abilityId: string): boolean {
 
 function getAbilityRange(unit: Unit, _state: GameState, cfg: AbilityConfig): number {
     const base = cfg.range === 'unit.range' ? unit.range : (cfg.range ?? unit.range);
-    return base + (cfg.rangeBonus ?? 0);
+    let r = base + (cfg.rangeBonus ?? 0);
+    if (unit.espartanoRangeBonus) r += 1;
+    const identity = _state.players[unit.owner]?.selectedIdentity ?? '';
+    if (identity.startsWith('francotirador') && unit.class === 'general') r += 1;
+    return r;
 }
 
 function consumeCostMods(s: GameState, playerId: string, unitId: string): GameState {
     const costMods = getModifierSum(s, playerId, unitId, 'attackCost') + getModifierSum(s, playerId, unitId, 'actionCost');
     if (costMods > 0) {
         s = consumeAP(s, playerId, costMods);
-        s = consumeModifier(s, playerId, 'attackCost', costMods);
-        s = consumeModifier(s, playerId, 'actionCost', costMods);
+        s = consumeModifier(s, playerId, 'attackCost', costMods, unitId);
+        s = consumeModifier(s, playerId, 'actionCost', costMods, unitId);
     }
     return s;
 }
@@ -45,13 +49,13 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
 
     switch (cfg.type) {
         case 'attack':
-            s = handleNewAttack(state, action, unit, cfg, baseCost, costMods);
+            s = handleAttack(state, action, unit, cfg, baseCost, costMods);
             break;
         case 'support':
-            s = handleNewSupport(state, action, unit, cfg, baseCost, costMods);
+            s = handleSupport(state, action, unit, cfg, baseCost, costMods);
             break;
         case 'move':
-            s = handleNewMove(state, action, unit, cfg, baseCost, costMods);
+            s = handleMove(state, action, unit, cfg, baseCost, costMods);
             break;
         default:
             return state;
@@ -64,7 +68,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     return s;
 }
 
-function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
     // Torbellino: AoE attack — no necesita targetId
     if (action.abilityId === 'torbellino') {
         if (unit.usedTorbellino || unit.usedCarga) return state;
@@ -132,6 +136,7 @@ function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: 
     if (!action.targetId) return state;
     const target = state.units[action.targetId];
     if (!target || target.owner === unit.owner) return state;
+    const preTimesDamaged = target.timesDamagedThisTurn;
 
     // Check ability-specific state flags
     if (action.abilityId === 'doble_ataque' && (unit.usedDobleAtaque || unit.usedVentajaAlcance || !unit.attackedThisTurn)) return state;
@@ -202,6 +207,7 @@ function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: 
                 attackName: cfg.displayName ?? 'Patada acrobática',
                 modifiers: [...costModStrs],
                 paCost: baseCost + costMods,
+                configId: cfg.id,
             }],
             nextHistoryId: s.nextHistoryId + 1,
         };
@@ -227,7 +233,7 @@ function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: 
         });
 
         s = result.state;
-        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, cfg.nameKey, baseCost + costMods);
+        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, cfg.nameKey, baseCost + costMods, undefined, preTimesDamaged);
         s = updateUnit(s, unit.id, (u) => ({ ...u, attackedThisTurn: true }));
 
         // Ocupar posición si murió
@@ -260,7 +266,7 @@ function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: 
     s = result.state;
 
     // Store game history first (reusing legacy helper)
-    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, cfg.nameKey, baseCost + costMods);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, cfg.nameKey, baseCost + costMods, undefined, preTimesDamaged);
 
     // Apply ability-specific post flags
     if (action.abilityId === 'carga') {
@@ -328,7 +334,7 @@ function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: 
                 s = addModifier(s, target.owner, target.id, 'actionCost', effect.value ?? 1, 'ADD', 0, effect.duration ?? 1, 'ability', cfg.id);
             } else if (effect.type === 'inmovil' && !s.graveyard[target.id]) {
                 s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', effect.duration ?? 1, undefined, undefined, 'ability', cfg.id);
-            } else if (effect.type === 'occupation' && !s.graveyard[target.id]) {
+            } else if (effect.type === 'occupation') {
                 const dq = target.position.q - unit.position.q;
                 const dr = target.position.r - unit.position.r;
                 const steps = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(-dq - dr));
@@ -345,7 +351,7 @@ function handleNewAttack(state: GameState, action: GameAction, unit: Unit, cfg: 
     return s;
 }
 
-function handleNewSupport(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
     // Check ability-specific state flags
     if (cfg.id === 'rayo_celestial' && unit.usedRayoCelestial) return state;
 
@@ -574,7 +580,7 @@ function handleNewSupport(state: GameState, action: GameAction, unit: Unit, cfg:
     return s;
 }
 
-function handleNewMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
     if (!action.to && !action.path) return state;
 
     // Check move replacement flags
@@ -582,7 +588,7 @@ function handleNewMove(state: GameState, action: GameAction, unit: Unit, cfg: Ab
 
     // Path-based movement (cabalgar_2)
     if (action.path && action.path.length >= 2) {
-        return handleNewPathMove(state, action, unit, cfg, baseCost, costMods);
+        return handlePathMove(state, action, unit, cfg, baseCost, costMods);
     }
 
     const maxDist = cfg.move?.maxDist ?? 1;
@@ -635,7 +641,7 @@ function handleNewMove(state: GameState, action: GameAction, unit: Unit, cfg: Ab
         return s;
     }
 
-    let s = consumeAP(state, unit.owner, baseCost + costMods);
+    let s = consumeAP(state, unit.owner, baseCost);
     s = consumeCostMods(s, unit.owner, unit.id);
 
     // Post-move flags from config
@@ -660,7 +666,7 @@ function handleNewMove(state: GameState, action: GameAction, unit: Unit, cfg: Ab
     const actCostSrc = state.activeModifiers.find(m => m.stat === 'actionCost' && m.targetId === unit.id && m.sourcePlayerId === unit.owner && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
     if (actCostSrc) moveCostStrs.push(`${actCostSrc.sourceName ?? 'Coste acción'}: +${actCostSrc.value} PA`);
 
-        s = {
+            s = {
             ...s,
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`,
@@ -673,6 +679,12 @@ function handleNewMove(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 cardType: 'BUFF' as const,
                 targetId: unit.id,
                 targetClass: unit.class,
+                unitId: unit.id,
+                unitClass: unit.class,
+                from: unit.position,
+                to: action.to!,
+                baseCost: baseCost,
+                cost: baseCost + costMods,
                 details: `(${unit.position.q},${unit.position.r}) → (${action.to!.q},${action.to!.r})`,
                 paCost: baseCost + costMods,
                 modifiers: moveCostStrs,
@@ -685,7 +697,7 @@ function handleNewMove(state: GameState, action: GameAction, unit: Unit, cfg: Ab
 }
 
 // Path-based movement (cabalgar_2): action.path = array of hexes
-function handleNewPathMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handlePathMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
     const path = action.path!;
     if (path.length < 2 || path.length > 3) return state;
     let prevPos = unit.position;
@@ -697,7 +709,7 @@ function handleNewPathMove(state: GameState, action: GameAction, unit: Unit, cfg
     const dest = path[path.length - 1];
     if (isHexOccupied(state, dest, unit.id)) return state;
 
-    let s = consumeAP(state, unit.owner, baseCost + costMods);
+    let s = consumeAP(state, unit.owner, baseCost);
     s = consumeCostMods(s, unit.owner, unit.id);
 
     const lastStep = path.length >= 2 ? path[path.length - 2] : unit.position;
@@ -715,21 +727,27 @@ function handleNewPathMove(state: GameState, action: GameAction, unit: Unit, cfg
     if (actCostSrc) moveCostStrs.push(`${actCostSrc.sourceName ?? 'Coste acción'}: +${actCostSrc.value} PA`);
     s = {
         ...s,
-            gameHistory: [...s.gameHistory, {
-                id: `h${s.nextHistoryId}`,
-                turn: s.turn,
-                actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner,
-                type: 'card' as const,
-                cardId: cfg.id,
-                cardName: cfg.nameKey,
-                cardType: 'BUFF' as const,
-                targetId: unit.id,
-                targetClass: unit.class,
-                details: `${path.length} casillas · ${pathStr}`,
-                paCost: baseCost + costMods,
-                modifiers: moveCostStrs,
-                sourceClass: unit.class,
+                gameHistory: [...s.gameHistory, {
+                    id: `h${s.nextHistoryId}`,
+                    turn: s.turn,
+                    actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                    playerId: unit.owner,
+                    type: 'card' as const,
+                    cardId: cfg.id,
+                    cardName: cfg.nameKey,
+                    cardType: 'BUFF' as const,
+                    targetId: unit.id,
+                    targetClass: unit.class,
+                    unitId: unit.id,
+                    unitClass: unit.class,
+                    from: unit.position,
+                    to: dest,
+                    baseCost: baseCost,
+                    cost: baseCost + costMods,
+                    details: `${path.length} casillas · ${pathStr}`,
+                    paCost: baseCost + costMods,
+                    modifiers: moveCostStrs,
+                    sourceClass: unit.class,
             }],
         nextHistoryId: s.nextHistoryId + 1,
     };

@@ -39,6 +39,18 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     let result = applyActionInner(state, action);
     if (result === state) return result;
 
+    // Auto-asignar gameTime a nuevas entradas del historial
+    if (result.gameHistory.length > state.gameHistory.length) {
+        const elapsed = result.gameStartTime ? Math.floor((Date.now() - result.gameStartTime) / 1000) : state.gameHistory.length;
+        const formatted = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+        result = {
+            ...result,
+            gameHistory: result.gameHistory.map((entry, i) =>
+                i >= state.gameHistory.length ? { ...entry, gameTime: formatted } : entry
+            ),
+        };
+    }
+
     const hadAttack = !!result.lastAttackResult;
 
     // Post-procesar resultado de ataque: agregar al historial si hay uno nuevo
@@ -137,6 +149,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             }
             const choiceName = action.choice === 'attack' ? 'Avanzar (+1 ataque)' : 'Reagruparse (+1 defensa)';
             const bonus = action.choice === 'attack' ? { planBatallaBonus: 1 } : { planBatallaDefense: 1 };
+            const planAffected = Object.values(state.units).filter(u => u.owner === action.playerId).map(u => u.id);
             return {
                 ...state,
                 units,
@@ -160,6 +173,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     cardName: 'Plan de batalla',
                     cardType: 'BUFF' as const,
                     details: choiceName,
+                    alliesHit: planAffected,
                     paCost: 0,
                     sourceClass: 'general',
                     sourceIdentity: 'Comandante Supremo',

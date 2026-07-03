@@ -55,6 +55,8 @@ export const INFANTRY_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         },
         flags: { consumesUnitAction: true, noCritical: true },
         allowedModifiers: ['actionCost'],
+        panel: {showDescription:true, showFormula:['PA','diff'], showTarget: true, showUnitsAffected: true},
+        log: { showTarget: true },
         restrictions: ['Requiere enemigo adyacente con ≤2 HP', 'Si acierta, elimina al objetivo. Puedes ocupar su posición'],
     },
 };

@@ -11,6 +11,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   robin_hood: {
     unitClassOverride: 'archer',
     copyStats: true,
+    abilitiesOverride: ['en_la_mira', 'robar_ricos'],
   },
   francotirador: {
     unitClassOverride: 'archer',
@@ -27,7 +28,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   caballos_guerra: {
     unitClassOverride: 'cavalry',
     copyStats: true,
-    abilitiesOverride: ['romper_filas', 'cabalgar_2', 'carga', 'a_la_carga'],
+    abilitiesOverride: ['romper_filas', 'cabalgar_2', 'carga', 'doble_ataque', 'a_la_carga'],
   },
   cazadores: {
     unitClassOverride: 'cavalry',

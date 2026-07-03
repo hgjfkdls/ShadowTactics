@@ -42,6 +42,8 @@ export const CAVALRY_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         },
         flags: { replacesMove: true, noCrossUnits: true },
         allowedModifiers: ['movementCost', 'actionCost'],
+        panel: { showMovement: true, showSource: true },
+        log: { showMovement: true, showAttacker: false, showDefender: false },
     },
     a_la_carga: {
         id: 'a_la_carga',
@@ -57,5 +59,7 @@ export const CAVALRY_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['actionCost'],
+        panel: { showSource: true, showDescription: true, showUnitsAffected: true },
+        log: { showSource: true, showEffects: true, showAttacker: false, showDefender: false },
     },
 };

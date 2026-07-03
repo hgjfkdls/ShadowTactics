@@ -32,6 +32,8 @@ export const INFANTRY_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showSource: true, showDescription: true, showTarget: true, showUnitsAffected: true },
+        log: { showSource: true, showEffects: true, showAttacker: false, showDefender: false, showTarget: true },
     },
     // ── CAPITÁN DE LA GUARDIA ──
     contraataque: {
@@ -57,5 +59,7 @@ export const INFANTRY_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: { showSource: true, showDescription: true, showFormula: [], showUnitsAffected: true },
+        log: {showSource:true, showEffects:true, countAllies:true},
     },
 };

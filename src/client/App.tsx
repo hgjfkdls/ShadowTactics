@@ -3,7 +3,7 @@ import { useGameState } from './game/useGameState';
 import { HexBoard } from './game/board/HexBoard';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
-import { PlayerSidebar } from './game/layout/PlayerSidebar';
+import { PlayerSidebar } from './game/layout/panel/player/PlayerSidebar';
 import { RightPanel } from './game/layout/RightPanel';
 import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
 import { KeyBindingsProvider, useKeyBindings } from './game/KeyBindingsContext';

@@ -42,6 +42,7 @@ export const LANCER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['attack', 'defense', 'difficulty', 'attackCost', 'actionCost', 'range'],
+        panel: { showDescription:true, showFormula:['dmg','PA','range','diff'], showUnitsAffected: true},
         restrictions: ['Reemplaza ataque básico', 'No combinable con Doble ataque'],
     },
 };

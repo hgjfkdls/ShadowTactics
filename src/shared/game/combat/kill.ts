@@ -2,6 +2,7 @@ import type { GameState, Unit, UnitId } from '../state';
 import { hexDistance } from '../../hex';
 import { addModifier } from '../modifiers/engine';
 import { updateUnit } from '../utils/helpers';
+import { ABILITY_CONFIG } from '../data/ability-config';
 
 function killUnit(state: GameState, unitId: string, killerId?: string): GameState {
     const unit = state.units[unitId];
@@ -66,6 +67,7 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
 
             const samIdentity = state.players[killerOwner]?.selectedIdentity ?? '';
             if (samIdentity.startsWith('samurai') && !state.players[killerOwner]?.caminoDelGuerreroUsedThisTurn && dist === 1) {
+                const cfg = ABILITY_CONFIG['camino_del_guerrero'];
                 newState = {
                     ...newState,
                     lastCaminoDelGuerrero: true,
@@ -83,13 +85,14 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
                         actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
                         playerId: killerOwner,
                         type: 'card' as const,
-                        cardId: 'camino_guerrero',
-                        cardName: 'Camino del guerrero',
+                        cardId: 'camino_del_guerrero',
+                        cardName: cfg?.nameKey ?? 'Camino del guerrero',
                         cardType: 'BUFF' as const,
                         details: '+1 PA',
                         paCost: 0,
                         sourceClass: killerUnit.class,
-                        sourceIdentity: 'Samurái',
+                        sourceIdentityKey: 'samurai',
+                        configId: 'camino_del_guerrero',
                     }],
                     nextHistoryId: newState.nextHistoryId + 1,
                 };

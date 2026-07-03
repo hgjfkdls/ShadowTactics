@@ -13,6 +13,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: {},
+        log: {},
     },
     meditacion: {
         id: 'meditacion',
@@ -26,6 +28,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         effects: [{ type: 'heal', target: 'self', value: 3, descriptionKey: 'ability.meditacion.desc' }],
         requires: { hpBelowMax: true },
         allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showSource: true, showDescription: true, showUnitsAffected: true },
+        log: { showSource: true, showEffects: true, showAttacker: false, showDefender: false },
     },
     // ── CORAZÓN DE ESTRATEGA ──
     formacion_linea: {
@@ -67,6 +71,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         },
         flags: { freeMove: true, noCrossUnits: true },
         allowedModifiers: ['actionCost'],
+        panel: {showMovement: true, showSource: true},
+        log: { showMovement: true, showAttacker: false, showDefender: false },
     },
     // ── COMANDANTE SUPREMO ──
     voz_de_mando: {
@@ -80,6 +86,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: { showSource: true, showDescription: true, showUnitsAffected: true },
+        log: { showSource: true, showEffects: true, showUnitsAffected: true, showAttacker: false, showDefender: false }, 
     },
     plan_batalla: {
         id: 'plan_batalla',
@@ -92,6 +100,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+panel: { showSource: true, showDescription: true, showFormula: [], showUnitsAffected: true },
+        log: {showSource:true, showEffects:true, countAllies:true},
     },
     // ── INSPIRACIÓN REAL ──
     guardia_real: {
@@ -105,6 +115,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: { showSource: true, showDescription: true, showFormula: [], showUnitsAffected: true },
+        log: {showSource:true, showEffects:true, countAllies:true},
     },
     en_nombre_del_rey: {
         id: 'en_nombre_del_rey',
@@ -123,6 +135,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         requires: { notUnitFlags: { usedEnNombreDelRey: true } },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showSource: true, showDescription: true, showTarget: true, showUnitsAffected: true },
+        log: { showSource: true, showEffects: true, showAttacker: false, showDefender: false, showTarget: true },
     },
     // ── FURIA DEL TIRANO ──
     terror: {
@@ -136,6 +150,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: { showSource: true, showDescription: true, showFormula: [], showUnitsAffected: true },
+        log: {showSource:true, showEffects:true, countEnemies:true},
     },
     sacrificar: {
         id: 'sacrificar',
@@ -150,6 +166,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         requires: { hpBelowMax: true },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['actionCost'],
+        panel: { showTarget: true, showUnitsAffected: true },
+        log: { showTarget: true },
     },
     // ── SAMURÁI ──
     camino_del_guerrero: {
@@ -163,6 +181,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: {showSource: true, showDescription: true, showFormula: []},
+        log: {showEffects:true, showSource:true, showAttacker:false, showDefender:false},
     },
     desenvainado_veloz: {
         id: 'desenvainado_veloz',
@@ -182,6 +202,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         requires: { notUnitFlags: { usedDesenvainadoVeloz: true } },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['attack', 'defense', 'difficulty', 'attackCost', 'actionCost'],
+        panel: {showMovement:true, showTarget: true, showUnitsAffected: true},
+        log: { showMovement:true, showTarget: true},
     },
     // ── ESCUDO DEL COMANDANTE ──
     angel_guardian: {
@@ -195,6 +217,8 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         base: { paCost: 2 },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showSource: true, showDescription: true, showTarget: true, showUnitsAffected: true },
+        log: { showSource: true, showEffects: true, showAttacker: false, showDefender: false, showTarget: true },
     },
     proteger: {
         id: 'proteger',
@@ -208,5 +232,7 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         base: { paCost: 0 },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['actionCost'],
+        panel: { showSource: true, showUnitsAffected: true, showDescription: true },
+        log: { showSource: true, showAttacker: false, showDefender: false, showTarget: true },
     },
 };

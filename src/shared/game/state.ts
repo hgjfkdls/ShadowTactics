@@ -172,6 +172,7 @@ export type GameState = {
         modifiers: string[];
         paCost?: number;
         paModifiers?: string[];
+        gameTime?: string;
     } | {
         id: string;
         turn: number;
@@ -186,6 +187,7 @@ export type GameState = {
         cost: number;
         baseCost: number;
         modifiers: string[];
+        gameTime?: string;
     } | {
         id: string;
         turn: number;
@@ -204,6 +206,7 @@ export type GameState = {
         sourceClass?: string;
         sourceIdentity?: string;
         healAmount?: number;
+        gameTime?: string;
     }>;
     nextHistoryId: number;
 

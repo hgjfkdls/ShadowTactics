@@ -15,6 +15,8 @@ export const LANCER_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         requires: { notUnitFlags: { usedCarga: true, usedTorbellino: true } },
         flags: { noCritical: true, consumesUnitAction: true },
         allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showDescription: true, showAttacker: true, showDefender: false, showModifiers: true, showFormula: ['PA', 'diff'], showUnitsAffected: true },
+        log: { showActionName: true, showCost: true, showDmg: false, showUnitsAffected: true, showResult: true, countAllies: true, countEnemies: true },
     },
     proyeccion: {
         id: 'proyeccion',
@@ -27,6 +29,7 @@ export const LANCER_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: { showSource: true , showDescription: true, showFormula: [] },
     },
     // ── ESPARTANO ──
     lanza_escudo: {
@@ -40,6 +43,7 @@ export const LANCER_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
         isPassive: true,
         base: {},
         allowedModifiers: [],
+        panel: { showDescription: true, showSource: true, showAttacker:false, showDefender:false, showFormula: [] },
     },
     muro_espartano: {
         id: 'muro_espartano',

@@ -20,6 +20,7 @@ export const en = {
       ap: 'AP modified',
       passiveDamage: 'Receiving passive damage',
       movementPenalty: 'Movement penalty (×2)',
+      royalShieldSavedHp: 'Shield',
     },
   },
 
@@ -36,7 +37,7 @@ export const en = {
     romper_filas: { name: 'Break Ranks', desc: 'Ignores infantry Resist and Defense Line passives' },
     doble_ataque: { name: 'Double Attack', desc: 'Performs a second attack against the same target with -1 attack' },
     cabalgar: { name: 'Ride', desc: 'Move 2 hexes in a straight line. Replaces normal movement', restriction: 'Once per turn' },
-    carga: { name: 'Charge', desc: 'After Riding, attack with -1 difficulty and +1 damage in the same straight line', restriction: 'If you Charge, you cannot attack again this turn' },
+    carga: { name: 'Charge', desc: 'After Riding, attack with -1 difficulty and +1 attack in the same straight line', restriction: 'If you Charge, you cannot attack again this turn' },
     anti_caballeria: { name: 'Anti-Cavalry', desc: 'When attacking cavalry, +1 damage' },
     formacion_defensiva: { name: 'Defensive Formation', desc: 'Nullifies Charge bonus. If combat is won, the attacker receives +1 damage' },
     ventaja_alcance: { name: 'Range Advantage', desc: 'Replaces the basic attack. Attack at range +1', restriction: 'Cannot combine with Double Attack. Replaces basic attack.' },
@@ -77,6 +78,7 @@ export const en = {
     voz_de_mando: { name: 'Commanding Voice', desc: 'The allied unit that moves after the General receives +1 attack and +1 defense.' },
     plan_batalla: { name: 'Battle Plan', desc: 'Choose an order for your army: Advance (+1 attack) or Regroup (+1 defense).' },
     camino_guerrero: { name: 'Warrior\'s Path', desc: 'When an ally kills an enemy at range 1, recover 1 AP (once per turn).' },
+    en_la_mira: { name: 'In the Sights', desc: 'Your General is considered an archer. At the start of each turn, choose an enemy unit and deal 1 damage at no cost.' },
     robar_ricos: { name: 'Steal from the Rich', desc: 'The first archer to hit each turn recovers 1 HP.' },
   },
 
@@ -140,7 +142,7 @@ export const en = {
     counter: 'Counterattack',
     difAbbrev: 'Diff',
     baseLabel: 'base',
-    distanceLabel: 'distance',
+    distanceLabel: 'Distance',
     player1: 'Player 1',
     player2: 'Player 2',
     yourTurn: 'YOUR TURN',
@@ -172,6 +174,8 @@ export const en = {
     counterReturns: '↩ counters',
     player: 'Player {n}',
     difficultyAbbrev: 'Diff {n}',
+    alliesAffected: 'Allies affected: {count}',
+    enemiesAffected: 'Enemies affected: {count}',
   },
 
   alert: {
@@ -406,6 +410,7 @@ export const en = {
     butOpponentCounters: '↩ but the opponent counters with',
     source: 'Source',
     effects: 'Effects',
+    unitsAffected: 'Units affected',
   },
 
   preparation: {

@@ -97,6 +97,7 @@ export function handleMove(state: GameState, action: GameAction): GameState {
             cost,
             baseCost,
             modifiers: moveModsStr,
+            configId: 'movimiento',
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };

@@ -1,6 +1,7 @@
 import type { GameState } from '../state';
 import type { GameAction } from '../action-types';
 import { dealDamage } from '../utils';
+import { ABILITY_CONFIG } from '../data/ability-config';
 
 export function handleIdentityAbility(state: GameState, action: GameAction): GameState {
     if (action.type !== 'IDENTITY_ABILITY') return state;
@@ -13,8 +14,11 @@ export function handleIdentityAbility(state: GameState, action: GameAction): Gam
     if (!target || target.owner === action.playerId) return state;
     if (target.class === 'general') return state;
 
+    const cfg = ABILITY_CONFIG['en_la_mira'];
+    const identityKey = player.selectedIdentity ?? '';
+    const general = Object.values(state.units).find(u => u.owner === action.playerId && u.class === 'general');
+
     let s = dealDamage(state, action.targetId, 1);
-    const general = Object.values(s.units).find(u => u.owner === action.playerId && u.class === 'general');
     s = {
         ...s,
         gameHistory: [...s.gameHistory, {
@@ -36,9 +40,12 @@ export function handleIdentityAbility(state: GameState, action: GameAction): Gam
             counterDamage: 0,
             attackerClass: 'general',
             targetClass: target.class,
-            attackName: 'En la mira',
-            modifiers: ['Sin coste PA'],
+            attackName: cfg?.nameKey ?? 'En la mira',
+            modifiers: [],
             paCost: 0,
+            configId: 'en_la_mira',
+            sourceClass: 'general',
+            sourceIdentityKey: identityKey,
         }],
         nextHistoryId: s.nextHistoryId + 1,
         players: {

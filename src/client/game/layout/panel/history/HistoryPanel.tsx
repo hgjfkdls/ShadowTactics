@@ -1,6 +1,7 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { l } from '@shared/i18n';
 import { getCardName } from '@shared/game/actions/card';
+import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 
 const DIE_FACES: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
 
@@ -66,65 +67,46 @@ export function HistoryPanel({ gameHistory, selectedInfo, onSelectEntry }: {
 }
 
 function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: boolean }) {
-    const borderCls = selected ? 'border-blue-500 bg-blue-600/15' : 'border-zinc-600/60';
-    const bgCls = selected ? 'bg-blue-600/15' : 'bg-zinc-700/40';
-    const playerBorder = entry.playerId === 'p1' ? 'border-l-green-700' : 'border-l-red-700';
+    const borderCls = selected ? 'border-yellow-400' : 'border-zinc-600/60';
+    const bgCls = 'bg-zinc-700/40';
+    const playerBorder = entry.playerId === 'p1' ? 'border-l-player1' : 'border-l-player2';
 
-    const SUPPORT_ABILITIES = new Set([
-        'Ángel Guardián', 'Proteger', 'Rayo celestial', 'Meditación',
-        'En nombre del rey', 'Sacrificar', 'Camino del guerrero',
-        'Voz de mando', 'Liderar a las tropas', 'Lanza y escudo',
-    ]);
+    const cfgId = entry.configId ?? entry.cardId;
+    const logCfg = (cfgId ? ABILITY_CONFIG[cfgId]?.log : undefined) ?? {};
+    const pShowGameTime = logCfg.showGameTime ?? true;
+    const pShowActionName = logCfg.showActionName ?? true;
+    const pShowTurn = logCfg.showTurn ?? true;
+    const pShowActionNumber = logCfg.showActionNumber ?? true;
+    const pShowAttacker = logCfg.showAttacker ?? true;
+    const pShowDefender = logCfg.showDefender ?? true;
+    const pShowSource = logCfg.showSource ?? false;
+    const pShowTarget = logCfg.showTarget ?? false;
+    const pShowMovement = logCfg.showMovement ?? false;
+    const pShowEffects = logCfg.showEffects ?? false;
+    const pShowDmg = logCfg.showDmg ?? true;
+    const pShowCost = logCfg.showCost ?? true;
+    const pUnitsAffected = logCfg.showUnitsAffected ?? false;
+    const pShowResult = logCfg.showResult ?? true;
+    const pCountAllies = logCfg.countAllies ?? false;
+    const pCountEnemies = logCfg.countEnemies ?? false;
 
     if (entry.type === 'attack') {
-        const isSupport = SUPPORT_ABILITIES.has(entry.attackName);
         const isCritical = !entry.noCritical && entry.total >= 11;
-        const isTorbellino = entry.attackName === 'Torbellino' || entry.configId === 'torbellino';
-
-        if (isSupport) {
-            const sourceName = l('identity.escudo_comandante.name');
-            const effects: React.ReactNode[] = [];
-            if (entry.attackName === 'Ángel Guardián') {
-                effects.push(<span key="shield"><span className="text-blue-400">🛡</span> {l('aura.shieldName')} +2 HP a {entry.shieldedCount} aliados</span>);
-                if (entry.healedId) {
-                    effects.push(<span key="heal" className="text-green-400">💚 {l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 HP</span>);
-                }
-            } else if (entry.attackName === 'Proteger') {
-                effects.push(<span key="def" className="text-blue-400">🛡 {l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} +1 {l('cat.def')}</span>);
-            }
-            const lastIdx = effects.length - 1;
-            return (
-                <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
-                    <div className="text-zinc-500 flex justify-between items-center mb-1">
-                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
-                        <span className="text-cyan-400 text-[10px] font-semibold">{attackNameDisplay(entry)}</span>
-                    </div>
-                    <div className="text-zinc-400 text-[9px] mb-0.5">{sourceName}</div>
-                    <div className="text-zinc-300 text-[10px] leading-relaxed space-y-0.5">
-                        {effects.map((e, i) => (
-                            <div key={i} className="flex justify-between items-center">
-                                <span>{e}</span>
-                                {i === lastIdx && <span className="text-[10px] font-bold text-yellow-400 ml-2">{entry.paCost ?? 0} PA</span>}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
         return (
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
-                    <div className="text-zinc-500 flex justify-between">
-                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
-                        {entry.attackName && attackNameDisplay(entry) !== l('button.basicAttack') && (
-                            <span className="text-cyan-400 text-[10px]">{attackNameDisplay(entry)}</span>
-                        )}
-                    </div>
-                    {isTorbellino ? (
+                    {(pShowTurn || pShowActionNumber) && (
+                        <div className="text-zinc-500 flex justify-between">
+                            <span>{pShowGameTime && entry.gameTime ? `${entry.gameTime} — ` : ''}{pShowTurn && pShowActionNumber ? l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber }) : pShowTurn ? `${l('board.turnLabel')} ${entry.turn}` : `${l('board.actionLabel')} ${entry.actionNumber}`}</span>
+                            {pShowActionName && entry.attackName && (
+                                <span className="text-effect-range text-[10px]">{attackNameDisplay(entry)}</span>
+                            )}
+                        </div>
+                    )}
+                    {pUnitsAffected ? (
                         <div className="text-[10px] leading-relaxed space-y-0.5">
                             {entry.hit ? (
-                                <span className="text-green-400">{l('ui.torbellinoHit', { count: entry.hitEnemies ?? '?', ids: `[${(entry.enemiesHit ?? []).join('], [')}]` })}</span>
+                                <span className="text-hit-text">{l('ui.torbellinoHit', { count: entry.hitEnemies ?? '?', ids: `[${(entry.enemiesHit ?? []).join('], [')}]` })}</span>
                             ) : (
                                 <>
                                     <div className="text-red-400">{l('ui.torbellinoMissAllies', { count: entry.hitAllies ?? '?', ids: `[${(entry.alliesHit ?? []).join('], [')}]` })}</div>
@@ -135,9 +117,9 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                     ) : entry.attackName === 'Sacrificar' ? (
                         <div className="text-zinc-300 text-[10px] leading-relaxed">
                             <div><span className="text-red-400"> [{entry.targetId}]{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass} -2 HP</span></div>
-                            <div><span className="text-green-400"> {l('unit.class.general')} +{entry.modifiers?.[0]?.includes('5') ? '5' : '3'} HP</span></div>
+                            <div><span className="text-effect-heal"> {l('unit.class.general')} +{entry.modifiers?.[0]?.includes('5') ? '5' : '3'} HP</span></div>
                         </div>
-                    ) : (
+                    ) : pShowAttacker && pShowDefender ? (
                         <div className="flex items-center gap-1 text-zinc-300">
                             <span className="text-blue-400">⚔</span>
                             <span className="text-zinc-200 font-semibold truncate">{l(`unit.class.${entry.attackerClass}`) ?? entry.attackerClass}</span>
@@ -145,7 +127,15 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                             <span className="text-red-400">🛡</span>
                             <span className="text-zinc-200 font-semibold truncate">{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass}</span>
                         </div>
-                    )}
+                    ) : pShowAttacker ? (
+                        <div className="text-zinc-300 text-[10px]">
+                            <span className="text-blue-400">⚔</span> [{entry.attackerId}]{l(`unit.class.${entry.attackerClass}`) ?? entry.attackerClass}
+                        </div>
+                    ) : pShowDefender ? (
+                        <div className="text-zinc-300 text-[10px]">
+                            <span className="text-red-400">🛡</span> [{entry.targetId}]{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass}
+                        </div>
+                    ) : null}
                     {entry.difficulty > 0 && (
                         <div className="flex items-center gap-2 text-zinc-400 text-[10px]">
                             <span>{l('board.difAbbrev')} {entry.difficulty}</span>
@@ -153,12 +143,13 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                         </div>
                     )}
                 </div>
+                {pShowResult && (
                 <div className="flex items-center justify-between text-[10px] mt-0.5">
                     <div>
                         {entry.attackName === 'Sacrificar' ? (
                             <span className="text-red-400 font-semibold">🔴 -{entry.damage} HP</span>
                         ) : entry.hit ? (
-                            <span className="text-green-400 font-semibold">✅ -{entry.damage} HP{entry.counterDamage > 0 && entry.counterDamage !== 2 ? <span className="text-red-400">{` (${l('board.counter')} -${entry.counterDamage} HP)`}</span> : ''}</span>
+                            <span className="text-hit-text font-semibold">{pShowDmg ? `✅ -${entry.damage} HP` : '✅'}{entry.counterDamage > 0 && entry.counterDamage !== 2 ? <span className="text-red-400">{` (${l('board.counter')} -${entry.counterDamage} HP)`}</span> : ''}</span>
                         ) : (
                             <span className="text-red-400 font-semibold">❌ {l('board.miss')}{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage} HP)` : ''}</span>
                         )}
@@ -166,39 +157,48 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                             <span className="text-yellow-400 ml-1">⚫</span>
                         )}
                     </div>
-                    <div className="text-[9px] font-bold text-yellow-400">{entry.paCost ?? 1} PA</div>
+                    {pShowCost && <div className="text-[9px] font-bold text-effect-pa">{entry.paCost ?? 1} PA</div>}
                 </div>
+                )}
+                {(pCountAllies || pCountEnemies) && (
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">
+                        {pCountAllies && entry.alliesHit !== undefined && entry.alliesHit.length > 0 && <span>{l('history.alliesAffected', { count: entry.alliesHit.length })}</span>}
+                        {pCountEnemies && entry.enemiesHit !== undefined && entry.enemiesHit.length > 0 && <span>{l('history.enemiesAffected', { count: entry.enemiesHit.length })}</span>}
+                    </div>
+                )}
             </div>
         );
     }
 
-    if (entry.type === 'move') {
+    if (entry.type === 'move' && pShowMovement) {
         return (
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
                     <div className="text-zinc-500 flex justify-between">
-                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
+                        <span>{pShowGameTime && entry.gameTime ? `${entry.gameTime} — ` : ''}{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
+                        {pShowActionName && (entry.attackName ? (
+                            <span className="text-effect-range text-[10px]">{attackNameDisplay(entry)}</span>
+                        ) : entry.configId && ABILITY_CONFIG[entry.configId]?.nameKey ? (
+                            <span className="text-effect-range text-[10px]">{l(ABILITY_CONFIG[entry.configId].nameKey)}</span>
+                        ) : null)}
                     </div>
                     <div className="flex items-center gap-1 text-zinc-300">
                         <span className="text-amber-400">👟</span>
                         <span className="text-zinc-200 font-semibold truncate">{l(`unit.class.${entry.unitClass}`) ?? entry.unitClass}</span>
                         <span className="text-zinc-500">{l('history.move')}</span>
                     </div>
-                    <div className="text-[10px] text-zinc-400">
-                        {entry.path ? entry.path : `(${entry.from.q},${entry.from.r}) → (${entry.to.q},${entry.to.r})`}
-                    </div>
-                    {entry.cost !== entry.baseCost && (
-                        <div className="text-[9px] text-zinc-500">{l('board.baseLabel')} {entry.baseCost} PA</div>
-                    )}
                 </div>
-                <div className="text-right text-[9px] font-bold text-yellow-400 mt-0.5">{entry.cost} PA</div>
+                <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-0.5">
+                    <span>{entry.path ? entry.path : `(${entry.from.q},${entry.from.r}) → (${entry.to.q},${entry.to.r})`}{entry.cost !== entry.baseCost ? <span className="text-zinc-500 ml-1">({l('board.baseLabel')} {entry.baseCost} PA)</span> : ''}</span>
+                    {pShowCost && <span className="font-bold text-effect-pa">{entry.cost} PA</span>}
+                </div>
             </div>
         );
     }
 
     const CARD_SUPPORT = new Set([
         'rayo_celestial', 'meditacion', 'en_nombre_del_rey', 'liderar_tropas',
-        'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_guerrero', 'robar_ricos',
+        'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_del_guerrero', 'robar_ricos',
         'cabalgar', 'cabalgar_2', 'a_la_carga', 'posicion_estrategica',
         'angel_guardian', 'proteger', 'torbellino', 'sacrificar', 'desenvainado_veloz',
         'proyeccion',
@@ -210,68 +210,77 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
         const isAbilityCard = !isRealCard && CARD_SUPPORT.has(entry.cardId);
 
         if (isAbilityCard) {
-            // Build effect lines per ability
             const effLines: { text: string; color: string }[] = [];
             const cls = (c: string) => l(`unit.class.${c}`) ?? c;
             if (entry.cardId === 'en_nombre_del_rey') {
-                effLines.push({ text: `🛡 [${entry.targetId}] ${cls(entry.targetClass)} ${l('aura.shieldName')} +3 HP`, color: 'text-blue-400' });
-                effLines.push({ text: `⚔ [${entry.targetId}] ${cls(entry.targetClass)} ${l('cat.atk')} +2`, color: 'text-red-400' });
+                effLines.push({ text: `🛡 ${l('aura.shieldName')} +3 HP`, color: 'text-effect-def' });
+                effLines.push({ text: `⚔ ${l('cat.atk')} +2`, color: 'text-effect-atk' });
             } else if (entry.cardId === 'rayo_celestial') {
-                effLines.push({ text: `⚔ [${entry.targetId}] ${cls(entry.targetClass)} ${l('cat.atk')} +3`, color: 'text-red-400' });
+                effLines.push({ text: `⚔ ${l('cat.atk')} +3`, color: 'text-effect-atk' });
             } else if (entry.cardId === 'voz_de_mando') {
                 effLines.push({ text: `⚔ +1 ${l('cat.atk')}, 🛡 +1 ${l('cat.def')}`, color: 'text-zinc-300' });
             } else if (entry.cardId === 'plan_batalla') {
                 const isAtk = entry.details?.includes('Avanzar');
-                effLines.push({ text: isAtk ? `⚔ ${entry.details}` : `🛡 ${entry.details}`, color: isAtk ? 'text-red-400' : 'text-blue-400' });
-            } else if (entry.cardId === 'camino_guerrero') {
-                effLines.push({ text: `⚔ +1 PA (${l('ui.killAtRange', { n: 1 })}`, color: 'text-yellow-400' });
+                effLines.push({ text: isAtk ? `⚔ ${entry.details}` : `🛡 ${entry.details}`, color: isAtk ? 'text-effect-atk' : 'text-effect-def' });
+            } else if (entry.cardId === 'camino_del_guerrero') {
+                effLines.push({ text: `⚔ +1 PA (${l('ui.killAtRange', { n: 1 })}`, color: 'text-effect-pa' });
             } else if (entry.cardId === 'robar_ricos') {
-                effLines.push({ text: `💚 [${entry.targetId}] ${cls(entry.targetClass)} +1 HP`, color: 'text-green-400' });
+                effLines.push({ text: `💚 +1 HP`, color: 'text-effect-heal' });
             } else if (entry.cardId === 'posicion_estrategica') {
-                effLines.push({ text: `👟 ${entry.details}`, color: 'text-amber-400' });
+                effLines.push({ text: `👟 ${entry.details}`, color: 'text-effect-diff' });
             } else if (entry.cardId === 'cabalgar' || entry.cardId === 'a_la_carga') {
                 const parts = (entry.details ?? '').split(' · ');
-                effLines.push({ text: `👟 ${parts[0] ?? ''}`, color: 'text-amber-400' });
+                effLines.push({ text: `👟 ${parts[0] ?? ''}`, color: 'text-effect-diff' });
                 if (parts.length > 1) effLines.push({ text: `  ${parts[1]}`, color: 'text-zinc-500' });
             } else if (entry.cardId === 'meditacion') {
-                effLines.push({ text: `💚 +${entry.details?.match(/(\d+)/)?.[1] ?? '?'} HP (${entry.sourceIdentity})`, color: 'text-green-400' });
+                effLines.push({ text: `💚 +${entry.details?.match(/(\d+)/)?.[1] ?? '?'} HP (${entry.sourceIdentity})`, color: 'text-effect-heal' });
             } else if (entry.cardId === 'lanza_escudo') {
                 const isRange = entry.details?.includes('rango');
-                effLines.push({ text: isRange ? `⚔ +1 ${l('cat.range')}` : `🛡 +1 ${l('cat.def')}`, color: isRange ? 'text-red-400' : 'text-blue-400' });
+                effLines.push({ text: isRange ? `⚔ +1 ${l('cat.range')}` : `🛡 +1 ${l('cat.def')}`, color: isRange ? 'text-effect-range' : 'text-effect-def' });
             } else if (entry.cardId === 'liderar_tropas') {
                 const bonus = entry.details?.match(/\+(\d+)/)?.[1] ?? '1';
-                effLines.push({ text: `⚔ ${l('unit.class.infantry')} +${bonus} ${l('cat.atk')}`, color: 'text-red-400' });
+                effLines.push({ text: `⚔ ${l('unit.class.infantry')} +${bonus} ${l('cat.atk')}`, color: 'text-effect-atk' });
             } else if (entry.cardId === 'proyeccion') {
                 const targets = (entry.details ?? '').split('|').filter(Boolean);
                 for (const t of targets) {
-                    effLines.push({ text: `⚔ ${t} -1 HP`, color: 'text-red-400' });
+                    effLines.push({ text: `⚔ ${t} -1 HP`, color: 'text-effect-atk' });
                 }
             } else if (entry.details) {
                 effLines.push({ text: entry.details, color: 'text-zinc-300' });
             }
-            const last = effLines.length - 1;
             return (
                 <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                     <div className="text-zinc-500 flex justify-between items-center mb-1">
-                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
-                        <span className="text-cyan-400 text-[10px] font-semibold">{entry.cardName?.startsWith('ability.') || entry.cardName?.startsWith('button.') ? l(entry.cardName) : entry.cardName}</span>
+                        <span>{pShowGameTime && entry.gameTime ? `${entry.gameTime} — ` : ''}{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
+                        {pShowActionName && <span className="text-effect-range text-[10px] font-semibold">{entry.cardName?.startsWith('ability.') || entry.cardName?.startsWith('button.') ? l(entry.cardName) : entry.cardName}</span>}
                     </div>
-                    {entry.sourceClass && (entry.sourceIdentity || entry.sourceIdentityKey) && (
-                        <div className="text-zinc-400 text-[9px] mb-0.5">{cls(entry.sourceClass)} - {entry.sourceIdentityKey ? l(`identity.${entry.sourceIdentityKey}.name`) || entry.sourceIdentityKey : entry.sourceIdentity}</div>
+                    {pShowSource && entry.sourceClass && (entry.sourceIdentity || entry.sourceIdentityKey) && (
+                        <div className="text-zinc-400 text-[9px] mb-0.5">{cls(entry.sourceClass)} · {entry.sourceIdentityKey ? l(`identity.${entry.sourceIdentityKey}.name`) || entry.sourceIdentityKey : entry.sourceIdentity}</div>
                     )}
+                    {pShowTarget && entry.targetId && entry.targetClass && (
+                        <div className="text-zinc-400 text-[10px] mb-0.5"><span className="text-violet-400">{l('cardDetail.objective')}</span> [{entry.targetId}]{cls(entry.targetClass)}</div>
+                    )}
+                    {pShowEffects && effLines.length > 0 && (
                     <div className="text-zinc-300 text-[10px] space-y-0.5">
                         {effLines.map((line, i) => (
-                            <div key={i} className="flex justify-between items-center">
-                                <span className={line.color}>{line.text}</span>
-                                {i === last && <span className="text-[10px] font-bold text-yellow-400 ml-2">{entry.paCost ?? 0} PA</span>}
-                            </div>
+                            <div key={i} className={line.color}>{line.text}</div>
                         ))}
                     </div>
+                    )}
+                    {(pCountAllies || pCountEnemies) && (
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">
+                            {pCountAllies && entry.alliesHit !== undefined && entry.alliesHit.length > 0 && <span>{l('history.alliesAffected', { count: entry.alliesHit.length })}</span>}
+                            {pCountEnemies && entry.enemiesHit !== undefined && entry.enemiesHit.length > 0 && <span>{l('history.enemiesAffected', { count: entry.enemiesHit.length })}</span>}
+                        </div>
+                    )}
+                    {pShowCost && entry.paCost !== undefined && (
+                        <div className="flex justify-end text-[10px] font-bold text-effect-pa mt-0.5">{entry.paCost} PA</div>
+                    )}
                 </div>
             );
         }
 
-        const abilityColor = isCounter ? 'text-violet-400' : isRealCard ? (entry.cardType === 'BUFF' ? 'text-emerald-400' : 'text-red-400') : 'text-cyan-400';
+        const abilityColor = isCounter ? 'text-violet-400' : isRealCard ? (entry.cardType === 'BUFF' ? 'text-emerald-400' : 'text-red-400') : 'text-effect-range';
         const titleLine = entry.sourceClass && (entry.sourceIdentity || entry.sourceIdentityKey)
             ? `${l(`unit.class.${entry.sourceClass}`) ?? entry.sourceClass} · ${entry.sourceIdentityKey ? l(`identity.${entry.sourceIdentityKey}.name`) || entry.sourceIdentityKey : entry.sourceIdentity}`
             : null;
@@ -285,16 +294,19 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
                     <div className="text-zinc-500 flex justify-between">
-                        <span>{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
+                        <span>{pShowGameTime && entry.gameTime ? `${entry.gameTime} — ` : ''}{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
                         <span className={abilityColor}>{isRealCard ? entry.cardType : getCardName(entry.cardId)}</span>
                     </div>
                     <div className="flex items-center gap-1 text-zinc-300">
-                        <span className={isCounter ? 'text-violet-400' : isRealCard ? 'text-amber-400' : 'text-cyan-400'}>{isRealCard ? '🃏' : '✨'}</span>
+                        <span className={isCounter ? 'text-violet-400' : isRealCard ? 'text-amber-400' : 'text-effect-range'}>{isRealCard ? '🃏' : '✨'}</span>
                         <span className="text-zinc-200 font-semibold truncate">{titleLine ?? (entry.cardName?.startsWith('ability.') || entry.cardName?.startsWith('button.') ? l(entry.cardName) : getCardName(entry.cardId))}</span>
                     </div>
+                    {pShowTarget && entry.targetId && entry.targetClass && (
+                        <div className="text-zinc-400 text-[10px]"><span className="text-violet-400">{l('cardDetail.objective')}</span> [{entry.targetId}]{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass}</div>
+                    )}
                     <div className="flex items-center justify-between text-[10px] text-zinc-400">
                         <span>{detailText}</span>
-                        {entry.paCost !== undefined ? <span className="font-bold text-yellow-400">{entry.paCost} PA</span> : null}
+                        {entry.paCost !== undefined ? <span className="font-bold text-effect-pa">{entry.paCost} PA</span> : null}
                     </div>
                 </div>
             </div>

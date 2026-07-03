@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { GameState, GameAction } from '@shared';
-import { IDENTITY_INFO, getIdentityKey } from '../../prep/identityData';
+import { IDENTITY_INFO, getIdentityKey } from '../../../../prep/identityData';
 import { getCardName, getCardType } from '@shared/game/actions/card';
 import { l } from '@shared/i18n';
 
 const CLASS_BORDER: Record<string, string> = {
-    archer: 'border-amber-600/50', infantry: 'border-blue-600/50', cavalry: 'border-violet-600/50', lancer: 'border-red-600/50', general: 'border-yellow-500/50',
+    archer: 'border-class-archer/50', infantry: 'border-class-infantry/50', cavalry: 'border-class-cavalry/50', lancer: 'border-class-lancer/50', general: 'border-class-general/50',
 };
 
 type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
@@ -43,19 +43,14 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
     const isGameActive = mode === 'GAME' || (mode === 'DEPLOYMENT' && state.gamePhase !== 'PREPARATION');
 
     const [totalTime, setTotalTime] = useState(0);
-    const gameStartRef = useRef<number | null>(null);
     useEffect(() => {
-        if (isGameActive && gameStartRef.current === null) {
-            gameStartRef.current = Date.now();
-        }
-    }, [isGameActive]);
-    useEffect(() => {
-        if (!isGameActive) return;
+        if (!isGameActive || !state.gameStartTime) return;
+        setTotalTime(Math.floor((Date.now() - state.gameStartTime) / 1000));
         const id = setInterval(() => {
-            if (gameStartRef.current) setTotalTime(Math.floor((Date.now() - gameStartRef.current) / 1000));
+            setTotalTime(Math.floor((Date.now() - state.gameStartTime) / 1000));
         }, 1000);
         return () => clearInterval(id);
-    }, [isGameActive]);
+    }, [isGameActive, state.gameStartTime]);
 
     function fmtTime(s: number): string {
         const m = Math.floor(s / 60);
@@ -64,9 +59,9 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
     }
 
     return (
-        <aside className="h-full border-r border-zinc-700 flex flex-col overflow-hidden bg-zinc-900/80">
+        <aside className="h-full border-r border-white/20 flex flex-col overflow-hidden bg-zinc-900/80">
             {isGameActive && (
-                <div className="px-3 py-2 border-b border-zinc-700 space-y-0.5">
+                <div className="px-3 py-2 border-b border-white/10 space-y-0.5">
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] text-zinc-500 font-bold uppercase">{l('board.turnLabel')}</span>
                         <span className="text-sm font-bold text-zinc-200">{state.turn}</span>
@@ -77,7 +72,7 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
                     </div>
                 </div>
             )}
-            <div className="flex-1 flex flex-col overflow-hidden border-b border-zinc-700">
+            <div className="flex-1 flex flex-col overflow-hidden border-b border-white/10">
                 <PlayerHalf
                     playerId={playerId}
                     isOwner={true}
@@ -173,41 +168,38 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
             'flex flex-col h-full transition',
             isActive
                 ? playerId === 'p1'
-                    ? 'bg-green-900/20 border-l-2 border-green-500'
-                    : 'bg-red-900/20 border-l-2 border-red-500'
+                    ? 'bg-player1/40 border-l-2 border-player1'
+                    : 'bg-player2/40 border-l-2 border-player2'
                 : 'border-l-2 border-transparent',
         ].join(' ')}>
             {/* Player name + active badge */}
-            <div className="flex items-center justify-between px-3 pt-2 pb-2">
-                <span className="text-xs font-semibold text-zinc-200">{l(playerId === 'p1' ? 'board.player1' : 'board.player2')}</span>
-                {isActive && (
-                    <span className={[
-                        'text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap tracking-wide',
-                        playerId === 'p1'
-                            ? 'bg-green-700/60 text-green-200'
-                            : 'bg-red-700/60 text-red-200',
-                    ].join(' ')}>
-                        {mode === 'DEPLOYMENT' ? l('board.deploying') : l('board.yourTurn')}
-                    </span>
-                )}
+            <div className="mx-2 mt-6 mb-2 bg-zinc-900 border-2 border-white/20 rounded-lg p-2.5">
+                <div className="flex items-center justify-between">
+                    <span className={['text-sm font-semibold', playerId === 'p1' ? 'text-player1' : 'text-player2'].join(' ')}>{l(playerId === 'p1' ? 'board.player1' : 'board.player2')}</span>
+                    {isActive && (
+                        <span className="text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap tracking-wide bg-emerald-600 text-white">
+                            {mode === 'DEPLOYMENT' ? l('board.deploying') : l('board.yourTurn')}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Compact identity card */}
             <div className="px-2 mb-2">
-                <div
-                    onClick={onIdentityClick}
-                    className={[
-                        'flex items-center gap-2 rounded-lg border-2 px-2.5 py-1.5 transition cursor-pointer',
-                        isSelected
-                            ? 'border-blue-500 bg-blue-600/15'
-                            : 'border-zinc-700 bg-zinc-800/60 hover:border-zinc-500',
-                    ].join(' ')}
-                >
+                    <div
+                        onClick={onIdentityClick}
+                        className={[
+                            'flex items-center gap-2 rounded-lg border-2 px-2.5 py-1.5 transition cursor-pointer bg-zinc-900',
+                            isSelected
+                                ? 'border-yellow-400'
+                                : 'border-white/20 hover:border-white/40',
+                        ].join(' ')}
+                    >
                     <div className="text-lg relative">
                         🛡️
                         <span
                             className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-zinc-900 shadow-lg"
-                            style={{ backgroundColor: playerId === 'p1' ? '#166534' : '#991b1b', boxShadow: playerId === 'p1' ? '0 0 6px #166534' : '0 0 6px #991b1b' }}
+                            style={{ backgroundColor: playerId === 'p1' ? 'var(--color-player1)' : 'var(--color-player2)', boxShadow: playerId === 'p1' ? '0 0 6px var(--color-player1)' : '0 0 6px var(--color-player2)' }}
                         />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -219,7 +211,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
 
             {/* Stats row (GAME) */}
             {mode === 'GAME' && (
-                <div className="flex gap-3 px-3 py-2 bg-zinc-800/60 border-2 border-zinc-700 mx-2 rounded-lg mb-2">
+                <div className="flex gap-3 px-3 py-2 bg-zinc-900 border-2 border-white/20 mx-2 rounded-lg mb-2">
                     <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-zinc-200 font-bold uppercase">{l('board.paLabel')}</span>
                         <span className="text-sm font-bold text-yellow-400">{actionPoints}</span>
@@ -246,7 +238,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 };
                 return (
                     <div className="px-3 py-1.5 space-y-1">
-                        <div className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
+                        <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
                         <div className="flex flex-wrap gap-1">
                             {playerMods.map((m, i) => (
                                 <button
@@ -305,13 +297,13 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                                     'flex flex-col items-center gap-0.5 rounded border p-1 transition',
                                                     isMyPool ? 'cursor-pointer' : 'cursor-default',
                                                     isDisabled
-                                                        ? 'border-zinc-800 bg-zinc-900/50 opacity-40 cursor-not-allowed'
+                                                        ? 'border-zinc-800 bg-zinc-800/50 opacity-40 cursor-not-allowed'
                                                         : sel
-                                                            ? 'border-blue-500 bg-blue-600/20'
-                                                            : 'border-zinc-700 bg-zinc-800 hover:border-zinc-500',
+                                                            ? 'border-yellow-400 bg-zinc-800'
+                                                            : 'border-white/20 bg-zinc-800 hover:border-white/40',
                                                 ].join(' ')}
                                             >
-                                                <ClassSvg cls={entry.unitClass} />
+                                                <BustSvg cls={entry.unitClass} size={18} />
                                                 <span className="text-[8px] font-mono text-zinc-500">{entry.unitId}</span>
                                                 <span className="text-[8px] font-semibold leading-tight">{l(`unit.class.${entry.unitClass}`)}</span>
                                             </button>
@@ -340,12 +332,12 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
 
             {/* Cards in hand (GAME) */}
             {mode === 'GAME' && (
-                <div className="px-2 pb-2 space-y-1.5">
-                    <div className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wide">
+            <div className="mx-2 mb-2 bg-zinc-900 border-2 border-white/20 rounded-lg p-2.5">
+                    <div className="text-[10px] text-white/50 font-semibold uppercase tracking-wide mb-1.5">
                         {l('board.cards')} ({hand.length})
                     </div>
                     {hand.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
                             {hand.map(cid => (
                                 <div
                                     key={cid}
@@ -353,31 +345,31 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                     onMouseLeave={() => setHoveredCard(null)}
                                     onClick={() => isOwner && onInfoSelect?.({ type: 'card', cardId: cid })}
                                             className={[
-                                                'flex items-center gap-2 rounded border px-2.5 py-2 transition',
+                                                'flex items-center gap-2 rounded border px-2.5 py-2 transition min-h-[38px]',
                                                 selectedInfo?.type === 'card' && selectedInfo.cardId === cid
-                                                    ? 'border-blue-500 bg-blue-600/15'
+                                                    ? 'border-yellow-400 bg-zinc-800'
                                                     : isOwner
-                                                        ? 'cursor-pointer border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'
-                                                        : 'border-zinc-700/50 bg-zinc-800/20',
+                                                        ? 'cursor-pointer border-white/20 bg-zinc-800 hover:border-white/40'
+                                                        : 'border-white/10 bg-zinc-800/60',
                                             ].join(' ')}
-                                >
-                                    <span className="text-sm">🃏</span>
-                                    <span className="text-xs font-semibold flex-1 truncate">
-                                        {isOwner ? getCardName(cid) : '?'}
-                                    </span>
-                                    {isOwner && hoveredCard === cid && (() => {
-                                        const label = getCardActionLabel(cid);
-                                        if (!label) return null;
-                                        return (
-                                            <button
-                                                onClick={e => { e.stopPropagation(); handleCardAction(cid); }}
-                                                className="text-[10px] font-semibold px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white cursor-pointer transition whitespace-nowrap"
-                                            >
-                                                {l(`button.${label}`)}
-                                            </button>
-                                        );
-                                    })()}
-                                </div>
+                                        >
+                                            <span className="text-sm">🃏</span>
+                                            <span className="text-xs font-semibold flex-1 truncate">
+                                                {isOwner ? getCardName(cid) : '?'}
+                                            </span>
+                                            {isOwner && hoveredCard === cid && (() => {
+                                                const label = getCardActionLabel(cid);
+                                                if (!label) return null;
+                                                return (
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); handleCardAction(cid); }}
+                                                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white cursor-pointer transition whitespace-nowrap shrink-0"
+                                                    >
+                                                        {l(`button.${label}`)}
+                                                    </button>
+                                                );
+                                            })()}
+                                        </div>
                             ))}
                         </div>
                     ) : (
@@ -389,54 +381,18 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
     );
 }
 
-function ClassSvg({ cls }: { cls: string }) {
-    switch (cls) {
-        case 'archer':
-            return (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#fbbf24" strokeWidth="1.3" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#fbbf24" strokeWidth="1.3" fill="none" />
-                    <path d="M7 16 L17 8 M11 8 L17 8 L17 12" stroke="#fbbf24" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-            );
-        case 'infantry':
-            return (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#60a5fa" strokeWidth="1.3" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#60a5fa" strokeWidth="1.3" fill="none" />
-                    <rect x="7" y="9" width="10" height="8" rx="1.5" stroke="#60a5fa" strokeWidth="1.2" fill="none" />
-                    <line x1="12" y1="9" x2="12" y2="17" stroke="#60a5fa" strokeWidth="1.2" />
-                </svg>
-            );
-        case 'cavalry':
-            return (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#a78bfa" strokeWidth="1.3" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#a78bfa" strokeWidth="1.3" fill="none" />
-                    <path d="M4 17 C4 12 8 5 12 4 C16 5 20 12 20 17" stroke="#a78bfa" strokeWidth="1.2" fill="none" />
-                    <circle cx="12" cy="9" r="2" fill="#a78bfa" />
-                </svg>
-            );
-        case 'lancer':
-            return (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#f87171" strokeWidth="1.3" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#f87171" strokeWidth="1.3" fill="none" />
-                    <line x1="12" y1="10" x2="12" y2="3" stroke="#f87171" strokeWidth="1.5" />
-                    <line x1="12" y1="3" x2="15" y2="6" stroke="#f87171" strokeWidth="1.5" />
-                </svg>
-            );
-        case 'general':
-            return (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#fbbf24" strokeWidth="1.3" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#fbbf24" strokeWidth="1.3" fill="none" />
-                    <path d="M12 4 L13.5 7 L17 7.5 L14.5 9.5 L15 12.5 L12 11 L9 12.5 L9.5 9.5 L7 7.5 L10.5 7 Z" stroke="#fbbf24" strokeWidth="0.9" fill="none" />
-                </svg>
-            );
-        default:
-            return null;
-    }
+function BustSvg({ cls, size }: { cls: string; size: number }) {
+    const CLASS_FILL: Record<string, string> = {
+        archer: 'var(--color-class-archer)', infantry: 'var(--color-class-infantry)',
+        cavalry: 'var(--color-class-cavalry)', lancer: 'var(--color-class-lancer)', general: 'var(--color-class-general)',
+    };
+    const fill = CLASS_FILL[cls] ?? 'var(--color-effect-other)';
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="5" r="4.5" fill={fill} stroke="black" strokeWidth="1.2" />
+            <path d="M4 22 C4 14 8 11 12 11 C16 11 20 14 20 22" fill={fill} stroke="black" strokeWidth="1" />
+        </svg>
+    );
 }
 
 function statusLabel(stat: string): string {

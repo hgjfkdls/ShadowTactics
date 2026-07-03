@@ -37,6 +37,8 @@ export const ARCHER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
             hasFreeEscapeHex: true,
         },
         allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showDescription:true, showModifiers: true, showFormula: ['PA', 'dmg'], showTarget: true, showUnitsAffected: true },
+        log: { showTarget: true },
         restrictions: ['Requiere enemigo adyacente', 'Requiere casilla de escape no adyacente al enemigo'],
     },
     fuego_cobertura: {
@@ -55,6 +57,7 @@ export const ARCHER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         requires: { notUnitFlags: { usedFuegoCobertura: true } },
         flags: { consumesUnitAction: true },
         allowedModifiers: ['attack', 'defense', 'difficulty', 'actionCost'],
+        panel: {showDescription:true, showFormula: ['dmg', 'PA', 'range', 'diff'], showUnitsAffected: true},
         restrictions: ['1 vez por turno por arquero', 'No se acumula'],
     },
 };

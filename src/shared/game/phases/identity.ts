@@ -37,6 +37,7 @@ export function handleIdentity(state: GameState, action: GameAction): GameState 
     return {
         ...newState,
         players: revealedPlayers,
-        preparationPhase: 'ROLL'
+        preparationPhase: 'ROLL',
+        gameStartTime: Date.now(),
     };
 }

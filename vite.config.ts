@@ -21,6 +21,7 @@ export default defineConfig({
     },
     define: {
         __WS_URL__: JSON.stringify(wsUrl),
+        __DEPLOY_MODE__: JSON.stringify(env.DEPLOY || 'normal'),
     },
     server: {
         proxy: {

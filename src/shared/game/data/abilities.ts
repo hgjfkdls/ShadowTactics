@@ -168,6 +168,10 @@ export const ABILITIES: Record<string, UnitAbility> = {
         id: 'robar_ricos', name: 'Robar a los ricos', type: 'passive',
         description: 'El primer arquero que acierta cada turno recupera 1 HP',
     },
+    en_la_mira: {
+        id: 'en_la_mira', name: 'En la mira', type: 'passive',
+        description: 'Al comienzo de cada turno, elige una unidad enemiga (excepto general) e inflige 1 de daño sin coste',
+    },
     acechar: {
         id: 'acechar', name: 'Acechar', type: 'passive',
         description: 'Ataca a unidades aisladas con +1 ataque (+2 si el General ataca a general enemigo). Caballería recibe mitad del bonus',

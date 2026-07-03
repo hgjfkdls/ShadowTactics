@@ -62,6 +62,16 @@ export function PreparationScreen({ state, sendAction, role, bothPlayersReady, o
         }
     }, [timerInfo?.phase]);
 
+    // Auto-simulate when DEPLOY_MODE=simulated
+    const autoSimRef = useRef(false);
+    useEffect(() => {
+        if (bothIdentitiesRevealed && !autoSimRef.current && __DEPLOY_MODE__ === 'simulated' && (state.preparationPhase === 'ROLL' || state.preparationPhase === 'ROLL_RESULT')) {
+            autoSimRef.current = true;
+            setRevealDismissed(true);
+            setTimeout(() => sendAction({ type: 'SIMULATE_PREPARATION', playerId }), 100);
+        }
+    }, [bothIdentitiesRevealed, state.preparationPhase]);
+
     if (role.role !== 'player') {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">

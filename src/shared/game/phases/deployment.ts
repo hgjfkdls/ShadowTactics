@@ -87,7 +87,6 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
             deploymentStep: nextStep,
             gamePhase: 'GAME',
             preparationPhase: 'DONE',
-            gameStartTime: Date.now(),
         };
         return applyTurnStart(postDeploy, newState.activePlayer);
     }
