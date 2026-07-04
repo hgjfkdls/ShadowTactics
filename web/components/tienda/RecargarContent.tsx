@@ -104,7 +104,7 @@ export default function RecargarContent() {
                     <p className="text-sm text-zinc-500">Recibe ShadowCoins al instante</p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1 text-lg font-bold text-yellow-400">
+                    <span className="flex items-center gap-1 text-2xl font-semibold text-yellow-400">
                         <img src="/img/icons/shadow_coin_icon.png" alt="" className="h-8" />
                         {coins} SC
                     </span>

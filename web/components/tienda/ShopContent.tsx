@@ -183,14 +183,16 @@ export default function ShopContent() {
                 </div>
             </div>
 
-            <div className="mb-6 text-right">
+            <div className="flex mb-6 items-center justify-end">
                 <Link
                     href="/tienda/recargar"
-                    className="inline-flex items-center gap-2 text-lg font-bold text-yellow-400 transition-colors hover:text-yellow-300"
+                    className="inline-flex gap-2 text-2xl transition-colors hover:text-yellow-300 rounded-lg border border-yellow-700/40 bg-yellow-950/20 px-5 py-3 font-semibold text-yellow-400 hover:bg-yellow-950/40"
                 >
-                    <img src="/img/icons/shadow_coin_icon.png" alt="" className="h-10" />
-                    <span>{coins} SC</span>
-                    <span className="text-xs font-normal text-zinc-500 underline">Recargar</span>
+                    <img src="/img/icons/shadow_coin_icon.png" alt="" className="h-14" />
+                    <div className="flex flex-col items-end">
+                        <span>{coins} SC</span>
+                        <span className="underline text-xs text-gray-400">Recargar SC →</span>
+                    </div>
                 </Link>
             </div>
 
