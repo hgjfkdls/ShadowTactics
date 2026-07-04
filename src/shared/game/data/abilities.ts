@@ -30,10 +30,6 @@ export const ABILITIES: Record<string, UnitAbility> = {
         restrictions: '1 vez por turno por arquero, no se acumula',
         requiresTarget: true,
     },
-    accion_evasiva: {
-        id: 'accion_evasiva', name: 'Acción evasiva', type: 'active', cost: 1,
-        description: 'Si hay enemigos adyacentes al inicio del turno, reemplaza al primer movimiento',
-    },
 
     // ── CABALLERÍA ──
     romper_filas: {
@@ -101,20 +97,21 @@ export const ABILITIES: Record<string, UnitAbility> = {
         restrictions: 'Coste progresivo: +0/+1/+2 (se mantiene en 2). Solo hacia un enemigo.',
     },
     rayo_celestial: {
-        id: 'rayo_celestial', name: 'Rayo celestial', type: 'active', cost: 1,
-        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque hace +X daño (X: 3/2/1 según usos)',
-        restrictions: 'Cada uso reduce el daño en 1. Se desactiva tras el tercer uso.',
+        id: 'rayo_celestial', name: 'Rayo celestial', type: 'active', cost: 2,
+        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque tiene +3 de ataque',
+        restrictions: 'El objetivo debe estar a rango ≤ 2. El efecto se consume tras el ataque.',
         requiresTarget: true,
     },
-    avance: {
-        id: 'avance', name: 'Avance', type: 'passive',
-        description: 'Al eliminar un enemigo con ataque básico, permite ocupar su posición',
+    ejecutar: {
+        id: 'ejecutar', name: 'Ejecutar', type: 'active', cost: 1,
+        description: 'Si el enemigo tiene 2 HP o menos, este ataque lo ejecuta si acierta. Puedes ocupar su posición',
+        requiresTarget: true,
     },
 
     // ── IDENTIDAD: INSPIRACIÓN REAL ──
     en_nombre_del_rey: {
         id: 'en_nombre_del_rey', name: 'En nombre del rey', type: 'active', cost: 2,
-        description: 'Un aliado a rango ≤ 2 obtiene ataque 5 y escudo 3 HP hasta tu siguiente turno. El General no puede atacar este turno.',
+        description: 'Un aliado a rango ≤ 2 obtiene +2 ataque y escudo 3 HP hasta tu siguiente turno. El General no puede atacar este turno.',
         restrictions: '2 PA. El General queda marcado como atacado.',
         requiresTarget: true,
     },
@@ -129,8 +126,8 @@ export const ABILITIES: Record<string, UnitAbility> = {
     // ── IDENTIDAD: MONJE SHAOLIN ──
     meditacion: {
         id: 'meditacion', name: 'Meditación', type: 'active', cost: 2,
-        description: 'Recupera 3 HP a tu General. Sin límite de usos por turno.',
-        restrictions: 'El General debe tener al menos 2 PA disponibles.',
+        description: 'Si no usaste meditación en tu turno, tu General gana +1 de defensa hasta el próximo turno. Activar: recupera 3 HP a tu General.',
+        restrictions: 'El General debe tener al menos 2 PA disponibles y no estar a full HP.',
     },
 
     // ── IDENTIDAD: SAMURÁI ──
@@ -148,11 +145,11 @@ export const ABILITIES: Record<string, UnitAbility> = {
     // ── IDENTIDAD: ESCUDO DEL COMANDANTE ──
     angel_guardian: {
         id: 'angel_guardian', name: 'Ángel Guardián', type: 'active', cost: 2,
-        description: 'Todos los aliados reciben un escudo de 2 HP hasta tu siguiente turno.',
+        description: 'Todos los aliados reciben un escudo de +2 HP y cura 1 HP al aliado (incluye General) que más HP le falte (aleatorio si hay empate).',
     },
     proteger: {
         id: 'proteger', name: 'Proteger', type: 'active', cost: 0,
-        description: 'Un aliado a rango ≤ 3 recibe -1 daño hasta tu siguiente turno. Se acumula con otras defensas (Resistencia, Línea defensiva). Si no se usa, el efecto va al General.',
+        description: 'Un aliado a rango ≤ 3 recibe +1 defensa hasta tu siguiente turno. Se acumula con otras defensas. Si no se usa, el efecto va al General.',
         requiresTarget: true,
     },
 
@@ -167,12 +164,76 @@ export const ABILITIES: Record<string, UnitAbility> = {
         id: 'terror', name: 'Terror', type: 'passive',
         description: 'Cuando un aliado elimina a un enemigo a rango 1, los enemigos adyacentes al atacante o al objetivo tienen dificultad +1 en su siguiente ataque.',
     },
+    robar_ricos: {
+        id: 'robar_ricos', name: 'Robar a los ricos', type: 'passive',
+        description: 'El primer arquero que acierta cada turno recupera 1 HP',
+    },
+    en_la_mira: {
+        id: 'en_la_mira', name: 'En la mira', type: 'passive',
+        description: 'Al comienzo de cada turno, elige una unidad enemiga (excepto general) e inflige 1 de daño sin coste',
+    },
+    acechar: {
+        id: 'acechar', name: 'Acechar', type: 'passive',
+        description: 'Ataca a unidades aisladas con +1 ataque (+2 si el General ataca a general enemigo). Caballería recibe mitad del bonus',
+    },
+    hostigar: {
+        id: 'hostigar', name: 'Hostigar', type: 'passive',
+        description: 'Caballería tiene -1 dificultad al atacar a enemigos con 50% o menos de HP',
+    },
+    furia_berserker: {
+        id: 'furia_berserker', name: 'Furia berserker', type: 'passive',
+        description: 'El General y las unidades de infantería tienen +1 de ataque mientras tengan 50% o menos de HP',
+    },
+    contraataque: {
+        id: 'contraataque', name: 'Contraataque', type: 'passive',
+        description: 'Cuando el General recibe un ataque de rango 1, inflige 1 daño al atacante',
+    },
+    liderar_tropas: {
+        id: 'liderar_tropas', name: 'Liderar a las tropas', type: 'passive',
+        description: 'Cuando el General ataca, la infantería y el General ganan ataque adicional este turno',
+    },
+    proyeccion: {
+        id: 'proyeccion', name: 'Proyección', type: 'passive',
+        description: '1 vez por turno, cuando un lancero acierta un ataque cuerpo a cuerpo, hace 1 de daño a las 2 casillas detrás del objetivo',
+    },
+    lanza_escudo: {
+        id: 'lanza_escudo', name: 'Lanza y escudo', type: 'passive',
+        description: 'Elige entre +1 rango o +1 defensa para el General cada turno',
+    },
+    muro_espartano: {
+        id: 'muro_espartano', name: 'Muro espartano', type: 'passive',
+        description: 'Los lanceros adyacentes entre sí tienen +1 defensa',
+    },
+    karma: {
+        id: 'karma', name: 'Karma', type: 'passive',
+        description: 'Cuando una unidad aliada es eliminada, la unidad que la eliminó recibe 2 de daño',
+    },
+    formacion_linea: {
+        id: 'formacion_linea', name: 'Formación línea', type: 'passive',
+        description: 'Si hay 3 o más unidades aliadas adyacentes en línea recta, todas reciben +1 defensa',
+    },
+    formacion_triangulo: {
+        id: 'formacion_triangulo', name: 'Formación triángulo', type: 'passive',
+        description: 'Si 3 unidades aliadas están adyacentes entre sí, todas tienen ataque +1',
+    },
+    voz_de_mando: {
+        id: 'voz_de_mando', name: 'Voz de mando', type: 'passive',
+        description: 'La unidad aliada que se mueve tras el General recibe +1 ataque y +1 defensa',
+    },
+    plan_batalla: {
+        id: 'plan_batalla', name: 'Plan de batalla', type: 'passive',
+        description: 'Elige una orden: Avanzar (+1 ataque) o Reagruparse (+1 defensa)',
+    },
+    guardia_real: {
+        id: 'guardia_real', name: 'Guardia real', type: 'passive',
+        description: 'Unidades adyacentes al General tienen +1 ataque y +1 defensa',
+    },
 };
 
 export const CLASS_ABILITIES: Record<UnitClass, string[]> = {
-    archer: ['blanco_facil', 'patada_acrobatica', 'fuego_cobertura', 'accion_evasiva'],
+    archer: ['blanco_facil', 'patada_acrobatica', 'fuego_cobertura'],
     cavalry: ['romper_filas', 'cabalgar', 'carga', 'doble_ataque'],
     lancer: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'],
-    infantry: ['resistencia', 'linea_defensiva', 'presion', 'avance'],
+    infantry: ['resistencia', 'linea_defensiva', 'presion', 'ejecutar'],
     general: [],
 };

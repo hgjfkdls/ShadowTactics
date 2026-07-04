@@ -22,20 +22,20 @@ export function DeploymentUnitPool({ state, playerId, selectedUnitId, onSelectUn
     return (
         <div className="space-y-3">
             <div className="border-b border-zinc-700 pb-2 space-y-1">
-                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Despliegue</div>
+                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('deploy.title')}</div>
                 <div className="text-[11px] text-zinc-400">
-                    Paso {step + 1} / 12
+                    {l('deploy.step', { step: step + 1 })}
                     {isMyTurn
-                        ? ` — Colocas ${step === 0 || step === 11 ? '1' : '2'} unidad(es)`
-                        : ' — Esperando...'}
+                        ? ` — ${step === 0 || step === 11 ? l('deploy.placingOne') : l('deploy.placingTwo')}`
+                        : l('ui.waiting')}
                 </div>
                 <div className="text-[11px] text-zinc-500">
-                    Colocadas: {deployedCount} / 11 · Restan: {pool.length}
+                    {l('deploy.count', { placed: deployedCount, remaining: pool.length })}
                 </div>
             </div>
 
             {pool.length === 0 ? (
-                <div className="text-xs text-zinc-600 text-center py-4">Todas las unidades colocadas</div>
+                <div className="text-xs text-zinc-600 text-center py-4">{l('deploy.allPlaced')}</div>
             ) : (
                 <div className="grid grid-cols-3 gap-1.5 max-h-[400px] overflow-y-auto">
                     {pool.map(entry => {
@@ -65,7 +65,7 @@ export function DeploymentUnitPool({ state, playerId, selectedUnitId, onSelectUn
 
             {selectedUnitId && (
                 <div className="text-[11px] text-green-400 text-center">
-                    ✅ Haz clic en un hexágono válido
+                    {l('ui.clickHex')}
                 </div>
             )}
         </div>

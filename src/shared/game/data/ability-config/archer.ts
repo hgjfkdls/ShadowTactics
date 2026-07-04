@@ -1,0 +1,63 @@
+import type { AbilityConfig } from './types';
+
+export const ARCHER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
+    blanco_facil: {
+        id: 'blanco_facil',
+        nameKey: 'ability.blanco_facil.name',
+        displayName: 'Blanco fácil',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🎯',
+        targetType: 'none',
+        isPassive: true,
+        base: {},
+        effects: [
+            { type: 'debuff', target: 'attacker', value: -1, duration: 1, descriptionKey: 'ability.blanco_facil.desc' },
+        ],
+        allowedModifiers: [],
+    },
+    patada_acrobatica: {
+        id: 'patada_acrobatica',
+        nameKey: 'ability.patada_acrobatica.name',
+        displayName: 'Patada acrobática',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '🦶',
+        targetType: 'enemy',
+        range: 1,
+        base: { paCost: 1 },
+        fixedDamage: 1,
+        effects: [
+            { type: 'damage', target: 'defender', value: 1, descriptionKey: 'ability.patada_acrobatica.desc' },
+        ],
+        flags: { consumesUnitAction: true, noCritical: true },
+        requires: {
+            notUnitFlags: { usedPatadaAcrobatica: true },
+            hasAdjacentEnemy: true,
+            hasFreeEscapeHex: true,
+        },
+        allowedModifiers: ['attackCost', 'actionCost'],
+        panel: { showDescription:true, showModifiers: true, showFormula: ['PA', 'dmg'], showTarget: true, showUnitsAffected: true },
+        log: { showTarget: true },
+        restrictions: ['Requiere enemigo adyacente', 'Requiere casilla de escape no adyacente al enemigo'],
+    },
+    fuego_cobertura: {
+        id: 'fuego_cobertura',
+        nameKey: 'ability.fuego_cobertura.name',
+        displayName: 'Fuego de cobertura',
+        type: 'attack',
+        displayType: 'attack',
+        icon: '⚔',
+        targetType: 'enemy',
+        range: 'unit.range',
+        base: { attack: 2, difficulty: 'unit.difficulty', paCost: 2 },
+        effects: [
+            { type: 'surcharge', target: 'defender', value: 1, duration: 2, descriptionKey: 'ability.fuego_cobertura.effect.surcharge' },
+        ],
+        requires: { notUnitFlags: { usedFuegoCobertura: true } },
+        flags: { consumesUnitAction: true },
+        allowedModifiers: ['attack', 'defense', 'difficulty', 'actionCost'],
+        panel: {showDescription:true, showFormula: ['dmg', 'PA', 'range', 'diff'], showUnitsAffected: true},
+        restrictions: ['1 vez por turno por arquero', 'No se acumula'],
+    },
+};

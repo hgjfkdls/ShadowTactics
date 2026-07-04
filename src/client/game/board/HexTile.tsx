@@ -35,20 +35,20 @@ export function HexTile({
 
 
     const fill = selected
-        ? '#2563eb'
+        ? 'var(--color-selected)'
         : attackable
-            ? '#7f1d1d'
+            ? 'var(--color-attack-bg)'
             : identityTarget
-                ? '#5b1280'
+                ? 'var(--color-identity-target-bg)'
                 : allyTarget
-                    ? '#0f766e'
+                    ? 'var(--color-buff-bg)'
                     : reachable
-                        ? '#065f46'
+                        ? 'var(--color-move-bg)'
                         : hovered
-                            ? '#374151'
-                            : '#1f2937';
+                            ? 'var(--color-hover-bg)'
+                            : 'var(--color-default-bg)';
 
-    const stroke = identityTarget ? '#a855f7' : allyTarget ? '#14b8a6' : attackable ? '#ef4444' : '#4b5563';
+    const stroke = identityTarget ? 'var(--color-identity-target)' : allyTarget ? 'var(--color-buff)' : attackable ? 'var(--color-attack)' : 'var(--color-default-stroke)';
     const strokeW = identityTarget || allyTarget || attackable ? 2.5 : 2;
 
 
@@ -67,7 +67,7 @@ export function HexTile({
             {reachable && !selected && (
                 <polygon
                     points={points}
-                    fill="rgba(16, 185, 129, 0.35)"
+                    fill="var(--color-available-overlay)"
                     pointerEvents="none"
                 />
             )}
@@ -75,7 +75,7 @@ export function HexTile({
             {enemyDeployable && (
                 <polygon
                     points={points}
-                    fill="rgba(59, 130, 246, 0.12)"
+                    fill="var(--color-range-overlay)"
                     pointerEvents="none"
                 />
             )}
@@ -83,7 +83,7 @@ export function HexTile({
             {inRange && !reachable && !attackable && (
                 <polygon
                     points={points}
-                    fill="rgba(59, 130, 246, 0.12)"
+                    fill="var(--color-range-overlay)"
                     pointerEvents="none"
                 />
             )}
@@ -91,7 +91,7 @@ export function HexTile({
             {attackable && (
                 <polygon
                     points={points}
-                    fill="rgba(239, 68, 68, 0.3)"
+                    fill="var(--color-attack-overlay)"
                     pointerEvents="none"
                 />
             )}
@@ -99,7 +99,7 @@ export function HexTile({
             {identityTarget && (
                 <polygon
                     points={points}
-                    fill="rgba(168, 85, 247, 0.25)"
+                    fill="var(--color-identity-target-overlay)"
                     pointerEvents="none"
                 />
             )}
@@ -107,13 +107,13 @@ export function HexTile({
             {allyTarget && (
                 <polygon
                     points={points}
-                    fill="rgba(20, 184, 166, 0.25)"
+                    fill="var(--color-buff-overlay)"
                     pointerEvents="none"
                 />
             )}
 
             {highlighted && (
-                <polygon points={points} fill="rgba(250, 204, 21, 0.2)" pointerEvents="none" />
+                <polygon points={points} fill="var(--color-history-overlay)" pointerEvents="none" />
             )}
 
         </>

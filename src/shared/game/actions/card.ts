@@ -216,7 +216,7 @@ function applyCardEffect(state: GameState, cardId: CardId, playerId: string, tar
         }
         case 'mantenimiento': {
             const other = playerId === 'p1' ? 'p2' : 'p1';
-            return addModifier(state, other, null, 'damage', -1, 'ADD', 1, 1, 'card', sourceName);
+            return addModifier(state, other, null, 'attack', -1, 'ADD', 1, 1, 'card', sourceName);
         }
         case 'confusion': {
             const other = playerId === 'p1' ? 'p2' : 'p1';

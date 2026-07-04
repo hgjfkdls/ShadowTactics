@@ -8,6 +8,7 @@ import { BASE_STATS } from '@shared/game/units';
 import { l } from '@shared/i18n';
 import { UnitTooltip } from './UnitTooltip';
 import { statusLabel, classLabel, hitPercent } from './unitLabels';
+import { getAuraBuffs } from '@shared/game/aura';
 
 type Props = {
     state: GameState;
@@ -65,6 +66,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const hovered = hoveredUnitId === unit.id;
                 const maxHp = getMaxHp(unit.class);
                 const { buffs, debuffs } = getUnitStatus(unit, state.activeModifiers);
+                const auraBuffs = unit.class === 'general' ? getAuraBuffs(state, unit.owner) : null;
 
                 const selectedUnit = selectedUnitId ? state.units[selectedUnitId] : null;
                 const attackingUnit = attackingUnitId ? state.units[attackingUnitId] : null;
@@ -101,7 +103,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const isCazador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('cazadores');
                 const isIsolated = unit.owner !== playerId && !Object.values(state.units)
                     .some(u => u.owner !== playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1);
-                const showAcechar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && selectedUnit.class === 'general' && unit.owner !== playerId && isIsolated;
+                const showAcechar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && unit.owner !== playerId && isIsolated
+                    && (selectedUnit.class === 'general' || (selectedUnit.class === 'cavalry' && unit.class !== 'general'));
                 const showHostigar = isCazador && !!selectedUnit && selectedUnit.owner === playerId && unit.owner !== playerId
                     && (selectedUnit.class === 'general' || selectedUnit.class === 'cavalry')
                     && unit.hp <= Math.floor(getMaxHp(unit.class) / 2);
@@ -117,11 +120,12 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                     && unit.owner !== playerId && unit.class === 'lancer'
                     && unitAbilities.includes('formacion_defensiva');
 
-                const showCelestialRay = (unit.celestialRayDamageBonus ?? 0) > 0;
+                const showCelestialRay = state.activeModifiers.some(m => m.stat === 'attack' && m.targetId === unit.id && m.sourceName === 'Rayo celestial' && (m.remainingUses ?? 0) > 0);
+                const celestialRayValue = state.activeModifiers.find(m => m.stat === 'attack' && m.targetId === unit.id && m.sourceName === 'Rayo celestial')?.value ?? 0;
 
                 const unitOwnerIdentity = state.players[unit.owner]?.selectedIdentity ?? '';
                 // Monje Shaolin: resistencia por meditación (modifier damage -1)
-                const hasDamageReductionMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'damage' && m.value < 0 && (m.remainingUses ?? 1) > 0);
+                const hasDamageReductionMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && ((m.stat === 'damage' && m.value < 0) || (m.stat === 'defense' && m.value > 0)) && (m.remainingUses ?? 1) > 0);
                 const hasAttackBonusMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0);
                 const isMonjeShaolin = unitOwnerIdentity.startsWith('monje_shaolin');
                 const isCorazonEstratega = unitOwnerIdentity.startsWith('corazon_estratega');
@@ -134,10 +138,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const showFormacionTrianguloDiana = unit.owner === playerId && hasAttackBonusMod && isCorazonEstratega && !!selectedUnit;
 
                 // Comandante Supremo
-                const hasAvanzarBuff = isComandanteSupremo && hasAttackBonusMod;
-                const hasReagruparBuff = isComandanteSupremo && hasDamageReductionMod;
+                const hasAvanzarBuff = isComandanteSupremo && (state.players[unit.owner]?.planBatallaBonus ?? 0) > 0;
+                const hasReagruparBuff = isComandanteSupremo && (state.players[unit.owner]?.planBatallaDefense ?? 0) > 0;
                 const vozDeMandoActivo = state.players[playerId]?.vozDeMandoReady === true && unit.class !== 'general';
-                const showAvanzarDiana = unit.owner === playerId && hasAvanzarBuff && !!selectedUnit;
+                const showAvanzarDiana = hasAvanzarBuff && !!selectedUnit;
                 const showReagruparShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && hasReagruparBuff;
                 const showReagruparSelf = unit.owner === playerId && hasReagruparBuff && !!selectedUnit;
 
@@ -150,27 +154,33 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const hasRoyalShield = unit.royalShieldSavedHp !== undefined;
                 const hasProtegerShield = state.activeModifiers.some(m => m.id.startsWith('proteger_') && m.targetId === unit.id && (m.remainingUses ?? 1) > 0);
 
-                // Voz de mando: persiste en tooltip hasta el siguiente turno
-                const showVozDeMandoReady = vozDeMandoActivo && unit.owner === playerId;
-                const showVozDeMandoUsed = !!unit.usedVozDeMando && unit.owner === playerId;
+                // Voz de mando: mostrar el bono en cualquier unidad que lo tenga
+                // Voz de mando: mostrar el bono en cualquier unidad que lo tenga
+                const hasVozBonus = (unit.vozDeMandoAttackBonus ?? 0) > 0 || (unit.vozDeMandoDefenseBonus ?? 0) > 0;
+                const showVozDeMandoReady = hasVozBonus;
+                const vozDeMandoDisponible = state.players[playerId]?.vozDeMandoReady && unit.owner === playerId;
 
-                // Valores reales de los modificadores (para mostrar +2/-2 con Voz de Mando)
+                // Valores reales de los modificadores y flags (Plan de batalla, Voz de mando)
                 const atkModSum = state.activeModifiers
                     .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0)
-                    .reduce((s, m) => s + m.value, 0);
+                    .reduce((s, m) => s + m.value, 0)
+                    + (unit.vozDeMandoAttackBonus ?? 0)
+                    + (isComandanteSupremo ? (state.players[unit.owner]?.planBatallaBonus ?? 0) : 0);
                 const dmgModSum = state.activeModifiers
                     .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'damage' && m.value < 0 && (m.remainingUses ?? 1) > 0)
                     .reduce((s, m) => s + m.value, 0);
+                const defModSum = state.activeModifiers
+                    .filter(m => (m.targetId as string | undefined) === unit.id && m.stat === 'defense' && m.value > 0 && (m.remainingUses ?? 1) > 0)
+                    .reduce((s, m) => s + m.value, 0)
+                    + (unit.vozDeMandoDefenseBonus ?? 0)
+                    + (isComandanteSupremo ? (state.players[unit.owner]?.planBatallaDefense ?? 0) : 0);
 
                 const isDiosTrueno = unitOwnerIdentity.startsWith('dios_trueno');
                 const showFuriaBerserker = isDiosTrueno && (unit.class === 'infantry' || unit.class === 'general')
                     && unit.hp <= Math.floor(getMaxHp(unit.class) / 2);
-                const liderarNextTurn = state.players[unit.owner]?.nextTurnGlobalPresion;
-                const liderarActive = state.players[unit.owner]?.globalPresionActive;
+                const liderarBonus = state.players[unit.owner]?.liderarAtaqueBonus;
                 const isInfantryOrGeneral = unit.class === 'infantry' || unit.class === 'general';
-                const showLiderarTropas = liderarNextTurn
-                    ? unit.class === 'general'
-                    : liderarActive && isInfantryOrGeneral;
+                const showLiderarTropas = !!liderarBonus && liderarBonus > 0 && isInfantryOrGeneral;
 
                 const passiveLabels: string[] = [];
                 const isFrancotirador = (state.players[playerId]?.selectedIdentity ?? '').startsWith('francotirador');
@@ -188,10 +198,19 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 if (showMeditacionShield) passiveLabels.push(l('passive.meditacion'));
                 if (showFormacionLineaShield) passiveLabels.push(l('passive.formacionLinea'));
                 if (showFormacionTrianguloDiana) passiveLabels.push(l('passive.formacionTriangulo'));
-                if (showVozDeMandoReady || showVozDeMandoUsed) passiveLabels.push(l('passive.vozDeMando'));
-                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`${l('passive.planBatallaAvanzar')} (+${atkModSum} ${l('passive.damageAbbr')})`);
+                if (showVozDeMandoReady) {
+                    const vozAtk = unit.vozDeMandoAttackBonus ?? 0;
+                    const vozDef = unit.vozDeMandoDefenseBonus ?? 0;
+                    const parts: string[] = [];
+                    if (vozAtk > 0) parts.push(`+${vozAtk} ${l('passive.attackAbbr')}`);
+                    if (vozDef > 0) parts.push(`+${vozDef} ${l('passive.defenseAbbr')}`);
+                    passiveLabels.push(`${l('passive.vozDeMando')} (${parts.join(', ')})`);
+                } else if (vozDeMandoDisponible) {
+                    passiveLabels.push(l('passive.vozDeMando'));
+                }
+                if (showAvanzarDiana && atkModSum > 0) passiveLabels.push(`${l('passive.planBatallaAvanzar')} (+${atkModSum} ${l('passive.attackAbbr')})`);
                 if (showReagruparShield || showReagruparSelf) {
-                    if (dmgModSum < 0) passiveLabels.push(`${l('passive.planBatallaReagrupar')} (${dmgModSum} ${l('passive.damageAbbr')})`);
+                    if (defModSum > 0) passiveLabels.push(`${l('passive.planBatallaReagrupar')} (+${defModSum} ${l('passive.defenseAbbr')})`);
                 }
                 if (showGuardiaDiana && atkModSum > 0) passiveLabels.push(`${l('passive.guardiaRealAtk')} (+${atkModSum} ${l('passive.attackAbbr')})`);
                 if (showGuardiaShield && dmgModSum < 0) passiveLabels.push(`${l('passive.guardiaRealDef')} (${dmgModSum} ${l('passive.damageAbbr')})`);
@@ -201,12 +220,16 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 }
                 if (hasProtegerShield) passiveLabels.push(l('passive.proteger'));
                 if (unitOwnerIdentity.startsWith('capitan_guardia') && unit.class === 'general') {
-                    const usado = unit.usedCounterattack ? ` (${l('passive.exhausted')})` : '';
-                    passiveLabels.push(`${l('passive.contraataque')}${usado}`);
+                    passiveLabels.push(l('passive.contraataque'));
                 }
-                if (showAcechar) passiveLabels.push(`${l('passive.acechar')} (+${unit.class === 'general' ? 1 : 2} ${l('passive.damageAbbr')})`);
+                if (showAcechar) {
+                    const bonus = selectedUnit?.class === 'general'
+                        ? (unit.class === 'general' ? 1 : 2)
+                        : 1;
+                    passiveLabels.push(`${l('passive.acechar')} (+${bonus} ${l('passive.attackAbbr')})`);
+                }
                 if (showHostigar) passiveLabels.push(l('passive.hostigar'));
-                if (showCelestialRay) passiveLabels.push(`${l('passive.rayoCelestial')} (+${unit.celestialRayDamageBonus} ${l('passive.damageAbbr')})`);
+                if (showCelestialRay) passiveLabels.push(`${l('passive.rayoCelestial')} (+${celestialRayValue} ${l('passive.attackAbbr')})`);
                 if (showFuriaBerserker) passiveLabels.push(l('passive.furiaBerserker'));
                 if (hasTerror) {
                     if (unit.owner !== playerId && isTiranoViewer) {
@@ -215,11 +238,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         passiveLabels.push(l('passive.terrorDifficulty'));
                     }
                 }
-                if (liderarNextTurn && unit.class === 'general') passiveLabels.push(l('passive.liderarNextTurn'));
-                if (liderarActive && isInfantryOrGeneral) passiveLabels.push(l('passive.liderarActive'));
+                if (showLiderarTropas) passiveLabels.push(`${l('passive.liderarActive')} (+${liderarBonus} ${l('passive.attackAbbr')})`);
                 if (isDiosTrueno && unit.class === 'general') {
-                    const rayBonus = state.players[unit.owner]?.celestialRayBonus ?? 0;
-                    if (rayBonus > 0) passiveLabels.push(`${l('passive.rayoCelestialDisponible')} (+${rayBonus} ${l('passive.damageAbbr')})`);
+                    const hasValidAlly = Object.values(state.units).some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(unit.position, u.position) <= 2);
+                    if (hasValidAlly) passiveLabels.push(`${l('passive.rayoCelestialDisponible')} (${l('passive.attackAbbr')} +3)`);
                 }
                 if (isMonjeShaolin) passiveLabels.push(l('passive.karma'));
                 const isEspartano = unitOwnerIdentity.startsWith('espartano');
@@ -258,6 +280,15 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         .filter(m => m.stat === 'difficulty' && (m.remainingUses ?? 1) > 0 && m.sourcePlayerId === attacker.owner && (m.targetId === undefined || m.targetId === attacker.id))
                         .reduce((s, m) => m.operator === 'ADD' ? s + m.value : s, 0);
                     final += diffMod;
+                    // Aura de mando
+                    if (attacker.class === 'general') {
+                        const auraAtk = getAuraBuffs(state, attacker.owner);
+                        final -= auraAtk.difficultyReduction;
+                    }
+                    if (unit.class === 'general') {
+                        const auraDef = getAuraBuffs(state, unit.owner);
+                        final += auraDef.difficultyPenalty;
+                    }
                     return { distance: dist, difficulty: final, baseDifficulty: base };
                 })() : null;
 
@@ -265,8 +296,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                     .filter(u => u.owner !== playerId)
                     .some(u => hexDistance(unit.position, u.position) === 1);
 
-                const fill = unit.owner === 'p1' ? '#166534' : '#991b1b';
-                const stroke = selected ? '#fde047' : unit.owner === 'p1' ? '#22c55e' : '#ef4444';
+                const fill = unit.owner === 'p1' ? '#4c1d95' : '#155e75';
+                const stroke = selected ? '#fde047' : unit.owner === 'p1' ? '#a78bfa' : '#22d3ee';
                 const strokeW = selected ? 2.5 : 1.5;
 
                 return (
@@ -307,8 +338,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             opacity={0.92}
                         />
 
-                        <g transform="translate(-9, -9)">
-                            <ClassIcon cls={unit.class} size={18} />
+                        <g transform="translate(-9, -12)">
+                            <BustSvg cls={unit.class} size={18} />
                         </g>
 
                         <text
@@ -320,15 +351,15 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             fill="white"
                             pointerEvents="none"
                         >
-                            {unit.hp}/{maxHp}
+                            {unit.hp + (unit.auraShield ?? 0)}/{maxHp}
                         </text>
 
                         {isBlancoFacilTarget && (
                             <g transform="translate(14, -14)">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" pointerEvents="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} pointerEvents="none" />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} pointerEvents="none" />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" pointerEvents="none" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" pointerEvents="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} pointerEvents="none" />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} pointerEvents="none" />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" pointerEvents="none" />
                             </g>
                         )}
 
@@ -341,62 +372,62 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {showSword && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {showAnticaballeria && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {(showFormacionTrianguloDiana || showAvanzarDiana || showGuardiaDiana) && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {hasRoyalShield && (
                             <g transform="translate(-14, -14)" pointerEvents="none">
-                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#fbbf24" stroke="#fbbf24" strokeWidth={0.8} />
-                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#fde047" stroke="#fbbf24" strokeWidth={0.8} />
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
                             </g>
                         )}
 
                         {hasTerror && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {showCazadorDiana && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
                         {unit.espartanoRangeBonus && (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         )}
 
@@ -420,8 +451,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {showFormacionDefensiva && (
                             <g transform="translate(-14, -14)" pointerEvents="none">
-                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#f59e0b" stroke="#f59e0b" strokeWidth={0.8} />
-                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#fbbf24" stroke="#f59e0b" strokeWidth={0.8} />
+                                <path d="M0,-5 L-5,-2 L-5,2 L0,6 Z" fill="#60a5fa" stroke="#60a5fa" strokeWidth={0.8} />
+                                <path d="M0,-5 L5,-2 L5,2 L0,6 Z" fill="#93c5fd" stroke="#60a5fa" strokeWidth={0.8} />
                             </g>
                         )}
 
@@ -441,10 +472,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             </g>
                         ) : showFuriaBerserker ? (
                             <g transform="translate(14, -14)" pointerEvents="none">
-                                <circle cx="0" cy="0" r={5} stroke="#fbbf24" strokeWidth={1} fill="none" />
-                                <line x1={-6} y1="0" x2={6} y2="0" stroke="#fbbf24" strokeWidth={0.8} />
-                                <line x1="0" y1={-6} x2="0" y2={6} stroke="#fbbf24" strokeWidth={0.8} />
-                                <circle cx="0" cy="0" r={1.5} fill="#fbbf24" />
+                                <circle cx="0" cy="0" r={5} stroke="var(--color-attack)" strokeWidth={1} fill="none" />
+                                <line x1={-6} y1="0" x2={6} y2="0" stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <line x1="0" y1={-6} x2="0" y2={6} stroke="var(--color-attack)" strokeWidth={0.8} />
+                                <circle cx="0" cy="0" r={1.5} fill="var(--color-attack)" />
                             </g>
                         ) : showLiderarTropas && (
                             <g transform="translate(14, -14)" pointerEvents="none">
@@ -458,19 +489,23 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                                 {buffs.length > 0 && (
                                     <circle cx={-4} cy={0} r={3} fill="#22c55e" stroke="#1f2937" strokeWidth={1} />
                                 )}
-                                {(unit.fuegoCoberturaCharges ?? 0) > 0
-                                    ? Array.from({ length: unit.fuegoCoberturaCharges! }, (_, i) => (
-                                        <circle key={i} cx={4 + i * 8} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
-                                    ))
-                                    : debuffs.length > 0 && (
+                                {(() => {
+                                    const actionCostMods = state.activeModifiers.filter(m => m.stat === 'actionCost' && m.targetId === unit.id && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
+                                    const totalCharges = actionCostMods.reduce((s, m) => s + (m.remainingUses ?? 1), 0);
+                                    if (totalCharges > 0) {
+                                        return Array.from({ length: totalCharges }, (_, i) => (
+                                            <circle key={i} cx={4 + i * 8} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
+                                        ));
+                                    }
+                                    return debuffs.length > 0 && (
                                         <circle cx={4} cy={0} r={3} fill="#ef4444" stroke="#1f2937" strokeWidth={1} />
-                                    )
-                                }
+                                    );
+                                })()}
                             </g>
                         )}
 
                         {hovered && (
-                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} passiveLabels={passiveLabels} />
+                            <UnitTooltip unit={unit} maxHp={maxHp} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} passiveLabels={passiveLabels} auraBuffs={auraBuffs} />
                         )}
                     </g>
                 );
@@ -492,7 +527,7 @@ function isEnemyInAbilityRange(from: { q: number; r: number }, to: { q: number; 
         case 'fuego_cobertura':
         case 'doble_ataque':
         case 'avance': return d <= unit.range;
-        case 'ventaja_alcance': return d <= unit.range + 1;
+        case 'ventaja_alcance': return d === unit.range + 1;
         case 'desenvainado_veloz': return d <= unit.range;
         default: return false;
     }
@@ -502,7 +537,7 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const buffs: string[] = [];
     const debuffs: string[] = [];
 
-    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'bloqueo', 'inmovil'];
+    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'actionCost', 'bloqueo', 'inmovil'];
     const helpfulStats = ['attack', 'dotOnHit'];
     const passiveStats: string[] = [];
 
@@ -540,6 +575,9 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (stat === 'damage') {
             if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
             else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
+        } else if (stat === 'attack') {
+            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
+            else { if (!debuffs.includes(stat)) debuffs.push(stat); }
         } else if (harmfulStats.includes(stat)) {
             if (!debuffs.includes(stat)) debuffs.push(stat);
         } else if (helpfulStats.includes(stat)) {
@@ -549,60 +587,19 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         }
     }
 
-    // Check unit flags for debuffs/buffs not in activeModifiers
-    if ((unit.fuegoCoberturaCharges ?? 0) > 0) {
-        if (!debuffs.includes('movementPenalty')) debuffs.push('movementPenalty');
-    }
-
     return { buffs, debuffs };
 }
 
-function ClassIcon({ cls, size }: { cls: string; size: number }) {
-    switch (cls) {
-        case 'archer':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
-                    <path d="M7 16 L17 8 M11 8 L17 8 L17 12" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round" />
-                    <circle cx="12" cy="7" r="3.5" stroke="#fbbf24" strokeWidth="1.4" fill="none" />
-                </svg>
-            );
-        case 'infantry':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#60a5fa" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#60a5fa" strokeWidth="1.5" fill="none" />
-                    <rect x="7" y="8" width="10" height="8" rx="1.5" stroke="#60a5fa" strokeWidth="1.4" fill="none" />
-                    <line x1="12" y1="8" x2="12" y2="16" stroke="#60a5fa" strokeWidth="1.4" />
-                </svg>
-            );
-        case 'cavalry':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#a78bfa" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#a78bfa" strokeWidth="1.5" fill="none" />
-                    <path d="M4 17 C4 12 8 5 12 4 C16 5 20 12 20 17" stroke="#a78bfa" strokeWidth="1.3" fill="none" />
-                    <circle cx="12" cy="9" r="2" fill="#a78bfa" />
-                </svg>
-            );
-        case 'lancer':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#f87171" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#f87171" strokeWidth="1.5" fill="none" />
-                    <line x1="12" y1="10" x2="12" y2="3" stroke="#f87171" strokeWidth="1.6" />
-                    <line x1="12" y1="3" x2="15" y2="6" stroke="#f87171" strokeWidth="1.6" />
-                </svg>
-            );
-        case 'general':
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="7" r="3.5" stroke="#facc15" strokeWidth="1.4" fill="none" />
-                    <path d="M5 20 C5 14 8 11.5 12 11.5 C16 11.5 19 14 19 20" stroke="#facc15" strokeWidth="1.5" fill="none" />
-                    <path d="M12 4 L13.5 7 L17 7.5 L14.5 9.5 L15 12.5 L12 11 L9 12.5 L9.5 9.5 L7 7.5 L10.5 7 Z" stroke="#facc15" strokeWidth="1" fill="none" />
-                </svg>
-            );
-        default:
-            return <text y={4} textAnchor="middle" fontSize={12} fill="white" pointerEvents="none">?</text>;
-    }
+function BustSvg({ cls, size }: { cls: string; size: number }) {
+    const CLASS_FILL: Record<string, string> = {
+        archer: 'var(--color-class-archer)', infantry: 'var(--color-class-infantry)',
+        cavalry: 'var(--color-class-cavalry)', lancer: 'var(--color-class-lancer)', general: 'var(--color-class-general)',
+    };
+    const fill = CLASS_FILL[cls] ?? 'var(--color-effect-other)';
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="5" r="4.5" fill={fill} stroke="black" strokeWidth="1.2" />
+            <path d="M4 22 C4 14 8 11 12 11 C16 11 20 14 20 22" fill={fill} stroke="black" strokeWidth="1" />
+        </svg>
+    );
 }

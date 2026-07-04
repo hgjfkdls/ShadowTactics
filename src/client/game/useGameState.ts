@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { socket } from '../net/socket';
 import type { GameState, GameAction } from '@shared';
+import type { TimerInfo } from '@shared/game/timer';
+import { l } from '@shared/i18n';
 import { debugStore } from '../debug/DebugStore';
 import { PlayerRole } from '@server/GameRoom';
 
@@ -14,6 +16,8 @@ export function useGameState() {
     const [state, setState] = useState<GameState | null>(null);
     const [lastBlockedReason, setLastBlockedReason] = useState<string | null>(null);
     const [opponentDisconnectedAt, setOpponentDisconnectedAt] = useState<number | null>(null);
+    const [timerInfo, setTimerInfo] = useState<TimerInfo | null>(null);
+    const [pausedTimerInfo, setPausedTimerInfo] = useState<TimerInfo | null>(null);
 
     useEffect(() => {
         function onConnect() {
@@ -63,6 +67,11 @@ export function useGameState() {
             setOpponentDisconnectedAt(null);
         }
 
+        function onTimer(payload: { active: TimerInfo | null; paused: TimerInfo | null }) {
+            setTimerInfo(payload.active);
+            setPausedTimerInfo(payload.paused);
+        }
+
         socket.on('connect', onConnect);
         socket.on('disconnect', onDisconnect);
         socket.on('ROLE', onRole);
@@ -71,6 +80,7 @@ export function useGameState() {
         socket.on('BOTH_PLAYERS_READY', onBothPlayersReady);
         socket.on('OPPONENT_DISCONNECTED', onOpponentDisconnected);
         socket.on('OPPONENT_RECONNECTED', onOpponentReconnected);
+        socket.on('TIMER', onTimer);
 
         return () => {
             socket.off('connect', onConnect);
@@ -81,6 +91,7 @@ export function useGameState() {
             socket.off('BOTH_PLAYERS_READY', onBothPlayersReady);
             socket.off('OPPONENT_DISCONNECTED', onOpponentDisconnected);
             socket.off('OPPONENT_RECONNECTED', onOpponentReconnected);
+            socket.off('TIMER', onTimer);
         };
     }, []);
 
@@ -113,6 +124,16 @@ export function useGameState() {
         debugStore.clear();
     }
 
+    function sendRevealDismiss() {
+        if (!gameId || !role || role.role !== 'player') return;
+        socket.emit('DISMISS_REVEAL', { gameId, playerId: role.playerId });
+    }
+
+    function sendRollResultDismiss() {
+        if (!gameId || !role || role.role !== 'player') return;
+        socket.emit('DISMISS_ROLL_RESULT', { gameId, playerId: role.playerId });
+    }
+
     function sendAction(action: GameAction) {
         if (!gameId) return;
         if (!role || role.role !== 'player') return;
@@ -127,7 +148,7 @@ export function useGameState() {
             } else if (action.type === 'SURRENDER') {
                 // permitir rendirse en cualquier turno
             } else {
-                setLastBlockedReason('No es tu turno');
+                setLastBlockedReason(l('ui.notYourTurn'));
                 console.warn(`Acción bloqueada: no es tu turno (${role.playerId})`);
                 return;
             }
@@ -137,7 +158,7 @@ export function useGameState() {
         if (state.turnPhase === 'DRAW' && state.gamePhase === 'GAME') {
             const handSize = state.players[state.activePlayer]?.cardsInHand?.length ?? 0;
             if (handSize > 3 && action.type !== 'DISCARD_CARD' && action.type !== 'SURRENDER') {
-                setLastBlockedReason('Debes descartar 1 carta antes de realizar cualquier acción');
+                setLastBlockedReason(l('ui.mustDiscardFirst'));
                 return;
             }
         }
@@ -166,10 +187,14 @@ export function useGameState() {
 
         state,
         opponentDisconnectedAt,
+        timerInfo,
+        pausedTimerInfo,
 
         joinGame,
         leaveGame,
         sendAction,
+        sendRevealDismiss,
+        sendRollResultDismiss,
         lastBlockedReason,
         clearBlockedReason: () => setLastBlockedReason(null),
     };

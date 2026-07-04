@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { GameState, GameAction } from '@shared';
 import type { PlayerRole } from '@server/GameRoom';
 import { HexBoard } from '../game/board/HexBoard';
-import { PlayerSidebar } from '../game/layout/PlayerSidebar';
+import { PlayerSidebar } from '../game/layout/panel/player/PlayerSidebar';
 import { RightPanel } from '../game/layout/RightPanel';
 import { AlertPanel, useAlerts } from '../game/layout/AlertPanel';
 
@@ -23,8 +23,8 @@ export function DeploymentScreen({ state, sendAction, role, selectedInfo, onInfo
     if (role.role !== 'player') {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">
-                <div className="text-xl font-bold">Despliegue</div>
-                <div className="text-zinc-400">Esperando a que los jugadores desplieguen...</div>
+                <div className="text-xl font-bold">{l('deploy.title')}</div>
+                <div className="text-zinc-400">{l('ui.waitingDeploy')}</div>
             </div>
         );
     }

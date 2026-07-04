@@ -107,7 +107,7 @@ export function applyFormationModifiers(state: GameState, playerId: PlayerId): G
         const inTriangulo = trianguloUnits.has(uid) && !alreadyTriangulo.has(uid);
 
         if (inLinea) {
-            s = addModifier(s, playerId, uid, 'damage', -1, 'ADD', 1, 1, 'formation', 'Línea');
+            s = addModifier(s, playerId, uid, 'defense', 1, 'ADD', 1, 1, 'formation', 'Línea');
             // Override the auto-generated ID with a formation-specific one
             const last = s.activeModifiers[s.activeModifiers.length - 1];
             if (last) {

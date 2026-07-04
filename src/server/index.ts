@@ -77,7 +77,9 @@ const httpServer = createServer((req, res) => {
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ['http://localhost:3001', 'http://localhost:5173', clientUrl].filter(Boolean),
+        origin: (_origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+            callback(null, true);
+        },
         credentials: true,
     }
 });
@@ -87,7 +89,6 @@ const io = new Server(httpServer, {
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next();
-
     try {
         const decoded = jwt.verify(token, AUTH_SECRET) as { id: string; username: string };
         socket.data.userId = decoded.id;
@@ -109,6 +110,18 @@ io.on('connection', socket => {
         const room = getRoom(gameId);
         socket.join(gameId);
         socket.data.gameId = gameId;
+
+        if (!room.onTimerTick) {
+            room.onTimerTick = (info, pausedInfo) => {
+                io.to(gameId).emit('TIMER', { active: info, paused: pausedInfo ?? null });
+            };
+        }
+
+        if (!room.onStateChanged) {
+            room.onStateChanged = (state) => {
+                io.to(gameId).emit('STATE', state);
+            };
+        }
 
         if (matchType === 'ranked' || matchType === 'quickplay') {
             room.setMatchType(matchType);
@@ -138,9 +151,10 @@ io.on('connection', socket => {
 
         socket.emit('STATE', room.getCurrentState());
 
-        // Cuando ambos jugadores están conectados, notificar a todos
+        // Cuando ambos jugadores están conectados, notificar a todos y arrancar timer
         if (room.getPlayerCount() === 2) {
             io.to(gameId).emit('BOTH_PLAYERS_READY');
+            room.refreshTimer();
 
             if (!room.onGameOverCallback) {
                 const userIdMapping = room.getUserIdMapping();
@@ -176,16 +190,25 @@ io.on('connection', socket => {
 
         if (!room.isPlayer(socket.id, playerId)) return;
 
-        const newState = room.handleAction(action, playerId);
-
-        io.to(gameId).emit('STATE', newState);
+        room.handleAction(action, playerId);
     });
 
     socket.on('SURRENDER', ({ gameId, playerId }) => {
         const room = getRoom(gameId);
         if (!room.isPlayer(socket.id, playerId)) return;
-        const newState = room.handleAction({ type: 'SURRENDER', playerId }, playerId);
-        io.to(gameId).emit('STATE', newState);
+        room.handleAction({ type: 'SURRENDER', playerId }, playerId);
+    });
+
+    socket.on('DISMISS_REVEAL', ({ gameId, playerId }) => {
+        const room = getRoom(gameId);
+        if (!room.isPlayer(socket.id, playerId)) return;
+        room.handleRevealDismiss(playerId);
+    });
+
+    socket.on('DISMISS_ROLL_RESULT', ({ gameId, playerId }) => {
+        const room = getRoom(gameId);
+        if (!room.isPlayer(socket.id, playerId)) return;
+        room.handleRollResultDismiss(playerId);
     });
 
     socket.on('LEAVE_GAME', ({ gameId }) => {

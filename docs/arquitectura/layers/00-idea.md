@@ -7,6 +7,7 @@ por ahora he pensado en estas capas pero puedes recomendarme otras que considere
 3. capa de acciones: se encarga de interaciones del usuario como selecciones de elementos y activacion habilidades o cartas
 4. capa de animaciones: aun no hay animaciones ni particulas implementadas pero al ejecutar acciones se debe llamar a esta capa 
 5. capa de labels: el juego se presentará en distintos idiomas, por lo que tener esta capa simplifica las traducciones
+6. capa de sonido: gestiona efectos de sonido y música, desacoplada del motor de audio (Web Audio API / Howler.js)
 
 cada capa trabaja con las otras para lograr los objetivos del juego pero estan desacopladas, facilitando su mantencion, incorporacion de nuevas funcionalidades, animaciones y diseño grafico
 

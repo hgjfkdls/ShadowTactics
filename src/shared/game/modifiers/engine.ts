@@ -112,7 +112,7 @@ export function modifierExists(state: GameState, stat: string): boolean {
 // Para Espejo: recordar quién puso el último debuff
 export function getLastDebuffSource(state: GameState): PlayerId | null {
     const debuffs = state.activeModifiers.filter(m =>
-        ['movementCost', 'damage', 'attackCost', 'bloqueo', 'ap'].includes(m.stat)
+        ['movementCost', 'damage', 'attackCost', 'actionCost', 'bloqueo', 'ap'].includes(m.stat)
     );
     if (debuffs.length === 0) return null;
     return debuffs[debuffs.length - 1].sourcePlayerId;
@@ -121,13 +121,12 @@ export function getLastDebuffSource(state: GameState): PlayerId | null {
 export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId): GameState {
     let mods = state.activeModifiers
         .map(m => {
-            // Decrementar remainingTurns para modificadores que aplican al jugador
-            if (m.remainingTurns > 0) {
+            if (m.remainingTurns !== undefined && m.remainingTurns > 0) {
                 return { ...m, remainingTurns: m.remainingTurns - 1 };
             }
             return m;
         })
-        .filter(m => m.remainingTurns >= 0);
+        .filter(m => m.remainingTurns === undefined || m.remainingTurns >= 0);
 
     // Limpiar expirados
     mods = mods.filter(m => !(m.remainingUses !== undefined && m.remainingUses <= 0));

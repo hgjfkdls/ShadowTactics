@@ -34,52 +34,52 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
         <aside className="h-full border-r border-zinc-700 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="border-b border-zinc-700 p-3 space-y-1">
-                <h2 className="text-lg font-bold">Despliegue</h2>
+                <h2 className="text-lg font-bold">{l('deploy.title')}</h2>
                 <div className="text-xs text-zinc-400">
-                    Paso {step + 1} / 12
+                    {l('deploy.step', { step: step + 1 })}
                     {isMyTurn
-                        ? ` — Colocas ${step === 0 || step === 11 ? '1' : '2'} unidad(es)`
-                        : ' — Esperando oponente...'}
+                        ? ` — ${step === 0 || step === 11 ? l('deploy.placingOne') : l('deploy.placingTwo')}`
+                        : l('ui.waitingOpponentShort')}
                 </div>
             </div>
 
             {/* Panel A — Player info */}
             <div className="border-b border-zinc-700 p-3 space-y-2">
-                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Tu información</div>
+                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('ui.yourInfo')}</div>
                 <div className="flex items-center gap-2">
                     <div className="text-lg">🛡️</div>
                     <div>
                         <div className="text-sm font-bold">{getIdentityName(player?.selectedIdentity)}</div>
-                        <div className="text-xs text-zinc-400">Jugador {playerId}</div>
+                        <div className="text-xs text-zinc-400">{l('ui.playerLabel', { n: playerId === 'p1' ? '1' : '2' })}</div>
                     </div>
                 </div>
                 <div className="space-y-1 text-xs">
                     {state.activePlayer === playerId ? (
-                        <div className="text-green-400 font-semibold">✅ Eres el jugador activo</div>
+                        <div className="text-green-400 font-semibold">{l('ui.activePlayer', { player: 'tú' })}</div>
                     ) : (
-                        <div className="text-zinc-500">Jugador activo: {state.activePlayer === opponentId ? 'oponente' : `P${state.activePlayer}`}</div>
+                        <div className="text-zinc-500">{l('ui.activePlayer', { player: state.activePlayer === opponentId ? l('ui.oponente') : l('ui.playerShort', { id: state.activePlayer }) })}</div>
                     )}
                     {isMyTurn ? (
-                        <div className="text-yellow-400 font-semibold">⏳ Desplegando ahora</div>
+                        <div className="text-yellow-400 font-semibold">{l('deploy.deployingNow')}</div>
                     ) : (
-                        <div className="text-zinc-500">Despliega: {state.currentDeployingPlayer === opponentId ? 'oponente' : `P${state.currentDeployingPlayer}`}</div>
+                        <div className="text-zinc-500">{l('deploy.deployer', { player: state.currentDeployingPlayer === opponentId ? l('ui.oponente') : l('ui.playerShort', { id: state.currentDeployingPlayer }) })}</div>
                     )}
-                    <div className="text-zinc-400">Unidades: {deployedCount} / 11</div>
+                    <div className="text-zinc-400">{l('deploy.count', { placed: deployedCount, remaining: 11 - deployedCount })}</div>
                 </div>
             </div>
 
             {/* Panel A — Opponent info */}
             <div className="border-b border-zinc-700 p-3 space-y-2">
-                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Oponente</div>
+                <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('ui.oponente')}</div>
                 <div className="flex items-center gap-2">
                     <div className="text-lg">🛡️</div>
                     <div>
                         <div className="text-sm font-bold">{getIdentityName(opponent?.selectedIdentity)}</div>
-                        <div className="text-xs text-zinc-400">Jugador {opponentId}</div>
+                        <div className="text-xs text-zinc-400">{l('ui.playerLabel', { n: opponentId })}</div>
                     </div>
                 </div>
                 <div className="space-y-1 text-xs">
-                    <div className="text-zinc-400">Unidades: {opponentDeployedCount} / 11</div>
+                    <div className="text-zinc-400">{l('deploy.count', { placed: opponentDeployedCount, remaining: 11 - opponentDeployedCount })}</div>
                 </div>
             </div>
 
@@ -87,12 +87,12 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
             <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="p-3 border-b border-zinc-700">
                     <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                        Tus unidades ({pool.length} restantes de 13)
+                        Tus unidades ({pool.length} {l('deploy.remaining', { n: pool.length })})
                     </div>
                 </div>
 
                 {pool.length === 0 ? (
-                    <div className="text-xs text-zinc-600 text-center py-4">Todas las unidades colocadas</div>
+                    <div className="text-xs text-zinc-600 text-center py-4">{l('deploy.allPlaced')}</div>
                 ) : (
                     <div className="flex-1 overflow-y-auto p-2">
                         <div className="grid grid-cols-3 gap-2">
@@ -122,7 +122,7 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
 
                         {selectedUnitId && (
                             <div className="mt-3 text-xs text-green-400 text-center">
-                                ✅ Haz clic en un hexágono válido para desplegar {selectedUnitId}
+                                {l('ui.clickHexDeploy', { unitId: selectedUnitId })}
                             </div>
                         )}
                     </div>

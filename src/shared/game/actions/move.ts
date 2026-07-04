@@ -4,7 +4,7 @@ import { hexDistance } from '../../hex';
 import { pipeState, isHexOccupied, isWithinBounds, updateUnit } from '../utils';
 import { getMovementCost } from '../movement';
 import { getPlayerAP, consumeAP, updateUnitPos } from './helpers';
-import { consumeModifier, addModifier } from '../modifiers/engine';
+import { consumeModifier, addModifier, getModifierSum } from '../modifiers/engine';
 
 
 export function handleMove(state: GameState, action: GameAction): GameState {
@@ -27,18 +27,19 @@ export function handleMove(state: GameState, action: GameAction): GameState {
 
     const ap = getPlayerAP(state, playerId);
     let cost = getMovementCost(unit, to);
-    const hasSurcharge = (unit.fuegoCoberturaCharges ?? 0) > 0;
-    if (hasSurcharge) {
-        cost += 1;
-    }
     // Modificadores de cartas (SET, ADD, MUL sobre movementCost)
     const movementMods = state.activeModifiers.filter(
         m => m.stat === 'movementCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
     );
+    let hasSet = false;
     for (const m of movementMods) {
-        if (m.operator === 'SET') cost = m.value;
+        if (m.operator === 'SET') { cost = m.value; hasSet = true; }
         else if (m.operator === 'ADD') cost += m.value;
         else if (m.operator === 'MUL') cost *= m.value;
+    }
+    // actionCost se suma después de los modifiers de movementCost (a menos que SET haya overrideado todo)
+    if (!hasSet) {
+        cost += getModifierSum(state, playerId, unit.id, 'actionCost');
     }
 
     if (ap < cost) return state;
@@ -57,11 +58,11 @@ export function handleMove(state: GameState, action: GameAction): GameState {
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnitPos(s, unit.id, to),
         (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, performedActionThisTurn: true })),
-        (s) => hasSurcharge ? updateUnit(s, unit.id, (u) => ({ ...u, fuegoCoberturaCharges: (u.fuegoCoberturaCharges ?? 0) - 1 })) : s,
     );
 
-    // Consumir modificador de movementCost
+    // Consumir modificadores de coste
     s = consumeModifier(s, playerId, 'movementCost', 1);
+    s = consumeModifier(s, playerId, 'actionCost', 1);
 
     const baseCost = getMovementCost(unit, to);
     const moveModsStr: string[] = [];
@@ -73,7 +74,12 @@ export function handleMove(state: GameState, action: GameAction): GameState {
             moveModsStr.push(`Coste: ${m.operator} ${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
         }
     }
-    if (hasSurcharge) moveModsStr.push('Penalización fuego cobertura: +1 PA');
+    const actionCostMods = state.activeModifiers.filter(
+        m => m.stat === 'actionCost' && m.targetId === unit.id && m.sourcePlayerId === playerId && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
+    );
+    for (const m of actionCostMods) {
+        moveModsStr.push(`${m.sourceName ?? 'Acción'}: +${m.value} PA`);
+    }
     if (useVozBonus) moveModsStr.push('Voz de mando: coste 0');
 
     s = {
@@ -91,6 +97,7 @@ export function handleMove(state: GameState, action: GameAction): GameState {
             cost,
             baseCost,
             modifiers: moveModsStr,
+            configId: 'movimiento',
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
@@ -107,22 +114,31 @@ export function handleMove(state: GameState, action: GameAction): GameState {
                 },
             };
         } else if (useVozBonus) {
-            // Aliado usó el bono → consumir para todos, marcar esta unidad y dar doble bono de Plan de Batalla
-            s = updateUnit(s, unit.id, (u) => ({ ...u, usedVozDeMando: true }));
-            // Dar doble bono: duplicar el valor del modificador de Plan de Batalla existente
-            const existingAttack = s.activeModifiers.find(m => m.targetId === unit.id && m.stat === 'attack' && m.value > 0);
-            const existingDamage = s.activeModifiers.find(m => m.targetId === unit.id && m.stat === 'damage' && m.value < 0);
-            if (existingAttack) {
-                s = { ...s, activeModifiers: s.activeModifiers.map(m => m.id === existingAttack.id ? { ...m, value: m.value + existingAttack.value } : m) };
-            } else if (existingDamage) {
-                s = { ...s, activeModifiers: s.activeModifiers.map(m => m.id === existingDamage.id ? { ...m, value: m.value + existingDamage.value } : m) };
-            }
+            // Aliado usó el bono → consumir y dar +1 ataque y +1 defensa adicionales
+            s = updateUnit(s, unit.id, (u) => ({ ...u, usedVozDeMando: true, vozDeMandoAttackBonus: 1, vozDeMandoDefenseBonus: 1 }));
             s = {
                 ...s,
                 players: {
                     ...s.players,
                     [playerId]: { ...s.players[playerId], vozDeMandoReady: false },
                 },
+                gameHistory: [...s.gameHistory, {
+                    id: `h${s.nextHistoryId}`,
+                    turn: s.turn,
+                    actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                    playerId,
+                    type: 'card' as const,
+                    cardId: 'voz_de_mando',
+                    cardName: 'ability.voz_de_mando.name',
+                    cardType: 'BUFF' as const,
+                    targetId: unit.id,
+                    targetClass: unit.class,
+                    details: '+1 ataque, +1 defensa',
+                    paCost: 0,
+                    sourceClass: 'general',
+                    sourceIdentityKey: 'comandante_supremo',
+                }],
+                nextHistoryId: s.nextHistoryId + 1,
             };
         }
     }

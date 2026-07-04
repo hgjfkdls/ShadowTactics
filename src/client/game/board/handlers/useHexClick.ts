@@ -154,10 +154,11 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
                 }
             } else {
                 sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: pendingAbility.unitId, abilityId: pendingAbility.abilityId, to: hex });
-                setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: pendingAbility.unitId }), 150);
             }
+            const aUid = pendingAbility.unitId;
             setPendingAbility(null);
             setPendingPatadaTargetId(null);
+            setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: aUid }), 150);
         } else if (isAbilityTarget(hex)) {
             const target = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
             if (target && target.owner !== myPlayerId) {
@@ -188,9 +189,9 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
             } else if (cabalgarPath.length > 0 && cabalgarPath.length < maxSteps && isContiguousFree(cabalgarPath[cabalgarPath.length - 1], hex)) {
                 setCabalgarPath([...cabalgarPath, hex]);
             } else if (cabalgarPath.length >= maxSteps) {
-                addAlert?.('Ya seleccionaste la ruta completa. Confirma o cancela.', 'warning');
+                addAlert?.(l('alert.cabalgarFullRoute'), 'warning');
             } else {
-                addAlert?.('Selecciona una casilla adyacente a la unidad', 'warning');
+                addAlert?.(l('alert.selectAdjacentHex'), 'warning');
             }
         } else {
             addAlert?.(l('alert.noValidPosition'), 'warning');
@@ -242,7 +243,7 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
         } else if (pendingCounterEspejoCard) {
             handleCounterEspejo(hex);
         } else if (isIdentityTargetMode && !isIdentityTarget(hex)) {
-            addAlert?.('Selecciona un enemigo que no sea el general', 'warning');
+            addAlert?.(l('alert.selectEnemyNotGeneral'), 'warning');
         } else {
             clearAll();
         }

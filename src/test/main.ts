@@ -3,12 +3,41 @@ import './shared';
 async function main() {
     console.log('=== Shadow Tactics — Test Suite ===\n');
 
-    await import('./hex.test');
-    await import('./game-state.test');
-    await import('./game-preparation.test');
-    await import('./game-actions.test');
-    await import('./game-abilities.test');
-    await import('./game-cards.test');
+    await import('./hex/index.test');
+    await import('./state/index.test');
+    await import('./preparation/index.test');
+
+    await import('./actions/move.test');
+    await import('./actions/attack.test');
+    await import('./actions/cards.test');
+    await import('./actions/turn.test');
+    await import('./actions/modifiers.test');
+
+    await import('./abilities/archer.test');
+    await import('./abilities/cavalry.test');
+    await import('./abilities/infantry.test');
+    await import('./abilities/lancer.test');
+    await import('./abilities/identities/dios_trueno.test');
+    await import('./abilities/identities/caballos_guerra.test');
+    await import('./abilities/identities/escudo_comandante.test');
+    await import('./abilities/identities/monje_shaolin.test');
+    await import('./abilities/identities/punta_lanza.test');
+    await import('./abilities/identities/corazon_estratega.test');
+    await import('./abilities/identities/inspiracion_real.test');
+    await import('./abilities/identities/samurai.test');
+    await import('./abilities/identities/furia_tirano.test');
+    await import('./abilities/identities/robin_hood.test');
+    await import('./abilities/identities/francotirador.test');
+    await import('./abilities/identities/capitan_guardia.test');
+    await import('./abilities/identities/cazadores.test');
+    await import('./abilities/identities/espartano.test');
+    await import('./abilities/identities/comandante_supremo.test');
+
+    await import('./cards/buffs.test');
+    await import('./cards/debuffs.test');
+    await import('./cards/counters.test');
+    await import('./modifiers/index.test');
+    await import('./combat/index.test');
 
     const { getPassed, getFailed } = await import('./shared');
     const passed = getPassed();

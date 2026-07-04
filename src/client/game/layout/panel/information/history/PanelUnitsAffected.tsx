@@ -1,0 +1,105 @@
+import type { GameState } from '@shared';
+import { l } from '@shared/i18n';
+
+function effectLines(entry: any): { text: string; color: string }[] {
+    if (entry.cardId === 'plan_batalla') {
+        const detail = entry.details ?? '';
+        if (detail.startsWith('Avanzar')) return [{ text: `+1 ${l('cat.atk')}`, color: 'text-effect-atk' }];
+        if (detail.startsWith('Reagruparse')) return [{ text: `+1 ${l('cat.def')}`, color: 'text-effect-def' }];
+    }
+    if (entry.cardId === 'liderar_tropas') {
+        const bonus = entry.details?.split(' · ')[0] ?? '+1';
+        return [{ text: `${bonus} ${l('cat.atk')}`, color: 'text-effect-atk' }];
+    }
+    if (entry.cardId === 'en_nombre_del_rey') {
+        return [
+            { text: `+2 ${l('cat.atk')}`, color: 'text-effect-atk' },
+            { text: `${l('aura.shieldName')} +3 HP`, color: 'text-effect-def' },
+        ];
+    }
+    if (entry.cardId === 'angel_guardian') {
+        return [
+            { text: `${l('aura.shieldName')} +2 HP`, color: 'text-effect-def' },
+            { text: '+1 HP', color: 'text-effect-heal' },
+        ];
+    }
+    if (entry.cardId === 'proteger') {
+        return [{ text: `+1 ${l('cat.def')}`, color: 'text-effect-def' }];
+    }
+    if (entry.cardId === 'voz_de_mando') {
+        return [
+            { text: `+1 ${l('cat.atk')}`, color: 'text-effect-atk' },
+            { text: `+1 ${l('cat.def')}`, color: 'text-effect-def' },
+        ];
+    }
+    if (entry.cardId === 'robar_ricos') {
+        return [{ text: '+1 HP', color: 'text-effect-heal' }];
+    }
+    if (entry.cardId === 'rayo_celestial') {
+        return [{ text: `+${entry.details?.match(/\+(\d+)/)?.[1] ?? '3'} ${l('cat.atk')}`, color: 'text-effect-atk' }];
+    }
+    if (entry.cardId === 'meditacion') {
+        return [{ text: `+X HP`, color: 'text-effect-heal' }];
+    }
+    if (entry.cardId === 'lanza_escudo') {
+        const isRange = entry.details?.includes('rango');
+        return isRange ? [{ text: `+1 ${l('cat.range')}`, color: 'text-effect-range' }] : [{ text: `+1 ${l('cat.def')}`, color: 'text-effect-def' }];
+    }
+    return [{ text: '?', color: 'text-effect-diff' }];
+}
+
+export default function PanelUnitsAffected({ entry, state }: { entry: any; state: GameState }) {
+    const cls2 = (c: string) => l(`unit.class.${c}`) ?? c;
+    return (
+        <div className="bg-panel-sub-bg border border-panel-sub-border rounded-lg p-3 space-y-1.5 text-sm">
+            <div className="text-xs font-semibold text-panel-title uppercase tracking-wide mb-1">{l('cardDetail.unitsAffected')}</div>
+            {(() => {
+                type Row = { id: string; clsName: string; lines: { text: string; color: string }[]; isCounter?: boolean; owner?: string };
+                const rows: Row[] = [];
+
+                if (entry.hit !== undefined) {
+                    if (!entry.hit && entry.counterDamage > 0) {
+                        const a = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === entry.attackerId);
+                        rows.push({ id: entry.attackerId, clsName: a ? cls2(a.class) : cls2(entry.attackerClass), lines: [{ text: `-${entry.counterDamage} HP`, color: 'text-effect-dmg' }], isCounter: true, owner: a?.owner });
+                    }
+                    if (entry.hit && entry.damage > 0) {
+                        const d = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === entry.targetId);
+                        rows.push({ id: entry.targetId, clsName: d ? cls2(d.class) : cls2(entry.targetClass), lines: [{ text: `-${entry.damage} HP`, color: 'text-effect-dmg' }], isCounter: false, owner: d?.owner });
+                    }
+                } else {
+                    for (const eid of (entry.enemiesHit ?? [])) {
+                        const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === eid);
+                        rows.push({ id: eid, clsName: u ? cls2(u.class) : '?', lines: effectLines(entry), owner: u?.owner });
+                    }
+                    for (const aid of (entry.alliesHit ?? [])) {
+                        const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === aid);
+                        rows.push({ id: aid, clsName: u ? cls2(u.class) : '?', lines: effectLines(entry), owner: u?.owner });
+                    }
+                    if (rows.length === 0 && entry.targetId) {
+                        const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === entry.targetId);
+                        rows.push({ id: entry.targetId, clsName: u ? cls2(u.class) : cls2(entry.targetClass), lines: effectLines(entry), owner: u?.owner });
+                    }
+                }
+
+                return rows.map(r => {
+                    const ownerCls = r.owner === 'p1' ? 'text-player1' : r.owner === 'p2' ? 'text-player2' : 'text-zinc-300';
+                    const inner = (
+                        <div className="flex items-start justify-between gap-3">
+                            <span className={ownerCls}>[{r.id}] {r.clsName}</span>
+                            <div className="space-y-0.5 text-right">
+                                {r.lines.map((l, i) => (
+                                    <div key={i} className={`${entry.hit !== undefined ? 'font-bold' : ''} ${l.color}`}>{l.text}</div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                    if (entry.hit !== undefined) {
+                        const cardCls = r.isCounter ? 'bg-miss-bg border border-miss-border' : 'bg-hit-bg border border-hit-border';
+                        return <div key={r.id} className={`rounded-lg p-3 mt-0.5 ${cardCls}`}>{inner}</div>;
+                    }
+                    return <div key={r.id}>{inner}</div>;
+                });
+            })()}
+        </div>
+    );
+}

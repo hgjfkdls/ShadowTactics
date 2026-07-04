@@ -6,6 +6,7 @@ import { updateUnit } from '../utils';
 import { processModifiersAtTurnStart, addModifier } from '../modifiers/engine';
 import { applyFormationModifiers } from '../formations';
 import { BASE_STATS } from '../units';
+import { getAuraBuffs, AURA_CONFIG } from '../aura';
 
 export function handleEndTurn(state: GameState, action: GameAction): GameState {
     if (action.type !== 'END_TURN') return state;
@@ -31,8 +32,8 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
                     ...u,
                     didMovePreviousTurn: u.movedThisTurn ?? false,
                     movedThisTurn: false,
-                    fuegoCoberturaCharges: undefined,
                     espartanoRangeBonus: false,
+                    auraShield: 0,
                     ataqueExtraCharges: 0,
                     precisionCharges: 0,
                 };
@@ -45,9 +46,11 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
         if (m.stat === 'ap') return true;
         if (m.stat === 'movementCost') return false;
         if (m.stat === 'damage' && !m.targetId) return false;
-        if (m.stat === 'attackCost') return false;
+        if (m.stat === 'attackCost' && !m.targetId) return false;
+        if (m.stat === 'actionCost') return false;
         if (m.stat === 'bloqueo') return false;
         if (m.stat === 'dotOnHit') return false;
+
         return true;
     });
 
@@ -77,7 +80,8 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
             [currentPlayer]: {
                 ...state.players[currentPlayer],
                 carryOver,
-                globalPresionActive: false,
+                liderarAtaqueBonus: undefined,
+                lastMeditacion: undefined,
             },
             [nextPlayer]: {
                 ...state.players[nextPlayer],
@@ -86,10 +90,10 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
         }
     };
 
-    // Monje Shaolin: si el General no actuó este turno, recibe -1 daño en el turno del rival
+    // Monje Shaolin: si no usó meditación activa, recibe +1 defensa en el turno del rival
     const identity = state.players[currentPlayer]?.selectedIdentity ?? '';
-    if (identity.startsWith('monje_shaolin') && !generalActedThisTurn && general) {
-        const afterMod = addModifier(newState, currentPlayer, general.id, 'damage', -1, 'ADD', 1, 1, 'identity', 'Meditación');
+    if (identity.startsWith('monje_shaolin') && !state.lastMeditacion && general) {
+        const afterMod = addModifier(newState, currentPlayer, general.id, 'defense', 1, 'ADD', 1, undefined, 'identity', 'Meditación');
         return applyTurnStart(afterMod, nextPlayer);
     }
 
@@ -110,13 +114,16 @@ function resetUnitTracking(unit: Unit): Unit {
         usedFuegoCobertura: false,
         usedAccionEvasiva: false,
         hasCargaBonus: false,
-        usedCounterattack: false,
+
         usedTorbellino: false,
         performedActionThisTurn: false,
         usedPosicionEstrategica: false,
         usedVozDeMando: false,
         usedEnNombreDelRey: false,
         usedDesenvainadoVeloz: false,
+        usedRayoCelestial: false,
+        usedAngelGuardian: false,
+        aLaCargaActive: false,
     };
 }
 
@@ -218,17 +225,6 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
         };
     }
 
-    // Capitán de la Guardia: activar Presión global si estaba pendiente
-    if (newState.players[playerId]?.nextTurnGlobalPresion) {
-        newState = {
-            ...newState,
-            players: {
-                ...newState.players,
-                [playerId]: { ...newState.players[playerId], globalPresionActive: true, nextTurnGlobalPresion: false },
-            },
-        };
-    }
-
     // Corazón de Estratega: evaluar formaciones tácticas
     if (identity.startsWith('corazon_estratega')) {
         newState = applyFormationModifiers(newState, playerId);
@@ -240,24 +236,18 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
         activeModifiers: newState.activeModifiers.filter(m => !m.id.startsWith('guardia_')),
     };
 
-    // Limpiar efectos de En nombre del rey si es turno del jugador con inspiracion_real
+    // Limpiar efectos de escudo de En nombre del rey
     if (identity.startsWith('inspiracion_real')) {
         let uu = { ...newState.units };
         for (const id of Object.keys(uu)) {
             const u = uu[id];
             if (u.owner === playerId) {
-                const origAtk = BASE_STATS[u.class].attack;
                 let updated = { ...u };
-                // Revertir escudo real: si aun tiene HP extra, volver al HP guardado
                 if (u.royalShieldSavedHp !== undefined) {
                     if (u.hp > u.royalShieldSavedHp) {
                         updated.hp = u.royalShieldSavedHp;
                     }
                     updated.royalShieldSavedHp = undefined;
-                }
-                // Restaurar ataque base
-                if (u.attack !== origAtk) {
-                    updated.attack = origAtk;
                 }
                 uu[id] = updated;
             }
@@ -272,7 +262,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             for (const u of Object.values(newState.units)) {
                 if (u.owner !== playerId || u.class === 'general') continue;
                 if (hexDistance(general.position, u.position) === 1) {
-                    newState = addModifier(newState, playerId, u.id, 'attack', 1, 'ADD', 0, 1, 'identity', 'Inspiración Real');
+                    newState = addModifier(newState, playerId, u.id, 'attack', 1, 'ADD', 0, 1, 'identity', 'Guardia real');
                     const last = newState.activeModifiers[newState.activeModifiers.length - 1];
                     if (last) {
                         newState = { ...newState, activeModifiers: newState.activeModifiers.map((m, i) =>
@@ -293,7 +283,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             for (const u of Object.values(newState.units)) {
                 if (u.owner !== otherPlayerId || u.class === 'general') continue;
                 if (hexDistance(otherGeneral.position, u.position) === 1) {
-                    newState = addModifier(newState, otherPlayerId, u.id, 'damage', -1, 'ADD', 0, 1, 'identity', 'Inspiración Real');
+                    newState = addModifier(newState, otherPlayerId, u.id, 'defense', 1, 'ADD', 0, 1, 'identity', 'Guardia real');
                     const last = newState.activeModifiers[newState.activeModifiers.length - 1];
                     if (last) {
                         newState = { ...newState, activeModifiers: newState.activeModifiers.map((m, i) =>
@@ -307,22 +297,24 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
 
     // Comandante Supremo: limpiar modificadores de Plan de Batalla del turno anterior
     if (identity.startsWith('comandante_supremo')) {
+        // Limpiar bonuses de plan anterior y Voz de mando de todas las unidades
+        let uu = { ...newState.units };
+        for (const id of Object.keys(uu)) {
+            if (uu[id].owner === playerId) {
+                uu[id] = { ...uu[id], vozDeMandoAttackBonus: undefined, vozDeMandoDefenseBonus: undefined };
+            }
+        }
         newState = {
             ...newState,
-            activeModifiers: newState.activeModifiers.filter(m => {
-                if (m.sourcePlayerId !== playerId) return true;
-                if (m.targetId === undefined) return true;
-                if (m.remainingUses === undefined) return true;
-                if (m.stat === 'attack' && m.value > 0) return false;
-                if (m.stat === 'damage' && m.value < 0) return false;
-                return true;
-            }),
-        };
-        newState = {
-            ...newState,
+            units: uu,
             players: {
                 ...newState.players,
-                [playerId]: { ...newState.players[playerId], pendingPlanBatalla: true },
+                [playerId]: {
+                    ...newState.players[playerId],
+                    planBatallaBonus: undefined,
+                    planBatallaDefense: undefined,
+                    pendingPlanBatalla: true,
+                },
             },
         };
     }
@@ -345,7 +337,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
         if (!newState.players[playerId]?.protegerUsedThisTurn) {
             const general = Object.values(newState.units).find(u => u.owner === playerId && u.class === 'general');
             if (general) {
-                newState = addModifier(newState, playerId, general.id, 'damage', -1, 'ADD', 0, 1, 'identity', 'Escudo del Comandante');
+                newState = addModifier(newState, playerId, general.id, 'defense', 1, 'ADD', 0, undefined, 'identity', 'Escudo del Comandante');
             }
         }
         newState = {
@@ -355,6 +347,21 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
                 [playerId]: { ...newState.players[playerId], protegerUsedThisTurn: false },
             },
         };
+    }
+
+    // Aura de mando: regenerar escudo al inicio del turno
+    if (AURA_CONFIG.isActive) {
+        const general = Object.values(newState.units).find(u => u.owner === playerId && u.class === 'general');
+        if (general) {
+            const buffs = getAuraBuffs(newState, playerId);
+            newState = {
+                ...newState,
+                units: {
+                    ...newState.units,
+                    [general.id]: { ...general, auraShield: buffs.shieldPoints },
+                },
+            };
+        }
     }
 
     // Si la mano supera 3 cartas, el jugador debe descartar antes de salir de DRAW

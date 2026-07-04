@@ -2,6 +2,7 @@ import type { GameState, Unit, UnitId } from '../state';
 import { hexDistance } from '../../hex';
 import { addModifier } from '../modifiers/engine';
 import { updateUnit } from '../utils/helpers';
+import { ABILITY_CONFIG } from '../data/ability-config';
 
 function killUnit(state: GameState, unitId: string, killerId?: string): GameState {
     const unit = state.units[unitId];
@@ -35,10 +36,10 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
             newState = dealDamage(newState, killerId, 2);
             newState = {
                 ...newState,
-                gameHistory: [...newState.gameHistory, {
+                karmaEntryToAppend: {
                     id: `h${newState.nextHistoryId}`,
                     turn: newState.turn,
-                    actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+                    actionNumber: 0, // will be set when appended
                     playerId: unit.owner,
                     type: 'ability' as const,
                     abilityId: 'karma',
@@ -50,8 +51,7 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
                     hit: true,
                     damage: 2,
                     paCost: 0,
-                }],
-                nextHistoryId: newState.nextHistoryId + 1,
+                },
             };
         }
 
@@ -63,6 +63,7 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
 
             const samIdentity = state.players[killerOwner]?.selectedIdentity ?? '';
             if (samIdentity.startsWith('samurai') && !state.players[killerOwner]?.caminoDelGuerreroUsedThisTurn && dist === 1) {
+                const cfg = ABILITY_CONFIG['camino_del_guerrero'];
                 newState = {
                     ...newState,
                     lastCaminoDelGuerrero: true,
@@ -74,6 +75,22 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
                             caminoDelGuerreroUsedThisTurn: true,
                         },
                     },
+                    gameHistory: [...newState.gameHistory, {
+                        id: `h${newState.nextHistoryId}`,
+                        turn: newState.turn,
+                        actionNumber: newState.gameHistory.filter((h: any) => h.turn === newState.turn).length + 1,
+                        playerId: killerOwner,
+                        type: 'card' as const,
+                        cardId: 'camino_del_guerrero',
+                        cardName: cfg?.nameKey ?? 'Camino del guerrero',
+                        cardType: 'BUFF' as const,
+                        details: '+1 PA',
+                        paCost: 0,
+                        sourceClass: killerUnit.class,
+                        sourceIdentityKey: 'samurai',
+                        configId: 'camino_del_guerrero',
+                    }],
+                    nextHistoryId: newState.nextHistoryId + 1,
                 };
             }
 
@@ -97,13 +114,21 @@ function killUnit(state: GameState, unitId: string, killerId?: string): GameStat
     return newState;
 }
 
-export function dealDamage(state: GameState, unitId: string, damage: number): GameState {
+export function dealDamage(state: GameState, unitId: string, damage: number, killerId?: string): GameState {
     const unit = state.units[unitId];
     if (!unit) return state;
-    const newHp = unit.hp - damage;
-    let newState = updateUnit(state, unitId, (u) => ({ ...u, hp: newHp }));
+
+    // Consumir escudo del aura antes que HP
+    const shield = unit.auraShield ?? 0;
+    if (shield >= damage) {
+        return updateUnit(state, unitId, (u) => ({ ...u, auraShield: shield - damage }));
+    }
+    const remaining = damage - shield;
+
+    const newHp = unit.hp - remaining;
+    let newState = updateUnit(state, unitId, (u) => ({ ...u, hp: newHp, auraShield: 0 }));
     if (newHp <= 0) {
-        newState = killUnit(newState, unitId);
+        newState = killUnit(newState, unitId, killerId);
     }
     return newState;
 }
