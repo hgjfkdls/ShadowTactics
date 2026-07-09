@@ -42,7 +42,6 @@ export function handleIdentityAbility(state: GameState, action: GameAction): Gam
             modifiers: [],
             paCost: 0,
             configId: 'en_la_mira',
-            sourceClass: 'general',
             sourceIdentityKey: identityKey,
         }],
         nextHistoryId: s.nextHistoryId + 1,

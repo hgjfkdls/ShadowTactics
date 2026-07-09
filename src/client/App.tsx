@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
 import { HexBoard } from './game/board/HexBoard';
+import { HexBoard3D } from './game/board3d/HexBoard3D';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
 import { PlayerSidebar } from './game/layout/panel/player/PlayerSidebar';
@@ -12,6 +13,8 @@ import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
 import { DisconnectModal } from './game/layout/DisconnectModal';
+import { ModelViewer } from './tools/ModelViewer';
+import { BoardEditor } from './board/BoardEditor';
 import { l } from '@shared/i18n';
 
 type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
@@ -46,6 +49,27 @@ export function App() {
     const [prepDone, setPrepDone] = useState(false);
     const [selectedInfo, setSelectedInfo] = useState<SelectedInfo>(null);
     const [confirmLeave, setConfirmLeave] = useState(false);
+    const [renderMode, setRenderMode] = useState<'svg' | 'three'>('svg');
+    const [cameraMode, setCameraMode] = useState<'perspective' | 'orthographic'>('orthographic');
+    const [modelKey, setModelKey] = useState(0);
+    const reloadModels = useCallback(() => {
+      setModelKey(k => k + 1);
+    }, []);
+    const [previewClass, setPreviewClass] = useState<string | null>(() => {
+      const match = window.location.pathname.match(/^\/models\/(archer|infantry|cavalry|lancer|general)$/);
+      return match ? match[1] : null;
+    });
+    const [isBoardEditor, setIsBoardEditor] = useState(() => window.location.pathname === '/board');
+
+    useEffect(() => {
+      function onPopState() {
+        const match = window.location.pathname.match(/^\/models\/(archer|infantry|cavalry|lancer|general)$/);
+        setPreviewClass(match ? match[1] : null);
+        setIsBoardEditor(window.location.pathname === '/board');
+      }
+      window.addEventListener('popstate', onPopState);
+      return () => window.removeEventListener('popstate', onPopState);
+    }, []);
     const { alerts, addAlert, removeAlert } = useAlerts();
 
     // Auto-join desde URL: /game/<id>?userId=...&matchType=...
@@ -111,9 +135,16 @@ export function App() {
         }
     }, [state?.lastMeditacion]);
 
+    if (isBoardEditor) {
+        return <BoardEditor />;
+    }
+    if (previewClass) {
+        return <ModelViewer modelClass={previewClass} />;
+    }
+
     return (
         <KeyBindingsProvider>
-        <AnimationProvider>
+        <AnimationProvider renderMode={renderMode}>
         <div key={localeKey} className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr] overflow-hidden">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
@@ -122,7 +153,27 @@ export function App() {
                         [{gameId} · {role?.role ?? 'unknown'}
                         {role?.role === 'player' && ` (${role.playerId})`}]
                     </div>
-                    <div className="ml-auto">
+                    <button
+                        className="ml-auto text-xs bg-zinc-700 hover:bg-zinc-600 transition px-2 py-1 rounded mr-2 cursor-pointer"
+                        onClick={() => setRenderMode(m => m === 'svg' ? 'three' : 'svg')}
+                    >
+                        {renderMode === 'svg' ? '3D' : '2D'}
+                    </button>
+                    {renderMode === 'three' && (<>
+                    <button
+                        className="text-xs bg-zinc-700 hover:bg-zinc-600 transition px-2 py-1 rounded mr-2 cursor-pointer"
+                        onClick={() => setCameraMode(m => m === 'orthographic' ? 'perspective' : 'orthographic')}
+                    >
+                        {cameraMode === 'orthographic' ? 'Persp' : 'Isom'}
+                    </button>
+                    <button
+                        className="text-xs bg-zinc-700 hover:bg-zinc-600 transition px-2 py-1 rounded mr-2 cursor-pointer"
+                        onClick={reloadModels}
+                    >
+                        Reload 3D
+                    </button>
+                    </>)}
+                    <div>
                         <HamburgerMenu
                             onLeaveGame={() => setConfirmLeave(true)}
                             onSurrender={state && state.gamePhase === 'GAME' && role?.role === 'player' ? () => sendAction({ type: 'SURRENDER', playerId }) : undefined}
@@ -194,6 +245,7 @@ export function App() {
                             sendAction={sendAction}
                         />
                         <main className="relative overflow-hidden">
+                            {renderMode === 'svg' ? (
                             <HexBoard
                                 state={state}
                                 sendAction={sendAction}
@@ -203,6 +255,19 @@ export function App() {
                                 addAlert={addAlert}
                                 disableInput={!!opponentDisconnectedAt}
                             />
+                            ) : (
+                            <HexBoard3D
+                                key={modelKey}
+                                state={state}
+                                sendAction={sendAction}
+                                playerId={playerId}
+                                selectedInfo={selectedInfo}
+                                onInfoSelect={setSelectedInfo}
+                                addAlert={addAlert}
+                                disableInput={!!opponentDisconnectedAt}
+                                cameraMode={cameraMode}
+                            />
+                            )}
                             {role?.role === 'player' && state.gamePhase === 'GAME' && (
                                 <EndTurnBtn role={role} state={state} sendAction={sendAction} />
                             )}
