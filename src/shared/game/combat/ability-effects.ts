@@ -1,10 +1,16 @@
 import type { GameState, Unit } from '../state';
 import type { AttackInput } from './resolver';
-import { getModifierSum } from '../modifiers/engine';
+import { getModifierSum, consumeModifier } from '../modifiers/engine';
 import { dealDamage, updateUnit } from '../utils';
 import { BASE_STATS } from '../units';
 import { hexDistance } from '../../hex';
 import { getAuraBuffs } from '../aura';
+import { ABILITY_CONFIG } from '../data/ability-config';
+import { applyConfigEffectsToCombat, applyConfigEffectsToState, onHpChange } from '../passive';
+import { debugLog } from '../../debug';
+import { initDebug } from '../../debug';
+
+initDebug();
 
 export type CombatResult = {
     difficulty: number;
@@ -33,82 +39,6 @@ type AbilityHandler = {
 };
 
 const ABILITY_EFFECTS: Record<string, AbilityHandler> = {
-    blanco_facil: {
-        onDifficulty: (ctx, r) => {
-            if (ctx.abilitySide !== 'attacker') return;
-            if (ctx.defender.didMovePreviousTurn === false) {
-                const ownerId = ctx.attacker.owner;
-                const identity = ctx.state.players[ownerId]?.selectedIdentity ?? '';
-                const isFrancotirador = identity.startsWith('francotirador');
-                r.difficulty -= isFrancotirador ? 2 : 1;
-            }
-        },
-    },
-    anti_caballeria: {
-        onDamage: (ctx, r) => {
-            // Solo bonifica ataque básico (no habilidades)
-            const isBasicAttack = !ctx.ctx.configId || ctx.ctx.configId === 'ataque_basico';
-            if (!isBasicAttack) return;
-            if (ctx.defender.class === 'cavalry' || (ctx.defender.class === 'general' && (ctx.state.players[ctx.defender.owner]?.selectedIdentity ?? '').match(/^(caballos_guerra|cazadores)/))) r.damage += 1;
-        },
-    },
-    presion: {
-        onDamage: (ctx, r) => {
-            if (ctx.attacker.lastTargetId === ctx.defender.id) r.damage += 1;
-        },
-        onPostHit: (ctx, s, hit) => {
-            if (!hit) return s;
-            return updateUnit(s, ctx.attacker.id, (u) => ({ ...u, lastTargetId: ctx.defender.id }));
-        },
-    },
-    formacion_defensiva: {
-        onDifficulty: (ctx, r) => {
-            // Anula el -1 dificultad de Carga
-            if (ctx.ctx.configId === 'carga') r.difficulty += 1;
-        },
-        onDefense: (ctx, r) => {
-            // Anula el +1 ataque de Carga (defensor)
-            if (ctx.abilitySide === 'defender' && ctx.ctx.configId === 'carga') r.damage -= 1;
-        },
-        onPostHit: (ctx, s, hit) => {
-            if (ctx.ctx.configId !== 'carga' || hit) return s;
-            return dealDamage(s, ctx.attacker.id, 1);
-        },
-    },
-    resistencia: {
-        onDefense: (ctx, r) => {
-            if (r.ignoresPassives) return;
-            if (ctx.abilitySide !== 'defender') return;
-            if ((ctx.defender.timesDamagedThisTurn ?? 0) !== 0) return;
-            // Si también tiene Línea defensiva y cumple su condición, no se acumulan
-            if ((ctx.defender.abilities ?? []).includes('linea_defensiva') && ctx.defender.didMovePreviousTurn === false) return;
-            r.damage -= 1;
-        },
-        onPostHit: (ctx, s, hit) => {
-            if (!hit) return s;
-            return updateUnit(s, ctx.defender.id, (u) => ({
-                ...u, timesDamagedThisTurn: (u.timesDamagedThisTurn ?? 0) + 1
-            }));
-        },
-    },
-    linea_defensiva: {
-        onDefense: (ctx, r) => {
-            if (r.ignoresPassives) return;
-            if (ctx.abilitySide !== 'defender') return;
-            if (ctx.defender.didMovePreviousTurn === false) r.damage -= 1;
-        },
-        onPostHit: (ctx, s, hit) => {
-            if (!hit) return s;
-            return updateUnit(s, ctx.defender.id, (u) => ({
-                ...u, timesDamagedThisTurn: (u.timesDamagedThisTurn ?? 0) + 1
-            }));
-        },
-    },
-    romper_filas: {
-        onDefense: (_ctx, r) => {
-            r.ignoresPassives = true;
-        },
-    },
     doble_ataque: {
     },
     patada_acrobatica: {
@@ -132,19 +62,12 @@ export function applyDifficultyAbilities(ctx: AbilityContext, result: CombatResu
     for (const ability of ctx.defender.abilities ?? []) {
         ABILITY_EFFECTS[ability]?.onDifficulty?.({ ...ctx, abilitySide: 'defender' }, result);
     }
+    // Only apply difficulty modifiers allowed by the ability config
+    const cfgId = ctx.ctx?.configId;
+    const allowed = cfgId ? (ABILITY_CONFIG[cfgId]?.allowedModifiers ?? []) : [];
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
-    result.difficulty += mods.difficulty;
-
-    // Hostigar (Cazadores) — caballería -1 dificultad si objetivo tiene ≤ 50% HP
-    const cazadorIdentity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
-    if (cazadorIdentity.startsWith('cazadores')) {
-        const isCavalryOrGeneral = ctx.attacker.class === 'cavalry' || ctx.attacker.class === 'general';
-        if (isCavalryOrGeneral) {
-            const maxHp = BASE_STATS[ctx.defender.class].hp;
-            if (ctx.defender.hp <= Math.floor(maxHp / 2)) {
-                result.difficulty -= 1;
-            }
-        }
+    if (allowed.includes('difficulty') || !cfgId) {
+        result.difficulty += mods.difficulty;
     }
 
     // Aura de mando: arqueros cerca del general reducen dificultad de sus ataques
@@ -158,63 +81,31 @@ export function applyDifficultyAbilities(ctx: AbilityContext, result: CombatResu
         const buffs = getAuraBuffs(ctx.state, ctx.defender.owner);
         if (buffs.difficultyPenalty > 0) result.difficulty += buffs.difficultyPenalty;
     }
+
+    // Config-driven passive effects (difficulty type)
+
+    applyConfigEffectsToCombat(ctx, result, 'attacker');
+    applyConfigEffectsToCombat(ctx, result, 'defender');
+
 }
 
 export function applyDamageAbilities(ctx: AbilityContext, result: CombatResult): void {
     for (const ability of ctx.attacker.abilities ?? []) {
         ABILITY_EFFECTS[ability]?.onDamage?.({ ...ctx, abilitySide: 'attacker' }, result);
     }
+    const cfgId = ctx.ctx?.configId;
+    const allowed = cfgId ? (ABILITY_CONFIG[cfgId]?.allowedModifiers ?? []) : [];
     const mods = getUnitModifiers(ctx.state, ctx.attacker.owner, ctx.attacker.id);
+    debugLog('applyDamageAbilities: base damage=' + result.damage + ', attackMod=' + mods.attackMod + ', allowed.includes(attack)=' + (allowed.includes('attack') || !cfgId));
     // Ataque saliente: attack modifiers (Avanzar, Mantenimiento de equipo, etc.)
-    result.damage += mods.attackMod;
-
-    // Furia berserker (Dios del Trueno) — general e infantería +1 daño si HP ≤ 50%
-    const identity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
-    if (identity.startsWith('dios_trueno')) {
-        const isInfantryOrGeneral = ctx.attacker.class === 'infantry' || ctx.attacker.class === 'general';
-        if (isInfantryOrGeneral) {
-            const maxHp = BASE_STATS[ctx.attacker.class].hp;
-            if (ctx.attacker.hp <= Math.floor(maxHp / 2)) {
-                result.damage += 1;
-            }
-        }
+    if (allowed.includes('attack') || !cfgId) {
+        result.damage += mods.attackMod;
     }
 
-    // Acechar (Cazadores) — general +2 ataque a aisladas (+1 contra general), caballería mitad (+1, no afecta general)
-    const cazadorIdentity = ctx.state.players[ctx.attacker.owner]?.selectedIdentity ?? '';
-    if (cazadorIdentity.startsWith('cazadores')) {
-        const hasAdjacentAlly = Object.values(ctx.state.units)
-            .some(u => u.owner === ctx.defender.owner && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
-        if (!hasAdjacentAlly) {
-            if (ctx.attacker.class === 'general') {
-                const bonus = ctx.defender.class === 'general' ? 1 : 2;
-                result.damage += bonus;
-            } else if (ctx.attacker.class === 'cavalry' && ctx.defender.class !== 'general') {
-                result.damage += 1;
-            }
-        }
-    }
+	// Config-driven passive effects (attack type)
 
-    // Plan de batalla (Comandante Supremo) — Avanzar: +1 ataque a todas las unidades
-    const planBonus = ctx.state.players[ctx.attacker.owner]?.planBatallaBonus;
-    if (planBonus && planBonus > 0) {
-        result.damage += planBonus;
-    }
-
-    // Voz de mando (Comandante Supremo) — +1 ataque a la unidad beneficiada
-    const vozAtkBonus = ctx.attacker.vozDeMandoAttackBonus;
-    if (vozAtkBonus && vozAtkBonus > 0) {
-        result.damage += vozAtkBonus;
-    }
-
-    // Liderar a las tropas (Capitán de la Guardia) — infantería + general ganan ataque tras ataque del general
-    const liderarBonus = ctx.state.players[ctx.attacker.owner]?.liderarAtaqueBonus;
-    if (liderarBonus && liderarBonus > 0) {
-        const isInfantryOrGeneral = ctx.attacker.class === 'infantry' || ctx.attacker.class === 'general';
-        if (isInfantryOrGeneral) {
-            result.damage += liderarBonus;
-        }
-    }
+    applyConfigEffectsToCombat(ctx, result, 'attacker');
+    debugLog('applyDamageAbilities: final damage=' + result.damage);
 
 }
 
@@ -228,44 +119,41 @@ export function applyCostAbilities(ctx: AbilityContext, result: CombatResult): v
 }
 
 export function applyDefenseAbilities(ctx: AbilityContext, result: CombatResult): void {
-    for (const ability of ctx.attacker.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDefense?.({ ...ctx, abilitySide: 'attacker' }, result);
-    }
-    for (const ability of ctx.defender.abilities ?? []) {
-        ABILITY_EFFECTS[ability]?.onDefense?.({ ...ctx, abilitySide: 'defender' }, result);
-    }
     const mods = getUnitModifiers(ctx.state, ctx.defender.owner, ctx.defender.id);
-    // defenseMod resta del daño entrante (Meditación, etc.)
-    result.damage = Math.max(1, result.damage - mods.defenseMod);
 
-    // Plan de batalla (Comandante Supremo) — Reagruparse: +1 defensa
-    const planDefBonus = ctx.state.players[ctx.defender.owner]?.planBatallaDefense;
-    if (planDefBonus && planDefBonus > 0) {
-        result.damage = Math.max(1, result.damage - planDefBonus);
+    // Only apply defense modifiers allowed by the ability config
+    const cfgId = ctx.ctx?.configId;
+    const allowed = cfgId ? (ABILITY_CONFIG[cfgId]?.allowedModifiers ?? []) : [];
+    let defense = allowed.includes('defense') || !cfgId ? mods.defenseMod : 0;
+
+    // Romper filas: ignora Resistencia y Línea defensiva (no otras defensas como proteger, lanza_escudo)
+    const hasRomperFilas = (ctx.attacker.abilities ?? []).includes('romper_filas');
+    if (hasRomperFilas) {
+        const passiveDef = ctx.state.activeModifiers
+            .filter(m => m.stat === 'defense'
+                && m.remainingTurns >= 0
+                && (!m.remainingUses || m.remainingUses > 0)
+                && (m.sourceName === 'resistencia' || m.sourceName === 'linea_defensiva')
+                && (m.sourcePlayerId === ctx.defender.owner)
+                && (m.targetId === ctx.defender.id))
+            .reduce((sum, m) => {
+                if (m.operator === 'SET') return m.value;
+                if (m.operator === 'MUL') return sum * m.value;
+                return sum + m.value;
+            }, 0);
+        defense -= passiveDef;
     }
 
-    // Voz de mando (Comandante Supremo) — +1 defensa a la unidad beneficiada
-    const vozDefBonus = ctx.defender.vozDeMandoDefenseBonus;
-    if (vozDefBonus && vozDefBonus > 0) {
-        result.damage = Math.max(1, result.damage - vozDefBonus);
+    if (defense > 0) {
+        result.damage = Math.max(1, result.damage - defense);
     }
 
-    // Espartano: Lanza y escudo (-1 daño recibido)
-    if (ctx.defender.espartanoDefenseBonus) {
-        result.damage = Math.max(1, result.damage - 1);
-    }
+    // Config-driven passive effects (defense type)
 
-    // Muro espartano: lanceros y general (con identidad espartano) adyacentes reciben -1 daño
-    const espartanoIdentity = ctx.state.players[ctx.defender.owner]?.selectedIdentity ?? '';
-    if (espartanoIdentity.startsWith('espartano') && (ctx.defender.class === 'lancer' || ctx.defender.class === 'general')) {
-        const hasAdjacentLancer = Object.values(ctx.state.units)
-            .some(u => u.owner === ctx.defender.owner && (u.class === 'lancer' || u.class === 'general') && u.id !== ctx.defender.id && hexDistance(ctx.defender.position, u.position) === 1);
-        if (hasAdjacentLancer) {
-            result.damage = Math.max(1, result.damage - 1);
-        }
-    }
+    applyConfigEffectsToCombat(ctx, result, 'defender');
 
-    // Aura de mando: lanceros cerca del general dan +defensa
+
+	// Aura de mando: lanceros cerca del general dan +defensa
     if (ctx.defender.class === 'general') {
         const buffs = getAuraBuffs(ctx.state, ctx.defender.owner);
         if (buffs.defenseBonus > 0) result.damage = Math.max(1, result.damage - buffs.defenseBonus);
@@ -280,5 +168,65 @@ export function applyPostHitAbilities(ctx: AbilityContext, state: GameState, hit
     for (const ability of ctx.defender.abilities ?? []) {
         s = ABILITY_EFFECTS[ability]?.onPostHit?.({ ...ctx, abilitySide: 'defender' }, s, hit) ?? s;
     }
+    // Config-driven passive effects (post-hit)
+    s = applyConfigEffectsToState({ attacker: ctx.attacker, defender: ctx.defender }, s, hit);
+    // Sync conditional modifiers (hpMaxPercent passives like furia_berserker) for defender
+    s = onHpChange(s, ctx.defender.id);
+    if (hit) s = onHpChange(s, ctx.attacker.id);
+
+    // Config-driven consume modifiers on hit (robar_ricos)
+    if (hit) {
+        for (const source of Object.values(s.units)) {
+            for (const abilId of source.abilities ?? []) {
+                const cfg = ABILITY_CONFIG[abilId];
+                if (!cfg?.effects) continue;
+                for (const effect of cfg.effects) {
+                    if (effect.type !== 'stateChange') continue;
+                    if ((effect.timing ?? 'onUse') !== 'onHit') continue;
+                    if (!effect.consume) continue;
+                    // Check isBasicAttack filter
+                    const tfBasic = effect.targetFilter?.isBasicAttack;
+                    const isBasic = ctx.ctx?.configId === 'ataque_basico';
+                    if (tfBasic !== undefined && tfBasic !== isBasic) continue;
+                    // Check if attacker has the modifier
+                    const hasMod = s.activeModifiers.some(m =>
+                        m.stat === effect.consume.stat
+                        && m.targetId === ctx.attacker.id
+                        && m.sourcePlayerId === ctx.attacker.owner
+                        && (m.remainingUses ?? 1) > 0
+                    );
+                    if (!hasMod) continue;
+                    // Heal
+                    let healed = false;
+                    if (effect.healType === 'hp') {
+                        const maxHp = BASE_STATS[ctx.attacker.class as keyof typeof BASE_STATS]?.hp ?? 10;
+                        if (ctx.attacker.hp < maxHp) {
+                            s = updateUnit(s, ctx.attacker.id, (u) => ({ ...u, hp: Math.min(u.hp + 1, maxHp) }));
+                            healed = true;
+                        }
+                    }
+                    // Consume modifiers according to config
+                    const amount = effect.consume.amount ?? 1;
+                    if (effect.consume.units === 'self') {
+                        s = consumeModifier(s, ctx.attacker.owner, effect.consume.stat, amount, ctx.attacker.id);
+                    } else if (effect.consume.units === 'all_allies') {
+                        const targets = Object.values(s.units).filter(u =>
+                            u.owner === ctx.attacker.owner
+                            && (!effect.consume.classes || effect.consume.classes.includes(u.class))
+                        );
+                        for (const t of targets) {
+                            s = consumeModifier(s, ctx.attacker.owner, effect.consume.stat, amount, t.id);
+                        }
+                        s = consumeModifier(s, ctx.attacker.owner, effect.consume.stat, amount); // player-wide
+                    }
+                    // History entry — store as pending for handleAbility to flush after attack entry
+                    if (healed) {
+                        s = { ...s, pendingHealEntry: { abilId, attackerId: ctx.attacker.id, attackerClass: ctx.attacker.class } };
+                    }
+                }
+            }
+        }
+    }
+
     return s;
 }

@@ -73,14 +73,19 @@ export function consumeModifier(
     amount: number = 1,
     targetUnitId?: string
 ): GameState {
-    const idx = state.activeModifiers.findIndex(
-        m => m.stat === stat && !isExpired(m) && (m.remainingUses === undefined || m.remainingUses > 0)
+    // Prefer modifiers with finite remainingUses over infinite ones
+    const matches = state.activeModifiers.map((m, i) => ({ m, i }))
+        .filter(({ m }) => m.stat === stat && !isExpired(m) && (m.remainingUses === undefined || m.remainingUses > 0)
             && (targetPlayerId === null || m.sourcePlayerId === targetPlayerId)
-            && (targetUnitId === undefined || m.targetId === targetUnitId)
-    );
-    if (idx === -1) return state;
-
-    const mod = state.activeModifiers[idx];
+            && (targetUnitId === undefined ? m.targetId === undefined : m.targetId === targetUnitId))
+        .sort((a, b) => {
+            // Finite uses first (descending so higher uses first, then infinite)
+            const aFinite = a.m.remainingUses !== undefined ? 1 : 0;
+            const bFinite = b.m.remainingUses !== undefined ? 1 : 0;
+            return bFinite - aFinite;
+        });
+    if (matches.length === 0) return state;
+    const { m: mod, i: idx } = matches[0];
     const newUses = mod.remainingUses !== undefined ? mod.remainingUses - amount : undefined;
 
     if (newUses !== undefined && newUses <= 0) {
@@ -121,7 +126,7 @@ export function getLastDebuffSource(state: GameState): PlayerId | null {
 export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId): GameState {
     let mods = state.activeModifiers
         .map(m => {
-            if (m.remainingTurns !== undefined && m.remainingTurns > 0) {
+            if (m.remainingTurns !== undefined && m.remainingTurns >= 0) {
                 return { ...m, remainingTurns: m.remainingTurns - 1 };
             }
             return m;

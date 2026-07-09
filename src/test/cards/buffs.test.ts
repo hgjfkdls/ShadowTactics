@@ -18,9 +18,9 @@ function makeState(): GameState {
             p2: { ...s.players['p2'], actionPoints: 5, cardsInHand: [] },
         },
         units: {
-            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2, class: 'archer' },
-            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry' },
-            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1, class: 'infantry' },
+            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2, class: 'archer', flags: [] },
+            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', flags: [] },
+            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', flags: [] },
         }
     };
     return s;
@@ -69,13 +69,13 @@ function getMod(state: GameState, stat: string) {
     const withCard: GameState = {
         ...state,
         players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['ataque_extra_1'] } },
-        units: { ...state.units, u1: { ...state.units['u1'], attackedThisTurn: true } },
+        units: { ...state.units, u1: { ...state.units['u1'], flags: ['basic_attack'] } },
     };
     const result = playCard(withCard, 'ataque_extra_1', 'u1');
 
     const u = result.units['u1'];
     assert(u.ataqueExtraCharges === 1, 'Ataque extra — 1 carga en u1');
-    assert(u.attackedThisTurn === false, 'Ataque extra — attackedThisTurn reseteado');
+    assert(!(u.flags ?? []).includes('basic_attack'), 'Ataque extra — flag basic_attack reseteado');
     assert(result.effectDiscard.includes('ataque_extra_1'), 'Ataque extra — descartada');
 }
 

@@ -28,40 +28,17 @@ export type Unit = {
     // Seguimiento de habilidades
     timesDamagedThisTurn?: number;
     lastTargetId?: UnitId;
-    movedThisTurn?: boolean;          // true si se movió en el turno actual
-    didMovePreviousTurn?: boolean;    // snapshot de movedThisTurn al final del turno anterior
-    attackedThisTurn?: boolean;
-    usedCarga?: boolean;
-    usedCabalgar?: boolean;
-    cabalgarDir?: { dq: number; dr: number };
-    usedVentajaAlcance?: boolean;
-    usedDobleAtaque?: boolean;
-    usedPatadaAcrobatica?: boolean;
-    usedFuegoCobertura?: boolean;
+    didMovePreviousTurn?: boolean;    // snapshot de si se movió al final del turno anterior
+    lastHex?: HexCoord;
     usedAccionEvasiva?: boolean;
     usedAvance?: boolean;
     hasCargaBonus?: boolean;         // true si usó Cabalgar + Carga
-
-
-    usedTorbellino?: boolean;          // Punta de Lanza: Torbellino usado este turno
-    usedRayoCelestial?: boolean;        // Dios del Trueno: Rayo celestial usado este turno
-    usedAngelGuardian?: boolean;        // Escudo Comandante: Ángel guardián usado este turno
-
-    aLaCargaActive?: boolean;          // Caballos de Guerra: Cabalgar potenciado (3 hex)
-    espartanoRangeBonus?: boolean;     // Espartano: +1 rango este turno
-    espartanoDefenseBonus?: boolean;   // Espartano: -1 daño recibido este turno
     proyeccionActive?: boolean;        // Punta de Lanza: primer ataque hace daño detrás
-    performedActionThisTurn?: boolean;  // Monje Shaolin: tracking de acciones por turno
-    usedPosicionEstrategica?: boolean;  // Corazón de Estratega: 1 vez por turno
-    usedVozDeMando?: boolean;           // Comandante Supremo: consumió Voz de mando
-    vozDeMandoAttackBonus?: number;      // Comandante Supremo: +N ataque por Voz de mando
-    vozDeMandoDefenseBonus?: number;     // Comandante Supremo: +N defensa por Voz de mando
     royalShieldSavedHp?: number;          // Inspiración Real: HP guardado antes del escudo
-    usedEnNombreDelRey?: boolean;         // Inspiración Real: 1 vez por turno
-    usedDesenvainadoVeloz?: boolean;       // Samurái: se resetea si elimina al objetivo
     ataqueExtraCharges?: number;             // Ataque extra: cargas acumulables
     precisionCharges?: number;               // Precisión: cargas acumulables
     auraShield?: number;                     // Escudo del aura (infantería) — se consume antes que HP
+    flags?: string[];                      // Seguimiento unificado de flags de habilidades
 };
 
 export type GameState = {
@@ -141,9 +118,6 @@ export type GameState = {
 
     // Samurái: Camino del guerrero activado este turno
     lastCaminoDelGuerrero?: boolean;
-
-    // Monje Shaolin: Meditación usada este turno
-    lastMeditacion?: boolean;
 
     // Historial de la partida
     gameHistory: Array<{
@@ -250,7 +224,6 @@ export type PlayerResources = {
     pendingEspartanoChoice?: boolean;   // Espartano: elegir Lanza y escudo
 
     aLaCargaCost?: number;              // Caballos de Guerra: coste actual de A la carga (0/1/2)
-    liderarAtaqueBonus?: number;        // Capitán de la Guardia: +X ataque infantería este turno (1 normal, 2 si elimina)
 
     // HISTORIAL PENDIENTE
     karmaEntryToAppend?: any;             // Karma (Monje Shaolin): entrada de historial pendiente
@@ -260,11 +233,9 @@ export type PlayerResources = {
 
     // COMANDANTE SUPREMO
     pendingPlanBatalla?: boolean;     // Plan de batalla: elección pendiente
-    planBatallaBonus?: number;         // Comandante Supremo: +N ataque (Avanzar) este turno
-    planBatallaDefense?: number;       // Comandante Supremo: +N defensa (Reagruparse) este turno
-    vozDeMandoReady?: boolean;        // Voz de mando: disponible tras mover general
+    pendingCardNeedsTarget?: boolean;  // Carta pendiente necesita selección de objetivo
     caminoDelGuerreroUsedThisTurn?: boolean; // Samurái: 1 PA por kill a rango 1
-    protegerUsedThisTurn?: boolean;           // Escudo del Comandante: Proteger usado este turno
+    flags?: string[];
 
     // INSPIRACIÓN DE TROPA
     generalWasAttackedLastTurn?: boolean;     // el general fue atacado en el turno rival

@@ -1,11 +1,14 @@
 import type { GameState, HexCoord, PlayerId } from './state';
 import type { GameAction } from './action-types';
 import { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
-import { handleMove, handleAttack, handleCard, handlePassCounter, handleDiscard, handleIdentityAbility } from './actions/index';
+import { handleCard, handlePassCounter, handleDiscard, handleIdentityAbility } from './actions/index';
 import { handleAbility } from './data/ability-config/handler';
+import { handleAttack as handleLegacyAttack } from './actions/attack';
+import { handleMove as handleLegacyMove } from './actions/move';
 import { simulatePreparation } from './phases/simulate';
 import { updateUnit } from './utils';
-import { applyFormationModifiers } from './formations';
+import { applyFormationModifiers, applyMuroEspartanoModifiers } from './formations';
+import { ABILITY_CONFIG } from './data/ability-config';
 import { addModifier } from './modifiers/engine';
 
 function setGameOver(state: GameState, winner: PlayerId, reason: 'general_killed' | 'surrender' | 'disconnect'): GameState {
@@ -31,6 +34,7 @@ function refreshFormations(state: GameState): GameState {
     let s = state;
     for (const pid of ['p1', 'p2']) {
         s = applyFormationModifiers(s, pid);
+        s = applyMuroEspartanoModifiers(s, pid);
     }
     return s;
 }
@@ -127,11 +131,14 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
     if (state.players[state.activePlayer]?.pendingPlanBatalla && action.type !== 'COMANDANTE_CHOICE') {
         return state;
     }
+    if (state.players[state.activePlayer]?.pendingCardNeedsTarget && action.type !== 'USE_CARD') {
+        return state;
+    }
 
     switch (action.type) {
-        case 'MOVE_UNIT':    return handleMove(state, action);
-        case 'ATTACK_UNIT':  return handleAttack(state, action);
         case 'END_TURN':     return handleEndTurn(state, action);
+        case 'ATTACK_UNIT':  return handleLegacyAttack(state, action);
+        case 'MOVE_UNIT':    return handleLegacyMove(state, action);
         case 'USE_CARD':     return handleCard(state, action);
         case 'USE_ABILITY':  return handleAbility(state, action);
         case 'PASS_COUNTER': return handlePassCounter(state, action);
@@ -140,30 +147,27 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
         case 'COMANDANTE_CHOICE': {
             if (action.playerId !== state.activePlayer) return state;
             if (!state.players[action.playerId]?.pendingPlanBatalla) return state;
-            // Limpiar bonuses de plan anterior y Voz de mando de todas las unidades
-            let units = { ...state.units };
-            for (const id of Object.keys(units)) {
-                if (units[id].owner === action.playerId) {
-                    units[id] = { ...units[id], vozDeMandoAttackBonus: undefined, vozDeMandoDefenseBonus: undefined };
-                }
-            }
             const choiceName = action.choice === 'attack' ? 'Avanzar (+1 ataque)' : 'Reagruparse (+1 defensa)';
-            const bonus = action.choice === 'attack' ? { planBatallaBonus: 1 } : { planBatallaDefense: 1 };
-            const planAffected = Object.values(state.units).filter(u => u.owner === action.playerId).map(u => u.id);
-            return {
+            const stat = action.choice === 'attack' ? 'attack' : 'defense';
+            let s: GameState = {
                 ...state,
-                units,
                 players: {
                     ...state.players,
                     [action.playerId]: {
                         ...state.players[action.playerId],
                         pendingPlanBatalla: false,
-                        ...bonus,
-                        planBatallaBonus: action.choice === 'attack' ? 1 : undefined,
-                        planBatallaDefense: action.choice === 'defense' ? 1 : undefined,
                     },
                 },
-                gameHistory: [...state.gameHistory, {
+            };
+            const planAffected = Object.values(s.units).filter(u => u.owner === action.playerId).map(u => u.id);
+            const planCfg = ABILITY_CONFIG['plan_batalla'];
+            const planEffect = planCfg?.effects?.[0];
+            for (const uid of planAffected) {
+                s = addModifier(s, action.playerId, uid, stat, 1, 'ADD', planEffect?.duration ?? 1, planEffect?.remainingUses, 'ability', 'plan_batalla');
+            }
+            return {
+                ...s,
+                gameHistory: [...s.gameHistory, {
                     id: `h${state.nextHistoryId}`,
                     turn: state.turn,
                     actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
@@ -186,14 +190,12 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             if (!state.players[action.playerId]?.pendingEspartanoChoice) return state;
             const general = Object.values(state.units).find(u => u.owner === action.playerId && u.class === 'general');
             if (!general) return state;
-            let s = { ...state, players: { ...state.players, [action.playerId]: { ...state.players[action.playerId], pendingEspartanoChoice: false } } };
-            s = updateUnit(s, general.id, (u) => ({ ...u, espartanoRangeBonus: false, espartanoDefenseBonus: false }));
+            let s: GameState = { ...state, players: { ...state.players, [action.playerId]: { ...state.players[action.playerId], pendingEspartanoChoice: false } } };
+            const stat = action.choice === 'range' ? 'range' : 'defense';
             const choiceName = action.choice === 'range' ? '+1 rango' : '+1 defensa';
-            if (action.choice === 'range') {
-                s = updateUnit(s, general.id, (u) => ({ ...u, espartanoRangeBonus: true }));
-            } else {
-                s = updateUnit(s, general.id, (u) => ({ ...u, espartanoDefenseBonus: true }));
-            }
+            const lanceCfg = ABILITY_CONFIG['lanza_escudo'];
+            const lanceEffect = lanceCfg?.effects?.find(e => e.type === stat);
+            s = addModifier(s, action.playerId, general.id, stat, 1, 'ADD', lanceEffect?.duration ?? 1, lanceEffect?.remainingUses, 'ability', 'lanza_escudo');
             s = {
                 ...s,
                 gameHistory: [...s.gameHistory, {
@@ -225,7 +227,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             const occ = state.pendingOccupation;
             const unit = state.units[occ.unitId];
             const s = updateUnit(state, occ.unitId, (u) => ({
-                ...u, position: occ.position, movedThisTurn: false, didMovePreviousTurn: false,
+                ...u, position: occ.position, flags: [], didMovePreviousTurn: false,
             }));
             const pathStr = `(${unit.position.q},${unit.position.r}) → (${occ.position.q},${occ.position.r})`;
             return {

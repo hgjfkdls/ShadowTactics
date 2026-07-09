@@ -1,5 +1,6 @@
 import type { GameState } from '@shared';
 import { l } from '@shared/i18n';
+import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 
 function effectLines(entry: any): { text: string; color: string }[] {
     if (entry.cardId === 'plan_batalla') {
@@ -17,12 +18,6 @@ function effectLines(entry: any): { text: string; color: string }[] {
             { text: `${l('aura.shieldName')} +3 HP`, color: 'text-effect-def' },
         ];
     }
-    if (entry.cardId === 'angel_guardian') {
-        return [
-            { text: `${l('aura.shieldName')} +2 HP`, color: 'text-effect-def' },
-            { text: '+1 HP', color: 'text-effect-heal' },
-        ];
-    }
     if (entry.cardId === 'proteger') {
         return [{ text: `+1 ${l('cat.def')}`, color: 'text-effect-def' }];
     }
@@ -35,15 +30,36 @@ function effectLines(entry: any): { text: string; color: string }[] {
     if (entry.cardId === 'robar_ricos') {
         return [{ text: '+1 HP', color: 'text-effect-heal' }];
     }
+    if (entry.cardId === 'sacrificar') {
+        return [{ text: '-2 HP', color: 'text-effect-dmg' }];
+    }
     if (entry.cardId === 'rayo_celestial') {
         return [{ text: `+${entry.details?.match(/\+(\d+)/)?.[1] ?? '3'} ${l('cat.atk')}`, color: 'text-effect-atk' }];
-    }
-    if (entry.cardId === 'meditacion') {
-        return [{ text: `+X HP`, color: 'text-effect-heal' }];
     }
     if (entry.cardId === 'lanza_escudo') {
         const isRange = entry.details?.includes('rango');
         return isRange ? [{ text: `+1 ${l('cat.range')}`, color: 'text-effect-range' }] : [{ text: `+1 ${l('cat.def')}`, color: 'text-effect-def' }];
+    }
+    if (entry.cardId === 'angel_guardian') {
+        const lines = [{ text: `${l('aura.shieldName')} +2 HP`, color: 'text-effect-def' }];
+        const healMatch = entry.details?.match(/\+1 HP a \[(\w+)\]/);
+        if (healMatch) lines.push({ text: `+1 HP [${healMatch[1]}]`, color: 'text-effect-heal' });
+        return lines;
+    }
+    // Generic config-driven display: read effects from config
+    const cfg = entry.configId ? ABILITY_CONFIG[entry.configId] : ABILITY_CONFIG[entry.cardId];
+    if (cfg?.effects) {
+        const lines: { text: string; color: string }[] = [];
+        for (const e of cfg.effects) {
+            if (e.activation?.turnStart || e.timing === 'turnStart') continue; // Turn-start passives not applied on use
+            if (e.type === 'stateChange' && e.healType === 'hp') lines.push({ text: `+${e.value ?? 3} HP`, color: 'text-effect-heal' });
+            else if (e.type === 'shield') lines.push({ text: `${l('aura.shieldName')} +${e.value ?? 2} HP`, color: 'text-effect-def' });
+            else if (e.type === 'heal') lines.push({ text: `+${e.value ?? 1} HP`, color: 'text-effect-heal' });
+            else if (e.type === 'attack') lines.push({ text: `+${e.value ?? 1} ${l('cat.atk')}`, color: 'text-effect-atk' });
+            else if (e.type === 'defense') lines.push({ text: `+${e.value ?? 1} ${l('cat.def')}`, color: 'text-effect-def' });
+            else if (e.type === 'buff') lines.push({ text: `+${e.value ?? 1}`, color: 'text-effect-atk' });
+        }
+        if (lines.length > 0) return lines;
     }
     return [{ text: '?', color: 'text-effect-diff' }];
 }
@@ -57,7 +73,22 @@ export default function PanelUnitsAffected({ entry, state }: { entry: any; state
                 type Row = { id: string; clsName: string; lines: { text: string; color: string }[]; isCounter?: boolean; owner?: string };
                 const rows: Row[] = [];
 
-                if (entry.hit !== undefined) {
+                const hasEnemiesHit = (entry.enemiesHit?.length ?? 0) > 0;
+                const hasAlliesHit = (entry.alliesHit?.length ?? 0) > 0;
+
+                if (entry.hit !== undefined && (hasEnemiesHit || hasAlliesHit)) {
+                    // AoE entries (torbellino, etc.): list each unit individually
+                    const dmgPerUnit = entry.hit && entry.damage > 0 ? Math.floor(entry.damage / ((entry.enemiesHit?.length ?? 0) + (entry.alliesHit?.length ?? 0) || 1)) : (!entry.hit && entry.damage > 0 ? 1 : 0);
+                    for (const eid of (entry.enemiesHit ?? [])) {
+                        const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === eid);
+                        rows.push({ id: eid, clsName: u ? cls2(u.class) : '?', lines: [{ text: dmgPerUnit > 0 ? `-${dmgPerUnit} HP` : '?', color: 'text-effect-dmg' }], owner: u?.owner });
+                    }
+                    for (const aid of (entry.alliesHit ?? [])) {
+                        const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === aid);
+                        rows.push({ id: aid, clsName: u ? cls2(u.class) : '?', lines: [{ text: dmgPerUnit > 0 ? `-${dmgPerUnit} HP` : '?', color: 'text-effect-dmg' }], owner: u?.owner });
+                    }
+                } else if (entry.hit !== undefined) {
+                    // Single-target hits/misses
                     if (!entry.hit && entry.counterDamage > 0) {
                         const a = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === entry.attackerId);
                         rows.push({ id: entry.attackerId, clsName: a ? cls2(a.class) : cls2(entry.attackerClass), lines: [{ text: `-${entry.counterDamage} HP`, color: 'text-effect-dmg' }], isCounter: true, owner: a?.owner });
@@ -67,13 +98,21 @@ export default function PanelUnitsAffected({ entry, state }: { entry: any; state
                         rows.push({ id: entry.targetId, clsName: d ? cls2(d.class) : cls2(entry.targetClass), lines: [{ text: `-${entry.damage} HP`, color: 'text-effect-dmg' }], isCounter: false, owner: d?.owner });
                     }
                 } else {
+                    // Card effects with per-unit lines (plan_batalla, sacrificar, etc.)
                     for (const eid of (entry.enemiesHit ?? [])) {
                         const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === eid);
                         rows.push({ id: eid, clsName: u ? cls2(u.class) : '?', lines: effectLines(entry), owner: u?.owner });
                     }
                     for (const aid of (entry.alliesHit ?? [])) {
                         const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === aid);
-                        rows.push({ id: aid, clsName: u ? cls2(u.class) : '?', lines: effectLines(entry), owner: u?.owner });
+                        if (entry.cardId === 'sacrificar' && aid === entry.targetId) {
+                            rows.push({ id: aid, clsName: u ? cls2(u.class) : '?', lines: [{ text: '-2 HP', color: 'text-effect-dmg' }], owner: u?.owner });
+                        } else if (entry.cardId === 'sacrificar') {
+                            const heal = entry.details?.includes('+5') ? 5 : 3;
+                            rows.push({ id: aid, clsName: u ? cls2(u.class) : '?', lines: [{ text: `+${heal} HP`, color: 'text-effect-heal' }], owner: u?.owner });
+                        } else {
+                            rows.push({ id: aid, clsName: u ? cls2(u.class) : '?', lines: effectLines(entry), owner: u?.owner });
+                        }
                     }
                     if (rows.length === 0 && entry.targetId) {
                         const u = Object.values(state.units).concat(Object.values(state.graveyard)).find(u => u.id === entry.targetId);
@@ -94,7 +133,7 @@ export default function PanelUnitsAffected({ entry, state }: { entry: any; state
                         </div>
                     );
                     if (entry.hit !== undefined) {
-                        const cardCls = r.isCounter ? 'bg-miss-bg border border-miss-border' : 'bg-hit-bg border border-hit-border';
+                        const cardCls = r.isCounter ? 'bg-miss-bg border border-miss-border' : (entry.hit ? 'bg-hit-bg border border-hit-border' : 'bg-miss-bg border border-miss-border');
                         return <div key={r.id} className={`rounded-lg p-3 mt-0.5 ${cardCls}`}>{inner}</div>;
                     }
                     return <div key={r.id}>{inner}</div>;

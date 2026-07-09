@@ -6,5 +6,5 @@ export { nextRandom, rollDice, roll2d6 } from './utils/rng';
 export { pipeState, isHexOccupied, isWithinBounds, updateUnit, dealDamage, countPlayerClasses, isNearAnyAlliedUnit } from './utils';
 export { createUnit, BASE_STATS } from './units';
 export { resolveAttack, getDifficulty, canCounterattack, getCounterDamage } from './combat';
-export { handleMove, handleAttack, handleCard } from './actions';
+export { handleCard } from './actions';
 export { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';

@@ -27,7 +27,7 @@ function PanelFormula({ entry, paModLetters, paBaseCost, diffFormulaRef, diffMod
                 <>
                     <div className="flex items-center justify-between">
                         <span className="text-zinc-500">{l('attackDetail.baseDamage')}</span>
-                        <span className="text-zinc-200">{pShowUnitsAffected ? 2 : entry.baseAttack}</span>
+                        <span className="text-zinc-200">{entry.baseAttack}</span>
                     </div>
                     {dmgFormula && <div className="text-xs text-zinc-400 text-right">{dmgFormula}</div>}
                     {dmgClamped && entry.hit && <div className="text-[10px] text-zinc-500 text-right">{l('board.minDamageNote')}</div>}

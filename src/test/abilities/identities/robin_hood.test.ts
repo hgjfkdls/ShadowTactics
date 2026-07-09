@@ -33,8 +33,8 @@ function makeState(): GameState {
 {
     const cfg = ABILITY_CONFIG['robar_ricos'];
     assert(cfg !== undefined, 'robar_ricos config exists');
-    assert(cfg.displayName === 'Robar a los ricos', 'robar_ricos displayName is "Robar a los ricos"');
-    assert(cfg.isPassive === true, 'robar_ricos is passive');
+    assert(cfg.id === 'robar_ricos', 'robar_ricos id is correct');
+    assert(cfg.type === 'support', 'robar_ricos type is support');
 }
 
 {

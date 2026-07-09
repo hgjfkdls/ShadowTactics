@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { l } from '@shared/i18n';
 import { ABILITIES } from '@shared/game/data/abilities';
+import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 
 function cls(cls: string): string { return l(`unit.class.${cls}`) || cls; }
 
 export function AbilityList({ abilities, ownerPlayerId, startCollapsed }: { abilities: string[]; ownerPlayerId?: string; startCollapsed?: boolean }) {
-    const [expanded, setExpanded] = useState<Set<string>>(() => startCollapsed ? new Set() : new Set(abilities));
+    const [expanded, setExpanded] = useState<Set<string>>(() => startCollapsed ? new Set() : new Set(abilities.filter(abId => !(ABILITY_CONFIG[abId] as any)?.uiHidden)));
 
     function toggleAbility(id: string) {
         setExpanded(prev => {
@@ -19,15 +20,12 @@ export function AbilityList({ abilities, ownerPlayerId, startCollapsed }: { abil
         <div className="space-y-1">
             <div className="text-xs font-semibold text-panel-title uppercase tracking-wide">{l('unitDetail.abilities')}</div>
             <div className="space-y-2">
-                {abilities.map(abId => {
+                {abilities.filter(abId => !(ABILITY_CONFIG[abId] as any)?.uiHidden).map(abId => {
                     const ab = ABILITIES[abId];
                     if (!ab) return null;
                     const isOpen = expanded.has(abId);
                     let description = l(`ability.${abId}.desc`);
                     if (!description || description === `ability.${abId}.desc`) description = ab.description;
-                    if (abId === 'blanco_facil' && ownerPlayerId?.startsWith('francotirador')) {
-                        description = description.replace('-1', '-2');
-                    }
                     return (
                         <div key={abId} className="border border-zinc-700 bg-zinc-800/50 rounded-lg p-2.5 space-y-1.5">
                             <div className="flex items-center gap-2 text-xs cursor-pointer select-none" onClick={() => toggleAbility(abId)}>

@@ -15,7 +15,9 @@ type Props = {
 export function IdentitySelection({ state, sendAction, playerId, bothPlayersReady }: Props) {
     const [highlightedCard, setHighlightedCard] = useState<string | null>(null);
 
-    const cards = state.players[playerId]?.identityCards ?? [];
+    const cards = (typeof __DEPLOY_MODE__ !== 'undefined' && __DEPLOY_MODE__ === 'simulated')
+        ? [...new Set([...(state.players[playerId]?.identityCards ?? []), ...(state.identityDeck ?? [])])]
+        : state.players[playerId]?.identityCards ?? [];
     const selected = state.players[playerId]?.selectedIdentity;
     const opponentId = playerId === 'p1' ? 'p2' : 'p1';
     const opponentSelected = !!state.players[opponentId]?.selectedIdentity;
@@ -51,7 +53,7 @@ export function IdentitySelection({ state, sendAction, playerId, bothPlayersRead
                             : l('identity.clickToSeeDetails')}
                     </p>
 
-                    <div className="flex gap-4">
+                    <div className={cards.length > 6 ? 'grid grid-cols-5 gap-3' : 'flex gap-4'}>
                         {cards.map(cardId => {
                             const key = getIdentityKey(cardId);
                             const info = IDENTITY_INFO[key];
@@ -64,7 +66,8 @@ export function IdentitySelection({ state, sendAction, playerId, bothPlayersRead
                                     onClick={() => !selected && setHighlightedCard(cardId)}
                                     disabled={!!selected}
                                     className={[
-                                        'w-40 h-52 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition cursor-pointer',
+                                        cards.length > 6 ? 'w-32 h-44' : 'w-40 h-52',
+                                        'rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition cursor-pointer',
                                         'hover:border-blue-400 hover:bg-zinc-700',
                                         isSelected
                                             ? 'border-green-500 bg-zinc-700 ring-2 ring-green-500/50 cursor-not-allowed'

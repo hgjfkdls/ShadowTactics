@@ -5,6 +5,7 @@ import { getPlayerAP } from '@shared/game/actions';
 import { useKeyBindings } from '../../../KeyBindingsContext';
 import type { GameState, UnitId, GameAction } from '@shared';
 import { l } from '@shared/i18n';
+import { isAbilityDisabled } from '../../../abilityUI';
 
 type Props = {
     state: GameState;
@@ -58,12 +59,14 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
         ? Object.values(state.units).filter(u => u.owner !== playerId).some(u => hexDistance(unit.position, u.position) === 1)
         : false;
 
+    const uFlags = unit?.flags ?? [];
+    const basicAttackDisabled = extraCharges > 0 ? false : !!(unit && isAbilityDisabled(state, 'ataque_basico', unit, playerId, ap));
     const basicActions = unit ? [
         {
             id: '__attack__',
-            label: (unit.attackedThisTurn && !extraCharges) ? l('button.alreadyAttacked') : l('button.basicAttack'),
+            label: basicAttackDisabled ? l('button.alreadyAttacked') : l('button.basicAttack'),
             cost: extraCharges > 0 ? 0 : 1,
-            disabled: unit.attackedThisTurn && !extraCharges,
+            disabled: basicAttackDisabled,
             binding: bindings.BASIC_ATTACK,
         },
         { id: '__move__', label: l('button.move'), cost: effectiveMoveCost, disabled: ap < effectiveMoveCost, binding: bindings.MOVE },
@@ -73,26 +76,15 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
 
     const abilityActions = unit
         ? activeAbilities.map((a, i) => {
-            const cost = a.id === 'a_la_carga' ? aLaCargaCost : (a.def!.cost ?? 0);
-            const disabled =
-                (a.id === 'patada_acrobatica' && (!!unit.usedPatadaAcrobatica || !hasAdjacentEnemy)) ||
-                (a.id === 'doble_ataque' && (!unit.attackedThisTurn || !!unit.usedDobleAtaque || !!unit.usedVentajaAlcance)) ||
-                (a.id === 'cabalgar' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
-                (a.id === 'cabalgar_2' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
-                (a.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)) ||
-                (a.id === 'ventaja_alcance' && (!!unit.attackedThisTurn || !!unit.usedVentajaAlcance || !!unit.usedDobleAtaque)) ||
-                (a.id === 'rayo_celestial' && !!unit.usedRayoCelestial) ||
-                (a.id === 'a_la_carga' && (!!unit.aLaCargaActive || !!unit.usedCabalgar || !!unit.movedThisTurn || !!unit.attackedThisTurn || ap < cost + 1)) ||
-                (a.id === 'torbellino' && !!unit.usedTorbellino) ||
-                (a.id === 'meditacion' && (unit.hp >= BASE_STATS[unit.class].hp || ap < 2)) ||
-                (a.id === 'posicion_estrategica' && !!unit.usedPosicionEstrategica) ||
-                (a.id === 'en_nombre_del_rey' && !!unit.usedEnNombreDelRey) ||
-                (a.id === 'desenvainado_veloz' && !!unit.usedDesenvainadoVeloz) ||
+            const cost = a.id === 'a_la_carga' ? 1 : (a.def!.cost ?? 0);
+            const disabledReason = isAbilityDisabled(state, a.id, unit, playerId, ap);
+            const extraBlock = 
+                (a.id === 'a_la_carga' && (uFlags.includes('a_la_carga') || uFlags.includes('carga') || uFlags.includes('basic_attack') || ap < cost)) ||
                 (a.id === 'sacrificar' && (unit.hp >= BASE_STATS[unit.class].hp || !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) ||
-                (a.id === 'ejecutar' && (!!unit.attackedThisTurn || !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2))) ||
-                (a.id === 'angel_guardian' && (!!unit.usedAngelGuardian || ap < 2)) ||
+                (a.id === 'ejecutar' && !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2)) ||
                 (a.id === 'proteger' && !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) <= 3)) ||
                 ap < cost;
+            const disabled = !!disabledReason || extraBlock;
             const abBinding = i === 0 ? bindings.ABILITY_1 : i === 1 ? bindings.ABILITY_2 : bindings.ABILITY_3;
             const abName = l(`ability.${a.id}.name`) || a.def!.name;
             return {
@@ -122,7 +114,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
                 onRequestMove?.(unit.id);
             }
         } else if (actionId === 'a_la_carga' && unit) {
-            onALaCarga?.(unit.id);
+            onRequestAbilityTarget?.(actionId, unit.id);
         } else if (actionId === 'angel_guardian' && unit) {
             onAngelGuardian?.(unit.id);
         } else {
