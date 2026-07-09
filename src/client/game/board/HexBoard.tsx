@@ -3,9 +3,10 @@ import { generateHexMap, hexDistance } from '@shared';
 import { HexTile } from './HexTile';
 import { UnitsLayer } from './UnitsLayer';
 import { useSelection } from './useSelection';
+import { isAbilityDisabled } from '../abilityUI';
+import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 import { useViewport } from './useViewport';
-import { getMoveRange } from './movementRange';
-import { getAbilityMoveTargets as getCfgMoveTargets, getAbilityTargets as getCfgTargets, getAllyAbilityTargets as getCfgAllyTargets, getRangeHexes as getCfgRangeHexes, isAbilityDisabled, getAbilityUI } from '../abilityUI';
+import { getAbilityHighlights } from '@shared/game/board/selection';
 import { HistoryPanel } from '../layout/panel/history/HistoryPanel';
 import { GameModals } from '../layout/modals/GameModals';
 import { useHexClick } from './handlers/useHexClick';
@@ -40,6 +41,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     const {
         hoveredHex, selectedHex, selectedUnitId,
         movingUnitId, attackingUnitId, pendingAbility,
+        pendingMultiStep,
         pendingIdentityTargetId, pendingPatadaTargetId,
         cabalgarPath, cabalgarIsLaCarga,
         pendingTorbellino, pendingAngelGuardian, pendingCounterEspejoCard,
@@ -48,7 +50,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         setPendingIdentityTargetId, setPendingPatadaTargetId,
         setCabalgarPath, setCabalgarIsLaCarga,
         setPendingTorbellino, setPendingAngelGuardian, setPendingCounterEspejoCard,
-        clearAll,
+        clearAll, dispatch,
     } = sel;
 
 
@@ -95,20 +97,32 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 e.preventDefault();
                 return;
             }
+            if (isPromptBlocked) {
+                if (isIdentityTargetMode) {
+                    addAlert?.(l('alert.selectEnemyNotGeneral'), 'warning');
+                } else {
+                    addAlert?.(l('alert.abilityNotAvailable'), 'warning');
+                }
+                e.preventDefault();
+                return;
+            }
             if (!unit || unit.owner !== myPlayerId) return;
+            if (state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === unit.id && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) {
+                addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning');
+                e.preventDefault();
+                return;
+            }
 
             if (key === bindings.BASIC_ATTACK) {
                 const extraCharges = unit.ataqueExtraCharges ?? 0;
-                if (unit.attackedThisTurn && !extraCharges) {
+                if (extraCharges > 0) {
+                    dispatch({ type: 'START_ATTACK', unitId: unit.id });
+                } else if (isAbilityDisabled(state, 'ataque_basico', unit, myPlayerId, ap)) {
                     addAlert?.(l('alert.alreadyAttacked'), 'warning');
-                } else if (ap < 1 && !extraCharges) {
+                } else if (ap < 1) {
                     addAlert?.(l('alert.noPA'), 'warning');
                 } else {
-                    setAttackingUnitId(unit.id);
-                    setMovingUnitId(null);
-                    setPendingAbility(null);
-                    setCabalgarIsLaCarga(false);
-                    setCabalgarPath([]);
+                    dispatch({ type: 'START_ATTACK', unitId: unit.id });
                 }
                 e.preventDefault();
                 return;
@@ -130,11 +144,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 if (ap < effectiveMoveCost) {
                     addAlert?.(l('alert.noPA'), 'warning');
                 } else {
-                    setMovingUnitId(unit.id);
-                    setAttackingUnitId(null);
-                    setPendingAbility(null);
-                    setCabalgarIsLaCarga(false);
-                    setCabalgarPath([]);
+                    dispatch({ type: 'START_MOVE', unitId: unit.id });
                 }
                 e.preventDefault();
                 return;
@@ -152,48 +162,30 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         .filter(u => u.owner !== myPlayerId)
                         .some(u => hexDistance(unit.position, u.position) === 1);
                     const aLaCargaCost = state.players[myPlayerId]?.aLaCargaCost ?? 0;
-                    const disabled =
-                        (ab.id === 'patada_acrobatica' && (!!unit.usedPatadaAcrobatica || !hasAdjacentEnemy)) ||
-                        (ab.id === 'doble_ataque' && (!unit.attackedThisTurn || !!unit.usedDobleAtaque || !!unit.usedVentajaAlcance)) ||
-                        (ab.id === 'cabalgar' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
-                        (ab.id === 'cabalgar_2' && (!!unit.attackedThisTurn || !!unit.usedCabalgar || !!unit.movedThisTurn)) ||
-                        (ab.id === 'carga' && (!unit.usedCabalgar || !!unit.usedCarga || !!unit.movedThisTurn || !!unit.attackedThisTurn)) ||
-                        (ab.id === 'ventaja_alcance' && (!!unit.attackedThisTurn || !!unit.usedVentajaAlcance || !!unit.usedDobleAtaque)) ||
-                        (ab.id === 'torbellino' && !!unit.usedTorbellino) ||
-                        (ab.id === 'meditacion' && (unit.hp >= BASE_STATS[unit.class].hp || ap < 2)) ||
-                        (ab.id === 'posicion_estrategica' && !!unit.usedPosicionEstrategica) ||
-                        (ab.id === 'en_nombre_del_rey' && !!unit.usedEnNombreDelRey) ||
-                        (ab.id === 'desenvainado_veloz' && !!unit.usedDesenvainadoVeloz) ||
-
-                        (ab.id === 'rayo_celestial' && !!unit.usedRayoCelestial) ||
-                        (ab.id === 'a_la_carga' && (!!unit.aLaCargaActive || !!unit.usedCabalgar || !!unit.movedThisTurn || !!unit.attackedThisTurn || ap < aLaCargaCost)) ||
+                    const disabledReason = isAbilityDisabled(state, ab.id, unit, myPlayerId, ap);
+                    const extraBlock =
+                        (ab.id === 'a_la_carga' && ((unit.flags ?? []).includes('a_la_carga') || (unit.flags ?? []).includes('carga') || (unit.flags ?? []).includes('basic_attack') || ap < 1)) ||
                         (ab.id === 'sacrificar' && (unit.hp >= BASE_STATS[unit.class].hp || !Object.values(state.units).some(u => u.owner === myPlayerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) ||
-                        (ab.id === 'ejecutar' && (!!unit.attackedThisTurn || !Object.values(state.units).some(u => u.owner !== myPlayerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2))) ||
-                        (ab.id === 'angel_guardian' && (!!unit.usedAngelGuardian || ap < 2)) ||
+                        (ab.id === 'ejecutar' && !Object.values(state.units).some(u => u.owner !== myPlayerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2)) ||
                         (ab.id === 'proteger' && !Object.values(state.units).some(u => u.owner === myPlayerId && u.id !== unit.id && hexDistance(unit.position, u.position) <= 3));
-                    const cost = ab.id === 'a_la_carga' ? aLaCargaCost : (ab.def?.cost ?? 0);
+                    const disabled = !!disabledReason || extraBlock;
+                    const cost = ab.id === 'a_la_carga' ? 1 : (ab.def?.cost ?? 0);
                     if (disabled) {
                         addAlert?.(l('alert.abilityNotAvailable'), 'warning');
                     } else if (ap < cost) {
                         addAlert?.(l('alert.noPA'), 'warning');
                     } else {
                         if (ab.id === 'a_la_carga') {
-                            setPendingAbility({ abilityId: 'cabalgar_2', unitId: unit.id });
-                            setCabalgarIsLaCarga(true);
+                            dispatch({ type: 'ACTIVATE_ABILITY', abilityId: 'a_la_carga', unitId: unit.id });
                         } else if (ab.id === 'angel_guardian') {
-                            setPendingAbility({ abilityId: 'angel_guardian', unitId: unit.id });
+                            dispatch({ type: 'ACTIVATE_ABILITY', abilityId: 'angel_guardian', unitId: unit.id });
                             setPendingAngelGuardian(true);
                         } else if (!ab.def?.requiresTarget && !['torbellino', 'cabalgar', 'cabalgar_2', 'posicion_estrategica'].includes(ab.id)) {
                             sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: unit.id, abilityId: ab.id });
                         } else {
-                            setPendingAbility({ abilityId: ab.id, unitId: unit.id });
-                            setPendingPatadaTargetId(null);
-                            setCabalgarIsLaCarga(false);
-                            setCabalgarPath([]);
+                            dispatch({ type: 'ACTIVATE_ABILITY', abilityId: ab.id, unitId: unit.id });
                             if (ab.id === 'torbellino') setPendingTorbellino(true);
                         }
-                        setMovingUnitId(null);
-                        setAttackingUnitId(null);
                     }
                 }
                 e.preventDefault();
@@ -205,24 +197,48 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     }, [mode, isMyTurn, selectedUnitId, state, myPlayerId, sendAction, setSelectedUnitId, setMovingUnitId, setAttackingUnitId, setPendingAbility, setPendingIdentityTargetId, onInfoSelect, bindings, addAlert, disableInput]);
 
     const moveRange = mode === 'GAME' && movingUnitId
-        ? getMoveRange(state, movingUnitId)
+        ? getAbilityHighlights(state, movingUnitId, 'movimiento').filter(h => h.highlight === 'move').map(h => h.hex)
         : [];
 
     const isIdentityTargetMode = !!(mode === 'GAME' && state.players[myPlayerId]?.pendingIdentityTarget);
+    const isEspartanoChoice = !!(mode === 'GAME' && state.players[myPlayerId]?.pendingEspartanoChoice);
+    const isPlanBatalla = !!(mode === 'GAME' && state.players[myPlayerId]?.pendingPlanBatalla);
+    const isPromptBlocked = isIdentityTargetMode || isEspartanoChoice || isPlanBatalla;
+
+    // Clear selection when prompt mode activates (en_la_mira, espartano, comandante_supremo)
+    useEffect(() => {
+        if (isPromptBlocked) {
+            clearAll();
+            onInfoSelect?.(null);
+        }
+    }, [isPromptBlocked]);
+
+    // Auto-activar card target mode cuando hay una carta pendiente que necesita target
+    useEffect(() => {
+        if (state.players[myPlayerId]?.pendingCardNeedsTarget && state.lastCardAction && selectedInfo?.type !== 'cardTarget') {
+            onInfoSelect?.({ type: 'cardTarget', cardId: state.lastCardAction.cardId });
+        }
+    }, [state.players[myPlayerId]?.pendingCardNeedsTarget, state.lastCardAction?.cardId]);
 
     const noAtaqueTargetAlerted = useRef(false);
+    const pendingCardTarget = state.players[myPlayerId]?.pendingCardNeedsTarget && state.lastCardAction;
     const cardTargetInfo = (() => {
-        const isMode = mode === 'GAME' && selectedInfo?.type === 'cardTarget' && state.activePlayer === myPlayerId && state.turnPhase !== 'COUNTER';
+        const isMyTurn = state.activePlayer === myPlayerId && state.turnPhase !== 'COUNTER';
+        const isCounterMode = state.turnPhase === 'COUNTER' && state.activePlayer !== myPlayerId;
+        const isPendingTarget = !!pendingCardTarget && selectedInfo?.type === 'cardTarget';
+        const isMode = mode === 'GAME' && selectedInfo?.type === 'cardTarget' && (isMyTurn || isCounterMode || isPendingTarget);
         if (!isMode) {
             noAtaqueTargetAlerted.current = false;
             return { isCardTargetMode: false, isCardTargetAlly: false, isCardTargetEnemy: false, cardTargets: [] as HexCoord[], hasNoAtaqueExtraTargets: false };
         }
         const cardId = selectedInfo?.cardId ?? '';
-        const isAlly = getCardType(cardId) === 'BUFF';
+        const cardType = getCardType(cardId);
+        const isReflect = isCounterMode && cardId.startsWith('espejo') && state.lastCardAction;
+        const isAlly = isReflect ? false : cardType === 'BUFF';
         const raw = isAlly
             ? Object.values(state.units).filter(u => {
                 if (u.owner !== myPlayerId) return false;
-                if (cardId.startsWith('ataque_extra') && !u.attackedThisTurn) return false;
+                if (cardId.startsWith('ataque_extra') && !(u.flags ?? []).includes('basic_attack')) return false;
                 return true;
             }).map(u => u.position)
             : Object.values(state.units).filter(u => u.owner !== myPlayerId).map(u => u.position);
@@ -261,6 +277,27 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         ? getAbilityTargets(state, pendingAbility.unitId, pendingAbility.abilityId, myPlayerId)
         : [];
 
+    const multiStepTargets = mode === 'GAME' && pendingMultiStep
+        ? (() => {
+            const { abilityId, unitId, step, selections } = pendingMultiStep;
+            const nextStep = step + 1;
+            if (selections.length === 0) return [];
+            const cfg = ABILITY_CONFIG[abilityId];
+            if (!cfg || !Array.isArray(cfg.target)) return [];
+            const targets = cfg.target as any[];
+            if (nextStep >= targets.length) return [];
+            const nextTargetCfg = targets[nextStep];
+            const lastPos = selections[selections.length - 1];
+            const prevTargetPos = selections.length >= 2 ? selections[selections.length - 2] : undefined;
+            const center = (nextTargetCfg.stepCenter ?? 'target') === 'self'
+                ? (state.units[unitId]?.position ?? lastPos)
+                : lastPos;
+            const avoidPos = nextTargetCfg.avoidAdjacentToTarget ? selections[0] : prevTargetPos;
+            const highlights = getAbilityHighlights(state, unitId, abilityId, nextStep, center, avoidPos);
+            return highlights.filter(h => h.highlight !== 'range').map(h => h.hex);
+        })()
+        : [];
+
     const torbellinoTargets = pendingAbility?.abilityId === 'torbellino' && state.units[pendingAbility.unitId]
         ? generateHexMap(state.map).filter(h => isWithinBounds(h, state.map.radius) && hexDistance(state.units[pendingAbility.unitId].position, h) === 1)
         : [];
@@ -273,12 +310,12 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         ? getAbilityMoveTargets(state, pendingAbility.unitId, pendingAbility.abilityId)
         : [];
 
-    const patadaDestHexes = mode === 'GAME' && pendingAbility?.abilityId === 'patada_acrobatica' && pendingPatadaTargetId
-        ? getAbilityMoveTargets(state, pendingAbility.unitId, 'patada_acrobatica', pendingPatadaTargetId)
+    const multiStepMoveTargets = mode === 'GAME' && pendingMultiStep?.abilityId
+        ? multiStepTargets
         : [];
 
-    const moveRangeRaw = mode === 'GAME' && movingUnitId && state.units[movingUnitId]
-        ? generateHexMap(state.map).filter(h => hexDistance(state.units[movingUnitId].position, h) <= 1 && isWithinBounds(h, state.map.radius))
+    const moveRangeRaw = mode === 'GAME' && movingUnitId
+        ? getAbilityHighlights(state, movingUnitId, 'movimiento').filter(h => h.highlight === 'range').map(h => h.hex)
         : [];
     const cabalgarRangeHexes = pendingAbility?.abilityId === 'cabalgar_2' && state.units[pendingAbility.unitId]
         ? generateHexMap(state.map).filter(h => isWithinBounds(h, state.map.radius) && hexDistance(state.units[pendingAbility.unitId].position, h) <= (cabalgarIsLaCarga ? 3 : 2))
@@ -363,6 +400,10 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     const occUnit = state.pendingOccupation ? state.units[state.pendingOccupation.unitId] : undefined;
     const occupationHex = (occUnit && occUnit.owner === myPlayerId) ? state.pendingOccupation!.position : undefined;
 
+    function isBlocked(uid: string) {
+        return state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === uid && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0));
+    }
+
     function isAttackTarget(hex: HexCoord) {
         return attackTargets.some(h => h.q === hex.q && h.r === hex.r);
     }
@@ -380,6 +421,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     }
 
     function isAbilityTarget(hex: HexCoord) {
+        if (pendingMultiStep) return false;  // Multi-step uses multiStepMoveTargets / multiStepTargets directly
         return abilityTargets.some(h => h.q === hex.q && h.r === hex.r);
     }
 
@@ -399,21 +441,23 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         {
             state, myPlayerId, mode, isMyTurn, isMyDeployTurn,
             selectedDeployUnitId, selectedInfo,
-            movingUnitId, attackingUnitId, pendingAbility,
+            movingUnitId, attackingUnitId, pendingAbility, pendingMultiStep,
             pendingPatadaTargetId, pendingCounterEspejoCard,
             isCardTargetMode, isCardTargetAlly, isIdentityTargetMode,
             cabalgarPath, cabalgarIsLaCarga,
-            patadaDestHexes,
+            multiStepMoveTargets,
             isReachable, isAttackTarget, isDeployable,
             isAbilityTarget, isAbilityMoveTarget, isAllyTarget,
             isCardTarget, isIdentityTarget,
             sendAction, addAlert, onInfoSelect, enqueue,
+            isPromptBlocked,
+            onIdentityTargetSelect: (id) => setPendingIdentityTargetId(id),
         },
         {
             setSelectedHex, setSelectedUnitId, setMovingUnitId, setAttackingUnitId,
             setPendingAbility, setPendingPatadaTargetId, setPendingCounterEspejoCard,
             setCabalgarPath,
-            clearAll,
+            clearAll, dispatch,
         },
     );
 
@@ -434,11 +478,10 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                 hoveredHex?.q === hex.q &&
                                 hoveredHex?.r === hex.r
                             }
-                            selected={false}
+                            selected={selectedUnitId !== null && Object.values(state.units).some(u => u.id === selectedUnitId && u.position.q === hex.q && u.position.r === hex.r)}
                             reachable={
                                 mode === 'DEPLOYMENT' && isMyDeployTurn ? isDeployable(hex)
-                                : mode === 'GAME' && pendingAbility?.abilityId === 'cabalgar_2' ? cabalgarNextHexes.some(h => h.q === hex.q && h.r === hex.r)
-                                : mode === 'GAME' && pendingAbility?.abilityId === 'patada_acrobatica' && pendingPatadaTargetId ? patadaDestHexes.some(h => h.q === hex.q && h.r === hex.r)
+                                : mode === 'GAME' && pendingMultiStep ? multiStepMoveTargets.some(h => h.q === hex.q && h.r === hex.r)
                                 : mode === 'GAME' && angelGuardianHexes.length > 0 ? angelGuardianHexes.some(h => h.q === hex.q && h.r === hex.r)
                                 : mode === 'GAME' && occupationHex ? occupationHex.q === hex.q && occupationHex.r === hex.r
                                 : mode === 'GAME' && pendingAbility ? isAbilityMoveTarget(hex)
@@ -447,15 +490,14 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             attackable={
                                 mode === 'GAME'
                                 ? (attackingUnitId !== null && isAttackTarget(hex)) ||
-                                  (pendingAbility !== null && pendingAbility.abilityId !== 'patada_acrobatica' && isAbilityTarget(hex)) ||
-                                  (pendingAbility !== null && pendingAbility.abilityId === 'patada_acrobatica' && !pendingPatadaTargetId && isAbilityTarget(hex)) ||
+                                  (pendingMultiStep === null && pendingAbility !== null && isAbilityTarget(hex) && !isAllyTarget(hex)) ||
                                   (pendingAbility !== null && pendingAbility.abilityId === 'torbellino' && torbellinoTargets.some(h => h.q === hex.q && h.r === hex.r))
                                 : false
                             }
                             identityTarget={mode === 'GAME' && (isIdentityTarget(hex) || cardTargets.some(h => h.q === hex.q && h.r === hex.r) || counterTargets.some(h => h.q === hex.q && h.r === hex.r))}
-                            allyTarget={mode === 'GAME' && pendingAbility !== null && isAllyTarget(hex)}
+                            allyTarget={mode === 'GAME' && ((pendingAbility !== null && isAllyTarget(hex)) || (pendingMultiStep !== null && isAllyTarget(hex)))}
                             inRange={
-                                mode === 'GAME' && !isReachable(hex) && !(attackingUnitId !== null && isAttackTarget(hex)) && !(pendingAbility !== null && isAbilityTarget(hex)) && !(pendingAbility !== null && isAllyTarget(hex)) && !(pendingAbility?.abilityId === 'patada_acrobatica' && pendingPatadaTargetId)
+                                mode === 'GAME' && !isReachable(hex) && !pendingMultiStep
                                 ? isInRange(hex)
                                 : false
                             }
@@ -476,6 +518,20 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         canAct={mode === 'GAME' && isMyTurn}
                         identityTargetMode={isIdentityTargetMode}
                         onIdentityTargetSelect={id => setPendingIdentityTargetId(id)}
+                        cardTargetMode={isCardTargetMode}
+                        isCardTargetAlly={isCardTargetAlly}
+                        isCardTargetEnemy={isCardTargetEnemy}
+                        cardTargetCardId={selectedInfo?.cardId ?? ''}
+                        onCardTargetSelect={(cardId, targetId) => {
+                            sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId });
+                            onInfoSelect?.(null);
+                            setPendingAbility(null);
+                            setMovingUnitId(null);
+                            setAttackingUnitId(null);
+                            clearAllSelections();
+                        }}
+                        pendingCounterEspejoCard={pendingCounterEspejoCard}
+                        setPendingCounterEspejoCard={setPendingCounterEspejoCard}
                         onPatadaTargetSelect={id => {
                             if (pendingAbility?.abilityId === 'patada_acrobatica' && !pendingPatadaTargetId) {
                                 setPendingPatadaTargetId(id);
@@ -485,16 +541,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         movingUnitId={movingUnitId}
                         onInfoSelect={onInfoSelect}
                         sendAction={sendAction}
+                        onHexClick={onHexClick}
                         onSelectUnit={unitId => {
-                            if (isCardTargetMode) {
-                                const unit = state.units[unitId];
-                                if (unit && (isCardTargetAlly ? unit.owner === myPlayerId : unit.owner !== myPlayerId)) {
-                                    const cardId = selectedInfo?.cardId ?? '';
-                                    sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId: unit.id });
-                                    setSelectedUnitId(unitId);
-                                }
-                                return;
-                            }
                             if (mode === 'DEPLOYMENT') {
                                 if (selectedUnitId === unitId) {
                                     setSelectedUnitId(null);
@@ -506,58 +554,44 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                                 return;
                             }
                             if (!isMyTurn) return;
-                            const blkUnit = state.units[unitId];
-                            if (blkUnit && blkUnit.owner === myPlayerId && state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === unitId && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) {
-                                addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning');
-                                return;
-                            }
+                            // Permitir selección incluso si está bloqueada
                             if (selectedUnitId === unitId) {
                                 clearAllSelections();
                             } else {
-                                setSelectedUnitId(unitId);
-                                setMovingUnitId(null);
-                                setAttackingUnitId(null);
-                                setPendingAbility(null);
-                                setPendingPatadaTargetId(null);
-                                setCabalgarIsLaCarga(false);
-                                setCabalgarPath([]);
+                                dispatch({ type: 'SELECT_UNIT', unitId });
                             }
                         }}
                         onRequestMove={unitId => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
+                            if (isBlocked(unitId)) { addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning'); return; }
                             if (state.activeModifiers.some(m => m.stat === 'inmovil' && m.targetId === unitId && m.remainingTurns >= 0 && (m.remainingUses === undefined || m.remainingUses > 0))) {
                                 addAlert?.(l('alert.inmovilized'), 'warning');
                                 return;
                             }
-                            setSelectedUnitId(unitId);
-                            setMovingUnitId(unitId);
-                            setAttackingUnitId(null);
-                            setPendingAbility(null);
+                            dispatch({ type: 'START_MOVE', unitId });
                         }}
                         onRequestAttack={unitId => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                            setSelectedUnitId(unitId);
-                            setAttackingUnitId(unitId);
-                            setMovingUnitId(null);
-                            setPendingAbility(null);
+                            if (isBlocked(unitId)) { addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning'); return; }
+                            dispatch({ type: 'START_ATTACK', unitId });
                         }}
                         onAttackUnit={(attackerId, targetId) => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                            sendAction({ type: 'ATTACK_UNIT', playerId: myPlayerId, unitId: attackerId, targetId });
-                            setAttackingUnitId(null);
+                            if (isBlocked(attackerId)) { addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning'); return; }
+                            sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: attackerId, abilityId: 'ataque_basico', targetId });
+                            dispatch({ type: 'EXECUTE_AND_KEEP_UNIT', unitId: attackerId });
+                            setTimeout(() => onInfoSelect?.({ type: 'unit', unitId: attackerId }), 150);
                         }}
                         onRequestAbilityTarget={(abilityId, unitId) => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                            setSelectedUnitId(unitId);
-                            setPendingAbility({ abilityId, unitId });
-                            setPendingPatadaTargetId(null);
-                            setMovingUnitId(null);
-                            setAttackingUnitId(null);
+                            if (isBlocked(unitId)) { addAlert?.(l('ui.blockedTurn', { n: 1 }), 'warning'); return; }
+                            dispatch({ type: 'ACTIVATE_ABILITY', abilityId, unitId });
+                            if (abilityId === 'torbellino') setPendingTorbellino(true);
                         }}
                         onUseAbilityOnUnit={(abilityId, unitId, targetId) => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
                             sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId, abilityId, targetId });
-                            setPendingAbility(null);
+                            dispatch({ type: 'EXECUTE_AND_KEEP_UNIT', unitId });
                             setPendingPatadaTargetId(null);
                         }}
                     />
@@ -582,42 +616,26 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 unitId={selectedUnitId}
                 playerId={myPlayerId}
                 canAct={mode === 'GAME' && isMyTurn}
-                onAngelGuardian={unitId => {
-                    setPendingAbility({ abilityId: 'angel_guardian', unitId });
+                onAngelGuardian={_unitId => {
                     setPendingAngelGuardian(true);
                 }}
                 onRequestMove={unitId => {
                     if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                    setSelectedUnitId(unitId);
-                    setMovingUnitId(unitId);
-                    setAttackingUnitId(null);
-                    setPendingAbility(null);
-                    setCabalgarPath([]);
+                    dispatch({ type: 'START_MOVE', unitId });
                 }}
                 onRequestAttack={unitId => {
                     if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                    setSelectedUnitId(unitId);
-                    setAttackingUnitId(unitId);
-                    setMovingUnitId(null);
-                    setPendingAbility(null);
-                    setCabalgarPath([]);
+                    dispatch({ type: 'START_ATTACK', unitId });
                 }}
                         onRequestAbilityTarget={(abilityId, unitId) => {
                             if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                            setSelectedUnitId(unitId);
-                            setPendingAbility({ abilityId, unitId });
-                            setMovingUnitId(null);
-                            setAttackingUnitId(null);
+                            dispatch({ type: 'ACTIVATE_ABILITY', abilityId, unitId });
                             if (abilityId === 'torbellino') setPendingTorbellino(true);
                         }}
                         onALaCarga={unitId => {
                     if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                    setSelectedUnitId(unitId);
-                    setPendingAbility({ abilityId: 'cabalgar_2', unitId });
+                    dispatch({ type: 'ACTIVATE_ABILITY', abilityId: 'cabalgar_2', unitId });
                     setCabalgarIsLaCarga(true);
-                    setCabalgarPath([]);
-                    setMovingUnitId(null);
-                    setAttackingUnitId(null);
                 }}
                 sendAction={sendAction}
                 addAlert={addAlert}
@@ -676,139 +694,36 @@ function getDeployableHexes(state: GameState, playerId: string): HexCoord[] {
     });
 }
 
-function getBasicAttackRange(unit: Unit, state: GameState): number {
-    const identity = state.players[unit.owner]?.selectedIdentity ?? '';
-    const bonus = unit.espartanoRangeBonus ? 1 : 0;
-    const isArcher = unit.class === 'archer' || unit.class === 'general';
-    return (identity.startsWith('francotirador') && isArcher ? unit.range + 1 : unit.range) + bonus;
+function getAllyAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, _playerId: string): HexCoord[] {
+    const highlights = getAbilityHighlights(state, unitId, abilityId);
+    return highlights.filter(h => h.highlight === 'support').map(h => h.hex);
 }
 
-function getAllyAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, playerId: string): HexCoord[] {
-    return getCfgAllyTargets(state, unitId, abilityId, playerId);
+function getAttackTargets(state: GameState, unitId: UnitId, _playerId: string): HexCoord[] {
+    const highlights = getAbilityHighlights(state, unitId, 'ataque_basico');
+    return highlights.filter(h => h.highlight === 'attack').map(h => h.hex);
 }
 
-function getAbilityRange(unit: Unit, state: GameState): number {
-    const identity = state.players[unit.owner]?.selectedIdentity ?? '';
-    if (identity.startsWith('francotirador') && unit.class === 'general') return unit.range + 1;
-    return unit.range;
+function getAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, _playerId: string): HexCoord[] {
+    const highlights = getAbilityHighlights(state, unitId, abilityId);
+    return highlights.filter(h => h.highlight === 'attack' || h.highlight === 'support').map(h => h.hex);
 }
 
-function getAttackTargets(state: GameState, unitId: UnitId, playerId: string): HexCoord[] {
-    const unit = state.units[unitId];
-    if (!unit) return [];
-
-    const range = getBasicAttackRange(unit, state);
-
-    return Object.values(state.units)
-        .filter(u => u.owner !== playerId)
-        .filter(u => hexDistance(unit.position, u.position) <= range)
-        .map(u => u.position);
-}
-
-function getAbilityTargets(state: GameState, unitId: UnitId, abilityId: string, playerId: string): HexCoord[] {
-    const unit = state.units[unitId];
-    if (!unit) return [];
-
-    let range: number;
-    switch (abilityId) {
-        case 'patada_acrobatica': range = 1; break;
-        case 'doble_ataque': {
-            const rangeBonus = unit.espartanoRangeBonus ? 1 : 0;
-            range = unit.range + rangeBonus; break;
-        }
-        case 'avance': range = unit.range; break;
-        case 'fuego_cobertura': range = getAbilityRange(unit, state); break;
-        case 'carga': {
-            if (!unit.cabalgarDir) return [];
-            const projQ = unit.position.q + unit.cabalgarDir.dq;
-            const projR = unit.position.r + unit.cabalgarDir.dr;
-            return Object.values(state.units)
-                .filter(u => u.owner !== playerId && u.position.q === projQ && u.position.r === projR)
-                .map(u => u.position);
-        }
-        case 'ventaja_alcance': {
-            const bonusRange = unit.range + 1;
-            return Object.values(state.units)
-                .filter(u => u.owner !== playerId && hexDistance(unit.position, u.position) === bonusRange)
-                .map(u => u.position);
-        }
-        case 'desenvainado_veloz': range = unit.range; break;
-        case 'ejecutar': range = 1; break;
-        default: return [];
-    }
-
-    return Object.values(state.units)
-        .filter(u => u.owner !== playerId)
-        .filter(u => hexDistance(unit.position, u.position) <= range)
-        .map(u => u.position);
-}
-
-function getAbilityMoveTargets(state: GameState, unitId: UnitId, abilityId: string, targetId?: UnitId): HexCoord[] {
-    return getCfgMoveTargets(state, unitId, abilityId, targetId);
+function getAbilityMoveTargets(state: GameState, unitId: UnitId, abilityId: string, _targetId?: UnitId): HexCoord[] {
+    const highlights = getAbilityHighlights(state, unitId, abilityId);
+    return highlights.filter(h => h.highlight === 'move').map(h => h.hex);
 }
 
 function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pendingAbility: { abilityId: string; unitId: UnitId } | null): HexCoord[] {
     if (!attackingUnitId && !pendingAbility) return [];
 
-    const unitId = attackingUnitId ?? pendingAbility!.unitId;
-    const unit = state.units[unitId];
-    if (!unit) return [];
-
-    let range: number;
+    // Basic attack (use ataque_basico config)
     if (attackingUnitId) {
-        range = getBasicAttackRange(unit, state);
-    } else {
-        const abilityId = pendingAbility!.abilityId;
-        switch (abilityId) {
-            case 'patada_acrobatica': range = 1; break;
-        case 'cabalgar': {
-            const steps = [
-                { dq: 1, dr: 0 }, { dq: 2, dr: 0 },
-                { dq: 0, dr: 1 }, { dq: 0, dr: 2 },
-                { dq: -1, dr: 1 }, { dq: -2, dr: 2 },
-                { dq: -1, dr: 0 }, { dq: -2, dr: 0 },
-                { dq: 0, dr: -1 }, { dq: 0, dr: -2 },
-                { dq: 1, dr: -1 }, { dq: 2, dr: -2 },
-            ];
-            const hexes = generateHexMap(state.map);
-            return hexes.filter(h => {
-                const dq = h.q - unit.position.q;
-                const dr = h.r - unit.position.r;
-                return steps.some(s => s.dq === dq && s.dr === dr);
-            });
-        }
-        case 'carga': {
-            if (!unit.cabalgarDir) return [];
-            const projQ = unit.position.q + unit.cabalgarDir.dq;
-            const projR = unit.position.r + unit.cabalgarDir.dr;
-            return isWithinBounds({ q: projQ, r: projR }, state.map.radius) ? [{ q: projQ, r: projR }] : [];
-        }
-            case 'doble_ataque': {
-                const rangeBonus = unit.espartanoRangeBonus ? 1 : 0;
-                range = unit.range + rangeBonus; break;
-            }
-            case 'avance': range = unit.range; break;
-            case 'fuego_cobertura': range = getAbilityRange(unit, state); break;
-            case 'ventaja_alcance': {
-                const bonusRange = unit.range + 1;
-                const hexes = generateHexMap(state.map);
-                return hexes.filter(h => hexDistance(unit.position, h) === bonusRange && isWithinBounds(h, state.map.radius));
-            }
-            case 'rayo_celestial': range = 2; break;
-            case 'en_nombre_del_rey': range = 2; break;
-            case 'sacrificar': range = 1; break;
-            case 'proteger': range = 3; break;
-            case 'angel_guardian': range = 0; break;
-            case 'cabalgar_2': range = 1; break;
-            case 'desenvainado_veloz': range = unit.range; break;
-            case 'ejecutar': range = 1; break;
-            default: return [];
-        }
+        const highlights = getAbilityHighlights(state, attackingUnitId, 'ataque_basico');
+        return highlights.filter(h => h.highlight === 'range').map(h => h.hex);
     }
 
-    const hexes = generateHexMap(state.map);
-    return hexes.filter(h =>
-        isWithinBounds(h, state.map.radius) &&
-        hexDistance(unit.position, h) <= range
-    );
+    // Ability range from config-driven system
+    const highlights = getAbilityHighlights(state, pendingAbility!.unitId, pendingAbility!.abilityId);
+    return highlights.filter(h => h.highlight === 'range').map(h => h.hex);
 }

@@ -9,6 +9,10 @@ import { applyDifficultyAbilities, applyDamageAbilities, applyDefenseAbilities, 
 import type { CombatResult } from './ability-effects';
 import { computeAttack, getAbilityConfig } from './compute';
 import type { ComputeResult } from './compute';
+import { debugCombat } from '../../debug';
+import { initDebug } from '../../debug';
+
+initDebug();
 
 function hasCapitanCounterattack(state: GameState, defender: Unit, distance: number): boolean {
     if (defender.class !== 'general') return false;
@@ -52,10 +56,15 @@ export type AttackResult = {
     noCritical?: boolean;
     compute?: ComputeResult;
     configId?: string;
+    preModifiers?: { defAttack: number; defDefense: number; atkAttack: number };
+    consumedModifiers?: any[]; // Snapshot of activeModifiers before consumption, for display
 };
 
 export function resolveAttack(input: AttackInput): AttackResult {
     const { state, unit, target, distance } = input;
+
+    // Snapshot modifiers before consumption for display purposes
+    const consumedModifiers = state.activeModifiers;
 
     // Dificultad (no depende del roll)
     let difficulty = getDifficulty(unit, distance);
@@ -100,8 +109,11 @@ export function resolveAttack(input: AttackInput): AttackResult {
         s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
         s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
         s = consumeModifier(s, unit.owner, 'attack', 1);  // player-wide (Mantenimiento)
+        s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id);
+        s = consumeModifier(s, unit.owner, 'difficulty', 1);
         s = consumeModifier(s, unit.owner, 'attackCost', 1);
-        return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg, compute, configId: input.configId };
+        s = consumeModifier(s, unit.owner, 'actionCost', 1);
+        return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg, compute, configId: input.configId, consumedModifiers };
     }
 
     // HIT — computar daño ahora (depende del roll para crítico)
@@ -148,6 +160,7 @@ export function resolveAttack(input: AttackInput): AttackResult {
     s = consumeModifier(s, target.owner, 'damage', 1, target.id);
     s = consumeModifier(s, target.owner, 'defense', 1, target.id);
     s = consumeModifier(s, unit.owner, 'attackCost', 1);
+    s = consumeModifier(s, unit.owner, 'actionCost', 1);
 
     // Aplicar DoT si el atacante tenía flechas_fuego (dotOnHit)
     const hadDot = s.activeModifiers.some(m => m.stat === 'dotOnHit' && m.sourcePlayerId === unit.owner && m.remainingUses !== undefined && m.remainingUses > 0);
@@ -164,5 +177,9 @@ export function resolveAttack(input: AttackInput): AttackResult {
         s = dealDamage(s, unit.id, cdmg);
     }
 
-    return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: true, damage: finalDamage, counterDamage: cdmg, noCritical: input.noCritical, compute, configId: input.configId };
+    return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: true, damage: finalDamage, counterDamage: cdmg, noCritical: input.noCritical, compute, configId: input.configId, consumedModifiers };
+}
+
+export function debugResolveAttack(state: GameState, attackerId: string, targetId: string, configId: string): void {
+    debugCombat(state, attackerId, targetId, configId);
 }

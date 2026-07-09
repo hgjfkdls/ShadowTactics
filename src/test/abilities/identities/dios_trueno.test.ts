@@ -55,7 +55,7 @@ function makeState(): GameState {
         ...s,
         units: {
             ...s.units,
-            gen1: { ...s.units['gen1'], abilities: ['rayo_celestial'], usedRayoCelestial: true },
+            gen1: { ...s.units['gen1'], abilities: ['rayo_celestial'], flags: ['rayo_celestial'] },
         },
     };
     const st = applyAction(s, {

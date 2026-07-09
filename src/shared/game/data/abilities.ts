@@ -217,8 +217,9 @@ export const ABILITIES: Record<string, UnitAbility> = {
         description: 'Si 3 unidades aliadas están adyacentes entre sí, todas tienen ataque +1',
     },
     voz_de_mando: {
-        id: 'voz_de_mando', name: 'Voz de mando', type: 'passive',
-        description: 'La unidad aliada que se mueve tras el General recibe +1 ataque y +1 defensa',
+        id: 'voz_de_mando', name: 'Voz de mando', type: 'active', cost: 1,
+        description: 'Da +1 ataque y +1 defensa a un aliado en rango 2 durante 1 turno',
+        requiresTarget: true,
     },
     plan_batalla: {
         id: 'plan_batalla', name: 'Plan de batalla', type: 'passive',

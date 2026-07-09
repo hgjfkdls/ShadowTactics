@@ -107,7 +107,7 @@ export function applyFormationModifiers(state: GameState, playerId: PlayerId): G
         const inTriangulo = trianguloUnits.has(uid) && !alreadyTriangulo.has(uid);
 
         if (inLinea) {
-            s = addModifier(s, playerId, uid, 'defense', 1, 'ADD', 1, 1, 'formation', 'Línea');
+            s = addModifier(s, playerId, uid, 'defense', 1, 'ADD', 1, 1, 'ability', 'formacion_linea');
             // Override the auto-generated ID with a formation-specific one
             const last = s.activeModifiers[s.activeModifiers.length - 1];
             if (last) {
@@ -121,7 +121,7 @@ export function applyFormationModifiers(state: GameState, playerId: PlayerId): G
             alreadyLinea.add(uid);
         }
         if (inTriangulo) {
-            s = addModifier(s, playerId, uid, 'attack', 1, 'ADD', 1, 1, 'formation', 'Triángulo');
+            s = addModifier(s, playerId, uid, 'attack', 1, 'ADD', 1, 1, 'ability', 'formacion_triangulo');
             const last = s.activeModifiers[s.activeModifiers.length - 1];
             if (last) {
                 s = {
@@ -135,5 +135,30 @@ export function applyFormationModifiers(state: GameState, playerId: PlayerId): G
         }
     }
 
+    return s;
+}
+
+export function applyMuroEspartanoModifiers(state: GameState, playerId: PlayerId): GameState {
+    const identity = state.players[playerId]?.selectedIdentity ?? '';
+    if (!identity.startsWith('espartano')) return state;
+    let s: GameState = {
+        ...state,
+        activeModifiers: state.activeModifiers.filter(m => !m.id.startsWith('muro_espartano_')),
+    };
+    const lancers = Object.values(s.units).filter(u => u.owner === playerId && u.class === 'lancer');
+    for (const lancer of lancers) {
+        const hasAdjacent = lancers.some(other =>
+            other.id !== lancer.id && hexDistance(lancer.position, other.position) === 1
+        );
+        if (hasAdjacent) {
+            s = addModifier(s, playerId, lancer.id, 'attack', 1, 'ADD', 1, 1, 'ability', 'muro_espartano');
+            const last = s.activeModifiers[s.activeModifiers.length - 1];
+            if (last) {
+                s = { ...s, activeModifiers: s.activeModifiers.map((m, i) =>
+                    i === s.activeModifiers.length - 1 ? { ...m, id: `muro_espartano_${lancer.id}` } : m
+                ) };
+            }
+        }
+    }
     return s;
 }

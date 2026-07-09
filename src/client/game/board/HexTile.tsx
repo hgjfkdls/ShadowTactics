@@ -35,20 +35,20 @@ export function HexTile({
 
 
     const fill = selected
-        ? 'var(--color-selected)'
+        ? 'var(--color-default-bg)'
         : attackable
             ? 'var(--color-attack-bg)'
             : identityTarget
                 ? 'var(--color-identity-target-bg)'
                 : allyTarget
-                    ? 'var(--color-buff-bg)'
+                    ? 'var(--color-move-bg)'
                     : reachable
                         ? 'var(--color-move-bg)'
                         : hovered
                             ? 'var(--color-hover-bg)'
                             : 'var(--color-default-bg)';
 
-    const stroke = identityTarget ? 'var(--color-identity-target)' : allyTarget ? 'var(--color-buff)' : attackable ? 'var(--color-attack)' : 'var(--color-default-stroke)';
+    const stroke = identityTarget ? 'var(--color-identity-target)' : allyTarget ? 'var(--color-available)' : attackable ? 'var(--color-attack)' : 'var(--color-default-stroke)';
     const strokeW = identityTarget || allyTarget || attackable ? 2.5 : 2;
 
 
@@ -63,6 +63,17 @@ export function HexTile({
                 onMouseLeave={() => onHover(null)}
                 onClick={() => onClick(hex)}
             />
+
+            {selected && (
+                <polygon
+                    points={hexPolygonPoints(x, y, 37)}
+                    fill="none"
+                    stroke="#fde047"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    pointerEvents="none"
+                />
+            )}
 
             {reachable && !selected && (
                 <polygon
@@ -80,7 +91,7 @@ export function HexTile({
                 />
             )}
 
-            {inRange && !reachable && !attackable && (
+            {inRange && !reachable && (
                 <polygon
                     points={points}
                     fill="var(--color-range-overlay)"
@@ -107,7 +118,7 @@ export function HexTile({
             {allyTarget && (
                 <polygon
                     points={points}
-                    fill="var(--color-buff-overlay)"
+                    fill="var(--color-available-overlay)"
                     pointerEvents="none"
                 />
             )}

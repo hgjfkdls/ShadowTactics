@@ -1,10 +1,14 @@
 import type { GameState, Unit, UnitId, HexCoord } from '@shared';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
+import type { AbilityRange } from '@shared/game/data/ability-config/types';
+import { BASE_STATS } from '@shared/game/units';
 import { getIdentityKey } from '@shared/game/data/identities';
 import { ABILITIES } from '@shared/game/data/abilities';
 import { hexDistance } from '@shared/hex';
 import { isHexOccupied, isWithinBounds } from '@shared/game/utils';
 import { generateHexMap } from '@shared/hex';
+import { filterTargets } from '@shared/game/board/selection';
+import { l } from '@shared/i18n';
 
 export type AbilityUI = {
     maxDist?: number;
@@ -31,17 +35,15 @@ export function getAbilityUI(state: GameState, abilityId: string, unit: Unit): A
     // Range
     if (cfg?.range === 'unit.range') {
         result.range = unit.range + (cfg.rangeBonus ?? 0);
-        const identity = state.players[unit.owner]?.selectedIdentity ?? '';
-        // Francotirador: +1 rango al general
-        if (identity.startsWith('francotirador') && unit.class === 'general') {
-            result.range = (result.range ?? 0) + 1;
-        }
-        // Espartano: +1 rango
         if (unit.espartanoRangeBonus) {
             result.range = (result.range ?? 0) + 1;
         }
-    } else if (cfg?.range) {
-        result.range = cfg.range;
+    } else if (cfg?.range && typeof cfg.range === 'object') {
+        const raw = (cfg.range as AbilityRange).value;
+        result.range = raw === 'unit.range' ? unit.range + (cfg.rangeBonus ?? 0) : (raw ?? unit.range);
+        if (unit.espartanoRangeBonus) {
+            result.range = (result.range ?? 0) + 1;
+        }
     }
 
     // Move config
@@ -116,14 +118,12 @@ export function getAbilityMoveTargets(state: GameState, unitId: UnitId, abilityI
         });
     }
 
-    if (abilityId === 'posicion_estrategica') {
-        return hexes.filter(h => {
-            if (hexDistance(unit.position, h) !== 1) return false;
-            if (isHexOccupied(state, h)) return false;
-            const hasAdjacentAlly = Object.values(state.units)
-                .some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(h, u.position) === 1);
-            return hasAdjacentAlly;
-        });
+    // Generic config-driven fallback for move abilities
+    const cfg = ABILITY_CONFIG[abilityId];
+    const targets = Array.isArray(cfg?.target) ? cfg.target : [cfg.target];
+    const moveTarget = targets.find(t => t.type === 'move');
+    if (moveTarget) {
+        return filterTargets(hexes, moveTarget, unit, state).map(r => r.hex);
     }
 
     return [];
@@ -223,46 +223,36 @@ export function getRangeHexes(state: GameState, unitId: UnitId | null, pendingAb
  */
 export function isAbilityDisabled(state: GameState, abilityId: string, unit: Unit, playerId: string, ap: number): string | undefined {
     const ui = getAbilityUI(state, abilityId, unit);
+    const cfg = ABILITY_CONFIG[abilityId];
+    const uFlags = unit.flags ?? [];
 
-    // Verificaciones específicas por habilidad
-    if (abilityId === 'patada_acrobatica' && (unit.usedPatadaAcrobatica || !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1))) {
+    // Config-driven pre-use checks
+    if (cfg?.activation?.requireFlags) {
+        for (const f of cfg.activation.requireFlags) {
+            if (!uFlags.includes(f)) return l('alert.abilityNotAvailable');
+        }
+    }
+    if (cfg?.activation?.blockFlags) {
+        for (const f of cfg.activation.blockFlags) {
+            if (uFlags.includes(f)) return l('alert.abilityNotAvailable');
+        }
+    }
+
+    // Special conditions not covered by flags system
+    if (abilityId === 'patada_acrobatica' && !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1)) {
         return l('alert.abilityNotAvailable');
     }
-    if (abilityId === 'doble_ataque' && (!unit.attackedThisTurn || unit.usedDobleAtaque)) {
-        return l('alert.abilityNotAvailable');
-    }
-    if (abilityId === 'cabalgar' && (unit.attackedThisTurn || unit.usedCabalgar || unit.movedThisTurn)) {
-        return l('alert.abilityNotAvailable');
-    }
-    if (abilityId === 'cabalgar_2' && (unit.attackedThisTurn || unit.usedCabalgar || unit.movedThisTurn)) {
-        return l('alert.abilityNotAvailable');
-    }
-    if (abilityId === 'carga' && (!unit.usedCabalgar || unit.usedCarga || unit.movedThisTurn || unit.attackedThisTurn)) {
-        return l('alert.abilityNotAvailable');
-    }
-    if (abilityId === 'ventaja_alcance' && (unit.attackedThisTurn || unit.usedVentajaAlcance || unit.usedDobleAtaque)) {
-        return l('alert.abilityNotAvailable');
-    }
-    if (abilityId === 'meditacion' && (unit.hp >= 24 || ap < 2)) {
+    if (abilityId === 'meditacion' && (unit.hp >= (BASE_STATS[unit.class as keyof typeof BASE_STATS]?.hp ?? 24) || ap < 2)) {
         return l('alert.fullHPorNoPA');
     }
-    if (abilityId === 'en_nombre_del_rey' && unit.usedEnNombreDelRey) {
-        return l('alert.alreadyUsedThisTurn');
-    }
-    if (abilityId === 'desenvainado_veloz' && unit.usedDesenvainadoVeloz) {
-        return l('alert.alreadyUsedThisTurn');
-    }
-    if (abilityId === 'sacrificar' && (unit.hp >= 24 || !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) {
+    if (abilityId === 'sacrificar' && (unit.hp >= (BASE_STATS[unit.class as keyof typeof BASE_STATS]?.hp ?? 24) || !Object.values(state.units).some(u => u.owner === playerId && u.id !== unit.id && hexDistance(unit.position, u.position) === 1))) {
         return l('alert.fullHPorNoAllies');
     }
-    if (abilityId === 'posicion_estrategica' && unit.usedPosicionEstrategica) {
-        return l('alert.alreadyUsedThisTurn');
-    }
-    if (abilityId === 'torbellino' && unit.usedTorbellino) {
-        return l('alert.alreadyUsedThisTurn');
-    }
-    if (abilityId === 'ejecutar' && (unit.attackedThisTurn || !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2))) {
+    if (abilityId === 'ejecutar' && !Object.values(state.units).some(u => u.owner !== playerId && hexDistance(unit.position, u.position) === 1 && u.hp <= 2)) {
         return l('alert.ejecutableUnavailable');
+    }
+    if (abilityId === 'carga' && !unit.lastHex) {
+        return l('alert.abilityNotAvailable');
     }
 
     if ((ui.cost ?? 0) > ap) {

@@ -16,6 +16,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   francotirador: {
     unitClassOverride: 'archer',
     copyStats: true,
+    abilitiesOverride: ['francotirador', 'blanco_facil', 'patada_acrobatica', 'fuego_cobertura'],
   },
   dios_trueno: {
     unitClassOverride: 'infantry',
@@ -23,12 +24,12 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   },
   capitan_guardia: {
     unitClassOverride: 'infantry',
-    abilitiesOverride: ['resistencia', 'presion'],
+    abilitiesOverride: ['resistencia', 'presion', 'liderar_tropas'],
   },
   caballos_guerra: {
     unitClassOverride: 'cavalry',
     copyStats: true,
-    abilitiesOverride: ['romper_filas', 'cabalgar_2', 'carga', 'doble_ataque', 'a_la_carga'],
+    abilitiesOverride: ['romper_filas', 'cabalgar_2', 'carga', 'a_la_carga'],
   },
   cazadores: {
     unitClassOverride: 'cavalry',
@@ -41,18 +42,19 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   },
   espartano: {
     unitClassOverride: 'lancer',
-    abilitiesOverride: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque'],
+    abilitiesOverride: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'lanza_escudo'],
   },
   monje_shaolin: {
     unitClassOverride: 'general',
-    abilitiesOverride: ['meditacion'],
+    abilitiesOverride: ['meditacion', 'karma'],
   },
   comandante_supremo: {
     unitClassOverride: 'general',
+    abilitiesOverride: ['voz_de_mando', 'plan_batalla'],
   },
   corazon_estratega: {
     unitClassOverride: 'general',
-    abilitiesOverride: ['posicion_estrategica'],
+    abilitiesOverride: ['posicion_estrategica', 'formacion_linea', 'formacion_triangulo'],
   },
   inspiracion_real: {
     unitClassOverride: 'general',
@@ -68,7 +70,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   },
   escudo_comandante: {
     unitClassOverride: 'general',
-    abilitiesOverride: ['angel_guardian', 'proteger'],
+    abilitiesOverride: ['angel_guardian', 'proteger', 'proteger_auto'],
   },
 };
 

@@ -58,7 +58,7 @@ export function computeAttack(
     const modEntries: { stat: string; value: number; source: string; label: string }[] = [];
 
     if (extraAtk !== 0) {
-        modEntries.push({ stat: 'attack', value: extraAtk, source: 'extra', label: `${config.displayName ?? 'Extra'}: ${extraAtk > 0 ? '+' : ''}${extraAtk} ataque` });
+        modEntries.push({ stat: 'attack', value: extraAtk, source: 'extra', label: `${`ability.${config.id}.name`}: ${extraAtk > 0 ? '+' : ''}${extraAtk} ataque` });
     }
     if (config.allowedModifiers.includes('attack') && allMods.attackMod !== 0) {
         modEntries.push({ stat: 'attack', value: allMods.attackMod, source: 'attack', label: `Ataque: ${allMods.attackMod > 0 ? '+' : ''}${allMods.attackMod}` });
@@ -70,7 +70,7 @@ export function computeAttack(
         modEntries.push({ stat: 'difficulty', value: allMods.difficulty, source: 'difficulty', label: `Dificultad: ${allMods.difficulty > 0 ? '+' : ''}${allMods.difficulty}` });
     }
     if (extraDiff !== 0) {
-        modEntries.push({ stat: 'difficulty', value: extraDiff, source: 'extra', label: `${config.displayName ?? 'Extra'}: ${extraDiff > 0 ? '+' : ''}${extraDiff} dificultad` });
+        modEntries.push({ stat: 'difficulty', value: extraDiff, source: 'extra', label: `${`ability.${config.id}.name`}: ${extraDiff > 0 ? '+' : ''}${extraDiff} dificultad` });
     }
     if (config.allowedModifiers.includes('attackCost') && allMods.attackCost !== 0) {
         modEntries.push({ stat: 'attackCost', value: allMods.attackCost, source: 'attackCost', label: `PA ataque: +${allMods.attackCost}` });

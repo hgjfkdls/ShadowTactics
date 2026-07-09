@@ -1,25 +1,45 @@
 import type { GameState, GameAction, Unit } from '@shared/game/state';
-import type { AbilityConfig } from '../types';
+import type { AbilityConfig, ConfigEffect } from '../types';
+import { ABILITY_CONFIG } from '../index';
 import { hexDistance } from '@shared/hex';
+import type { HexCoord } from '@shared/hex';
 import { updateUnit, dealDamage, isHexOccupied, isWithinBounds } from '@shared/game/utils';
 import { roll2d6 } from '@shared/game/utils/rng';
 import { consumeAP } from '@shared/game/actions/helpers';
 import { resolveAttack } from '@shared/game/combat';
-import type { AttackResult } from '@shared/game/combat';
+import type { AttackResult, CombatResult } from '@shared/game/combat';
+import { getDifficulty } from '@shared/game/combat/hit';
+import { applyDifficultyAbilities } from '@shared/game/combat/ability-effects';
 import { addModifier, consumeModifier, getModifierSum } from '@shared/game/modifiers/engine';
 import { BASE_STATS } from '@shared/game/units';
 import { buildAttackModifiers, storeAttackResult } from '@shared/game/actions/ability';
+import { getAbilityHighlights, isValidTarget } from '@shared/game/board/selection';
+import { processEffects } from '@shared/game/effects';
+import type { EffectContext } from '@shared/game/effects';
 
 function unitHasAbility(unit: Unit, abilityId: string): boolean {
     return unit.abilities?.includes(abilityId) ?? false;
 }
 
 function getAbilityRange(unit: Unit, _state: GameState, cfg: AbilityConfig): number {
-    const base = cfg.range === 'unit.range' ? unit.range : (cfg.range ?? unit.range);
+    const raw = typeof cfg.range === 'object' && cfg.range ? (cfg.range as any).value : cfg.range;
+    if (cfg.type === 'move') {
+        return raw === 'unit.range' ? unit.range : (raw ?? unit.range);
+    }
+    const base = raw === 'unit.range' ? unit.range : (raw ?? unit.range);
     let r = base + (cfg.rangeBonus ?? 0);
-    if (unit.espartanoRangeBonus) r += 1;
-    const identity = _state.players[unit.owner]?.selectedIdentity ?? '';
-    if (identity.startsWith('francotirador') && unit.class === 'general') r += 1;
+    // Range modifier from activeModifiers (lanza_escudo, francotirador)
+    for (const m of _state.activeModifiers) {
+        if (m.stat === 'range' && (m.targetId === undefined || m.targetId === unit.id)) {
+            if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
+            if (m.operator === 'ADD') r += m.value;
+        }
+    }
+    // Tiro a distancia: +1 rango a ataques básicos para arqueros (no general)
+    if (cfg.id === 'ataque_basico' && unit.class !== 'general') {
+        const identity = _state.players[unit.owner]?.selectedIdentity ?? '';
+        if (unit.abilities?.includes('tiro_a_distancia') || (identity.startsWith('francotirador') && unit.class === 'archer')) r += 1;
+    }
     return r;
 }
 
@@ -33,36 +53,262 @@ function consumeCostMods(s: GameState, playerId: string, unitId: string): GameSt
     return s;
 }
 
+function applyEffectsByTiming(state: GameState, effects: ConfigEffect[], unit: Unit, action: GameAction, target: Unit | undefined, timing: 'onUse' | 'onHit' | 'onKill', cfg: AbilityConfig): GameState {
+    let s = state;
+    for (const effect of effects) {
+        if ((effect.timing ?? 'onUse') !== timing) continue;
+        if (effect.type === 'setFlag' && effect.target === 'self') {
+            s = updateUnit(s, unit.id, (u) => ({ ...u, flags: [...new Set([...(u.flags ?? []), ...(effect.flags ?? [])])] }));
+        } else if (effect.type === 'removeFlag' && effect.target === 'self') {
+            s = updateUnit(s, unit.id, (u) => ({ ...u, flags: (u.flags ?? []).filter(f => !(effect.flags ?? []).includes(f)) }));
+        } else if (effect.type === 'setPlayerFlag') {
+            s = { ...s, players: { ...s.players, [unit.owner]: { ...s.players[unit.owner], flags: [...new Set([...(s.players[unit.owner]?.flags ?? []), ...(effect.flags ?? [])])] } } };
+        }
+    }
+    return s;
+}
+
 export function handleAbility(state: GameState, action: GameAction, cfg: AbilityConfig): GameState {
     if (action.type !== 'USE_ABILITY') return state;
 
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== action.playerId) return state;
-    if (!unitHasAbility(unit, action.abilityId)) return state;
+    if (action.abilityId !== 'ataque_basico' && action.abilityId !== 'movimiento') {
+        if (!unitHasAbility(unit, action.abilityId)) return state;
+    }
 
     const costMods = getModifierSum(state, action.playerId, action.unitId, 'attackCost') + getModifierSum(state, action.playerId, action.unitId, 'actionCost');
-    const baseCost = cfg.base.paCost ?? 0;
-    const totalCost = baseCost + costMods;
+    let baseCost = cfg.base.paCost === 'unit.movementCost' ? unit.movementCost : (cfg.base.paCost ?? 0);
+    // Apply movementCost modifiers (movilidad card, pantano, etc.)
+    let hasMovementSet = false;
+    let movementMul = 1;
+    if (cfg.type === 'move' && cfg.allowedModifiers?.includes('movementCost')) {
+        const moveMods = state.activeModifiers.filter(m =>
+            m.stat === 'movementCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
+        );
+        // SET overridea todo: ignora MUL, ADD y actionCost
+        const setMod = moveMods.find(m => m.operator === 'SET');
+        if (setMod) {
+            baseCost = setMod.value;
+            hasMovementSet = true;
+        } else {
+            // MUL se aplica a la base primero
+            for (const m of moveMods) {
+                if (m.operator === 'MUL') movementMul *= m.value;
+            }
+            if (movementMul !== 1) baseCost = Math.round(baseCost * movementMul);
+            // ADD se suma después de MUL
+            for (const m of moveMods) {
+                if (m.operator === 'ADD') baseCost += m.value;
+            }
+        }
+        baseCost = Math.max(0, baseCost);
+    }
+    // Si hay SET, se ignora costMods (actionCost). Si no, se suma después de MUL/ADD.
+    let totalCost = hasMovementSet ? baseCost : (baseCost + costMods);
+    totalCost = Math.max(0, totalCost);
     if ((state.players[action.playerId]?.actionPoints ?? 0) < totalCost) return state;
 
-    let s: GameState;
+    // Pre-use activation checks from config
+    const uFlags = unit.flags ?? [];
+    if (cfg.activation?.requireFlags) {
+        for (const f of cfg.activation.requireFlags) {
+            if (!uFlags.includes(f)) return state;
+        }
+    }
+    if (cfg.activation?.blockFlags) {
+        for (const f of cfg.activation.blockFlags) {
+            if (uFlags.includes(f)) return state;
+        }
+    }
+
+    // Range / Target validation from config (shared between client and server)
+    const hasRangeCfg = typeof cfg.range === 'object' && cfg.range && Object.keys(cfg.range).length > 0;
+    const hasTargetCfg = typeof cfg.target === 'object' && cfg.target && Object.keys(cfg.target).length > 0;
+    if ((hasRangeCfg || hasTargetCfg) && action.targetId) {
+        if (!isValidTarget(state, unit.id, action.abilityId, action.targetId)) return state;
+    }
+
+    // Apply pre-combat effects (onUse: flagPush, flagPop, modifierPush)
+    let s: GameState = state;
+    if (cfg.effects) {
+        // New format: processEffects handles flagPush, flagPop, modifierPush
+        const effCtx: EffectContext = {
+            state: s, unit, timing: 'onUse',
+            target: action.targetId ? s.units[action.targetId] : unit,
+            configId: cfg.id,
+        };
+        s = processEffects(s, cfg.effects, effCtx);
+        // Legacy fallback: applyEffectsByTiming for unmigrated configs
+        if (cfg.effects.some(e => e.type === 'setFlag' || e.type === 'removeFlag' || e.type === 'setPlayerFlag')) {
+            s = applyEffectsByTiming(s, cfg.effects, unit, action, undefined, 'onUse', cfg);
+        }
+    }
+
+    // Consume AP (base cost + cost modifiers + movementCost MUL)
+    const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods);
+    s = consumeAP(s, unit.owner, moveFinalCost);
+
 
     switch (cfg.type) {
         case 'attack':
-            s = handleAttack(state, action, unit, cfg, baseCost, costMods);
+            s = handleAttack(s, action, unit, cfg, baseCost, costMods);
             break;
         case 'support':
-            s = handleSupport(state, action, unit, cfg, baseCost, costMods);
+            s = handleSupport(s, action, unit, cfg, baseCost, costMods);
             break;
         case 'move':
-            s = handleMove(state, action, unit, cfg, baseCost, costMods);
+            s = handleMove(s, action, unit, cfg, baseCost, costMods, totalCost);
+            // Consumir modifiers de movementCost después del movimiento (cualquier operador)
+            if (cfg.allowedModifiers?.includes('movementCost')) {
+                s = consumeModifier(s, action.playerId, 'movementCost', 1);
+            }
             break;
         default:
             return state;
     }
 
     if (s !== state) {
-        s = updateUnit(s, action.unitId, (u) => ({ ...u, performedActionThisTurn: true }));
+        s = updateUnit(s, action.unitId, (u) => ({ ...u, flags: [...new Set([...(u.flags ?? []), 'performed_action'])] }));
+        // On-kill effects (desenvainado_veloz reset, etc.)
+        if (cfg.effects && action.targetId && s.graveyard[action.targetId]) {
+            const killCtx: EffectContext = {
+                state: s, unit, timing: 'onKill',
+                target: s.graveyard[action.targetId],
+                configId: cfg.id,
+            };
+            s = processEffects(s, cfg.effects, killCtx);
+            if (cfg.effects.some(e => e.type === 'setFlag' || e.type === 'removeFlag' || e.type === 'setPlayerFlag')) {
+                s = applyEffectsByTiming(s, cfg.effects, unit, action, undefined, 'onKill', cfg);
+            }
+        }
+    }
+
+    // Set lastTargetId for attack/support abilities (needed by presion, etc.)
+    if (action.targetId && cfg.type !== 'move') {
+        s = updateUnit(s, action.unitId, (u) => ({ ...u, lastTargetId: action.targetId }));
+    }
+
+    // Flush pending heal entry (robar_ricos) after attack history
+    if ((s as any).pendingHealEntry) {
+        const phe = (s as any).pendingHealEntry;
+        s = {
+            ...s,
+            gameHistory: [...s.gameHistory, {
+                id: `h${s.nextHistoryId}`,
+                turn: s.turn,
+                actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                playerId: action.playerId,
+                type: 'card' as const,
+                cardId: phe.abilId,
+                cardName: `ability.${phe.abilId}.name`,
+                cardType: 'BUFF' as const,
+                targetId: phe.attackerId,
+                targetClass: phe.attackerClass,
+                details: '+1 HP',
+                paCost: 0,
+                sourceClass: phe.attackerClass,
+            }],
+            nextHistoryId: s.nextHistoryId + 1,
+        };
+        s = { ...s, pendingHealEntry: undefined } as any;
+    }
+
+    // ─── Config-driven movement history ───
+    const mvDefault = cfg.type === 'move' ? { unit: 'self' as const } : false;
+    const mvCfg = cfg.log?.showMovement !== undefined ? cfg.log.showMovement : mvDefault;
+    if (mvCfg && s !== state) {
+        const mv = typeof mvCfg === 'object' ? mvCfg : { unit: 'self' as const };
+        if (cfg.type === 'move' && mv.unit === 'self') {
+            const finalUnit = s.units[action.unitId];
+            if (finalUnit && (finalUnit.position.q !== unit.position.q || finalUnit.position.r !== unit.position.r)) {
+                const moveCostStrs: string[] = [];
+                const moveSrc = state.activeModifiers.find(m => m.stat === 'movementCost' && m.targetId === undefined && m.sourcePlayerId === unit.owner && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0);
+                if (moveSrc) {
+                    const label = moveSrc.operator === 'MUL' ? `${moveSrc.sourceName ?? 'Coste'}: x${moveSrc.value} cost`
+                        : moveSrc.operator === 'SET' ? `${moveSrc.sourceName ?? 'Coste'}: ${moveSrc.value} PA`
+                        : `${moveSrc.sourceName ?? 'Coste'}: ${moveSrc.value > 0 ? '+' : ''}${moveSrc.value}`;
+                    moveCostStrs.push(label);
+                }
+                const actSrc = state.activeModifiers.find(m => m.stat === 'actionCost' && m.targetId === unit.id && m.sourcePlayerId === unit.owner && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0);
+                if (actSrc) moveCostStrs.push(`${actSrc.sourceName ?? 'Coste acción'}: +${actSrc.value} PA`);
+                // Build path array: from action.path (cabalgar_2), or compute midpoint (cabalgar), or simple
+                const displayPath: HexCoord[] = action.path && action.path.length >= 2
+                    ? [unit.position, ...action.path]
+                    : cfg.flags?.straightLine
+                        ? (() => {
+                            const dq = action.to!.q - unit.position.q;
+                            const dr = action.to!.r - unit.position.r;
+                            const steps = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(-dq - dr));
+                            if (steps <= 1) return [unit.position, action.to!];
+                            const mid = { q: Math.round(unit.position.q + dq / 2), r: Math.round(unit.position.r + dr / 2) };
+                            return [unit.position, mid, action.to!];
+                        })()
+                        : [unit.position, action.to!];
+                const pathStr = displayPath.map((h: any) => `(${h.q},${h.r})`).join(' → ');
+                s = {
+                    ...s,
+                    gameHistory: [...s.gameHistory, {
+                        id: `h${s.nextHistoryId}`,
+                        turn: s.turn,
+                        actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                        playerId: unit.owner,
+                        type: 'move' as const,
+                        configId: cfg.id,
+                        abilityName: `ability.${cfg.id}.name`,
+                        unitId: finalUnit.id,
+                        unitClass: finalUnit.class,
+                        from: unit.position,
+                        to: finalUnit.position,
+                        paCost: moveFinalCost ?? (baseCost + costMods),
+                        cost: moveFinalCost ?? (baseCost + costMods),
+                        baseCost: baseCost,
+                        modifiers: moveCostStrs,
+                        details: pathStr,
+                        path: displayPath,
+                        sourceClass: finalUnit.class,
+                    }],
+                    nextHistoryId: s.nextHistoryId + 1,
+                };
+            }
+        } else {
+            // Merge movement into the last history entry (attack/support)
+            const history = [...s.gameHistory];
+            const lastIdx = history.length - 1;
+            if (lastIdx >= 0) {
+                const merged: any = { ...history[lastIdx] };
+                if (mv.unit === 'self') {
+                    const finalUnit = s.units[action.unitId];
+                    if (finalUnit && (finalUnit.position.q !== unit.position.q || finalUnit.position.r !== unit.position.r)) {
+                        merged.from = unit.position;
+                        merged.to = finalUnit.position;
+                        merged.unitId = finalUnit.id;
+                        merged.unitClass = finalUnit.class;
+                    }
+                } else if (mv.unit === 'target' && action.targetId) {
+                    const origTarget = state.units[action.targetId];
+                    const finalTarget = s.units[action.targetId] ?? s.graveyard[action.targetId];
+                    if (origTarget && finalTarget && (finalTarget.position.q !== origTarget.position.q || finalTarget.position.r !== origTarget.position.r)) {
+                        merged.from = origTarget.position;
+                        merged.to = finalTarget.position;
+                        merged.unitId = finalTarget.id;
+                        merged.unitClass = finalTarget.class;
+                    }
+                }
+                // Fallback: pendingOccupation (ejecutar, desenvainado_veloz)
+                if (s.pendingOccupation && !merged.from) {
+                    const occUnit = s.units[s.pendingOccupation.unitId] ?? unit;
+                    merged.from = occUnit.position;
+                    merged.to = s.pendingOccupation.position;
+                    merged.unitId = occUnit.id;
+                    merged.unitClass = occUnit.class;
+                }
+                if (merged.from) {
+                    history[lastIdx] = merged;
+                    s = { ...s, gameHistory: history };
+                }
+            }
+        }
     }
 
     return s;
@@ -71,17 +317,24 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
 function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
     // Torbellino: AoE attack — no necesita targetId
     if (action.abilityId === 'torbellino') {
-        if (unit.usedTorbellino || unit.usedCarga) return state;
+        if ((unit.flags ?? []).includes('torbellino') || (unit.flags ?? []).includes('carga')) return state;
         const targets = Object.values(state.units).filter(u => u.owner !== unit.owner && hexDistance(unit.position, u.position) === 1);
         const allies = Object.values(state.units).filter(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(unit.position, u.position) === 1);
         if (targets.length === 0 && allies.length === 0) return state;
 
-        let s = consumeAP(state, unit.owner, baseCost);
-        s = consumeCostMods(s, unit.owner, unit.id);
+let s = state;
+
+
+        // Compute difficulty with modifiers (aura precision, etc.)
+        const firstTarget = targets[0] ?? allies[0] ?? unit;
+        const tDiffCtx = { state: s, attacker: unit, defender: firstTarget, distance: 1, roll: 0, ctx: { configId: cfg.id } as any };
+        const tDiffResult: CombatResult = { difficulty: getDifficulty(unit, 1), damage: 0, attackCost: 0, actionCost: 0, ignoresPassives: false };
+        applyDifficultyAbilities(tDiffCtx, tDiffResult);
+        const finalDifficulty = tDiffResult.difficulty;
 
         const { total, die1, die2, seed: newSeed } = roll2d6(s.rngSeed);
         s = { ...s, rngSeed: newSeed };
-        const hit = total >= 6;
+        const hit = total >= finalDifficulty;
         let hitEnemies = 0, hitAllies = 0;
         if (hit) {
             for (const t of targets) { s = dealDamage(s, t.id, 2, unit.id); hitEnemies++; }
@@ -92,7 +345,7 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
                 if (u.owner !== unit.owner) hitEnemies++; else hitAllies++;
             }
         }
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedTorbellino: true }));
+        s = updateUnit(s, unit.id, (u) => ({ ...u, flags: [...(u.flags ?? []), 'torbellino'] }));
         // Build target list for display
         const hitTargets = hit ? targets : [...targets, ...allies].filter(u => u.class !== 'general');
         const targetNames = hitTargets.map(t => `[${t.id}]${t.class}`).join(', ');
@@ -103,22 +356,22 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
             lastAttackResult: {
                 attackerId: unit.id, targetId: unit.id,
                 die1, die2, total,
-                difficulty: 6, hit,
+                difficulty: finalDifficulty, hit,
                 damage: totalDmg, counterDamage: 0,
                 attackerClass: unit.class, targetClass: hitTargets.map(t => t.class).join(','),
-                attackName: cfg.nameKey,
+                attackName: `ability.${cfg.id}.name`,
             },
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner, type: 'attack' as const,
                 attackerId: unit.id, targetId: unit.id,
-                die1, die2, total, difficulty: 6, baseDifficulty: 6,
+                die1, die2, total, difficulty: finalDifficulty, baseDifficulty: finalDifficulty,
                 hit, damage: totalDmg, baseAttack: unit.attack,
                 counterDamage: 0,
                 attackerClass: unit.class,
                 targetClass: hitTargets.map(t => t.class).join(','),
-                attackName: cfg.nameKey,
+                attackName: `ability.${cfg.id}.name`,
                 noCritical: true,
                 hitEnemies,
                 hitAllies,
@@ -139,41 +392,42 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
     const preTimesDamaged = target.timesDamagedThisTurn;
 
     // Check ability-specific state flags
-    if (action.abilityId === 'doble_ataque' && (unit.usedDobleAtaque || unit.usedVentajaAlcance || !unit.attackedThisTurn)) return state;
-    if (action.abilityId === 'carga' && (unit.usedCarga || unit.attackedThisTurn)) return state;
-    if (action.abilityId === 'ventaja_alcance' && (unit.usedVentajaAlcance || unit.usedDobleAtaque || unit.attackedThisTurn)) return state;
+    if (action.abilityId === 'doble_ataque' && ((unit.flags ?? []).includes('doble_ataque') || (unit.flags ?? []).includes('ventaja_alcance') || !(unit.flags ?? []).includes('basic_attack'))) return state;
+    if (action.abilityId === 'carga' && ((unit.flags ?? []).includes('carga') || (unit.flags ?? []).includes('basic_attack'))) return state;
+    if (action.abilityId === 'ventaja_alcance' && ((unit.flags ?? []).includes('ventaja_alcance') || (unit.flags ?? []).includes('doble_ataque') || (unit.flags ?? []).includes('basic_attack'))) return state;
 
-    // Check cabalgarDir requirement (carga)
-    if (cfg.requiresCabalgarDir) {
-        if (!unit.usedCabalgar || !unit.cabalgarDir) return state;
-        const expectedQ = unit.position.q + unit.cabalgarDir.dq;
-        const expectedR = unit.position.r + unit.cabalgarDir.dr;
-        if (target.position.q !== expectedQ || target.position.r !== expectedR) return state;
+    // Check lastHex requirement (carga)
+    if (cfg.requiresLastHex) {
+        if (!(unit.flags ?? []).includes('cabalgar') || !unit.lastHex) return state;
     }
 
-    const range = getAbilityRange(unit, state, cfg);
+    // Config-driven target validation (range pattern + target filters)
+    const hasRangeCfg = typeof cfg.range === 'object' && cfg.range && Object.keys(cfg.range).length > 0;
+    const hasTargetCfg = typeof cfg.target === 'object' && cfg.target && Object.keys(cfg.target).length > 0;
+    if (hasRangeCfg || hasTargetCfg) {
+        if (!isValidTarget(state, unit.id, action.abilityId, action.targetId)) return state;
+    }
+
     const distance = hexDistance(unit.position, target.position);
-    if (distance > range) return state;
 
     // Ventaja de alcance: solo permite atacar a distancia > rango normal
     if (action.abilityId === 'ventaja_alcance' && distance <= unit.range) return state;
 
     // Fixed damage abilities (patada acrobática)
     if (cfg.fixedDamage !== undefined && action.abilityId === 'patada_acrobatica') {
-        if (unit.usedPatadaAcrobatica) return state;
+        if ((unit.flags ?? []).includes('patada_acrobatica')) return state;
         if (distance !== 1) return state;
         if (!action.to) return state;
         const destToEnemy = hexDistance(action.to, target.position);
         if (destToEnemy === 0 || destToEnemy === 1) return state;
         if (isHexOccupied(state, action.to)) return state;
 
-        let s = consumeAP(state, unit.owner, baseCost);
-        s = consumeCostMods(s, unit.owner, unit.id);
+let s = state;
+
         s = dealDamage(s, target.id, cfg.fixedDamage, unit.id);
         s = updateUnit(s, unit.id, (u) => ({
             ...u, position: action.to!,
-            movedThisTurn: true,
-            usedPatadaAcrobatica: true,
+            flags: [...(u.flags ?? []), 'patada_acrobatica', 'move'],
         }));
         // Build history entry
         const targetDead = !!s.graveyard[target.id];
@@ -216,12 +470,12 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
 
     // Ejecutar: ataque con daño fijo 2, requiere objetivo ≤2 HP adyacente
     if (cfg.fixedDamage !== undefined && action.abilityId === 'ejecutar') {
-        if (unit.attackedThisTurn) return state;
+        if ((unit.flags ?? []).includes('basic_attack')) return state;
         if (target.hp > 2) return state;
         if (distance !== 1) return state;
 
-        let s = consumeAP(state, unit.owner, baseCost);
-        s = consumeCostMods(s, unit.owner, unit.id);
+let s = state;
+
 
         const result: AttackResult = resolveAttack({
             state: s, unit, target,
@@ -233,20 +487,17 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
         });
 
         s = result.state;
-        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, cfg.nameKey, baseCost + costMods, undefined, preTimesDamaged);
-        s = updateUnit(s, unit.id, (u) => ({ ...u, attackedThisTurn: true }));
+        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
 
         // Ocupar posición si murió
         if (s.graveyard[target.id]) {
             s = { ...s, pendingOccupation: { unitId: unit.id, position: target.position } };
         }
-
         return s;
     }
 
     let s = state;
-    s = consumeAP(s, unit.owner, baseCost);
-    s = consumeCostMods(s, unit.owner, unit.id);
+    // AP already consumed by handleAbility
 
     // Override unit stats from config for this attack
     const attackUnit = {
@@ -266,18 +517,33 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
     s = result.state;
 
     // Store game history first (reusing legacy helper)
-    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, cfg.nameKey, baseCost + costMods, undefined, preTimesDamaged);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
 
-    // Apply ability-specific post flags
-    if (action.abilityId === 'carga') {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedCarga: true, attackedThisTurn: true }));
-    } else if (action.abilityId === 'doble_ataque') {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedDobleAtaque: true }));
-    } else if (action.abilityId === 'ventaja_alcance') {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedVentajaAlcance: true, attackedThisTurn: true }));
-    } else if (action.abilityId === 'desenvainado_veloz') {
-        const targetDead = s.graveyard[action.targetId!];
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedDesenvainadoVeloz: !targetDead }));
+    // Liderar a las tropas (Capitán de la Guardia): cuando el General ataca
+    const capIdentity = state.players[unit.owner]?.selectedIdentity ?? '';
+    if (unit.class === 'general' && capIdentity.startsWith('capitan_guardia')) {
+        const targetDead = !!s.graveyard[target.id];
+            const bonus = targetDead ? 2 : 1;
+            const affectedIds = Object.values(s.units)
+                .filter(u => u.owner === unit.owner && (u.class === 'infantry' || u.class === 'general') && u.id !== unit.id)
+                .map(u => u.id);
+            const liderCfg = ABILITY_CONFIG['liderar_tropas'];
+            const liderEffect = liderCfg?.effects?.[0];
+            for (const uid of affectedIds) {
+                s = addModifier(s, unit.owner, uid, 'attack', bonus, 'ADD', liderEffect?.duration ?? 1, liderEffect?.remainingUses, 'ability', 'liderar_tropas');
+            }
+        s = { ...s, gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`, turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+            playerId: unit.owner, type: 'card' as const,
+            cardId: 'liderar_tropas',
+            cardName: 'ability.liderar_tropas.name',
+            configId: 'liderar_tropas',
+            sourceClass: unit.class,
+            alliesHit: affectedIds,
+            details: affectedIds.length > 0 ? `+${bonus} · ${affectedIds.join(',')}` : `+${bonus}`,
+            paCost: 0,
+        }], nextHistoryId: s.nextHistoryId + 1 };
     }
 
     // Proyección (Punta de Lanza): primer ataque de lancero hace 1 daño a 2 hex detrás
@@ -292,25 +558,31 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
                 { q: target.position.q + stepQ, r: target.position.r + stepR },
                 { q: target.position.q + stepQ * 2, r: target.position.r + stepR * 2 },
             ].filter(h => isWithinBounds(h, s.map.radius));
-            const hitTargets: string[] = [];
+            const hitUnits: { id: string; class: string; owner: string }[] = [];
             for (const h of behindHexes) {
                 const hitUnit = Object.values(s.units).find(u => u.position.q === h.q && u.position.r === h.r);
                 if (hitUnit && hitUnit.owner !== unit.owner) {
                     s = dealDamage(s, hitUnit.id, 1);
-                    hitTargets.push(`[${hitUnit.id}]${hitUnit.class}`);
+                    hitUnits.push({ id: hitUnit.id, class: hitUnit.class, owner: hitUnit.owner });
                 }
             }
-            if (hitTargets.length > 0) {
+            if (hitUnits.length > 0) {
                 s = {
                     ...s,
                     gameHistory: [...s.gameHistory, {
                         id: `h${s.nextHistoryId}`, turn: s.turn,
                         actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                        playerId: unit.owner, type: 'card' as const,
-                        cardId: 'proyeccion', cardName: 'ability.proyeccion.name', cardType: 'DEBUFF' as const,
-                        details: hitTargets.join('|'),
-                        paCost: 0, sourceClass: unit.class, sourceIdentityKey: 'punta_lanza',
-                    }],
+                        playerId: unit.owner, type: 'attack' as const,
+                        attackerId: unit.id, targetId: target.id,
+                        die1: 0, die2: 0, total: 0, difficulty: 10, baseDifficulty: 10,
+                        hit: true, damage: hitUnits.length, baseAttack: hitUnits.length, counterDamage: 0,
+                        attackerClass: unit.class, targetClass: hitUnits[0]?.class ?? unit.class,
+                        attackName: 'ability.proyeccion.name',
+                        configId: 'proyeccion',
+                        modifiers: hitUnits.map(t => `[${t.owner === unit.owner ? 'ally' : 'enemy'}]${t.id}: 1 daño`),
+                        enemiesHit: hitUnits.filter(t => t.owner !== unit.owner).map(t => t.id),
+                        paCost: 0,
+                    } as any],
                     nextHistoryId: s.nextHistoryId + 1,
                 };
             }
@@ -325,15 +597,22 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
         s = { ...s, units: uu };
     }
 
-    // Apply post-hit effects from config on top of history state
+    // Apply post-hit effects from config (onHit timing)
     if (result.hit && cfg.effects) {
+        // New format: processEffects for trigger, modifierPush onHit
+        const hitCtx: EffectContext = {
+            state: s, unit, timing: 'onHit',
+            target, attacker: unit, defender: target,
+            configId: cfg.id,
+        };
+        s = processEffects(s, cfg.effects, hitCtx);
+        // Legacy: surcharge, inmovil, occupation
         for (const effect of cfg.effects) {
             if (effect.type === 'surcharge') {
-                // No acumular si ya existe actionCost activo de fuego_cobertura
                 if (s.activeModifiers.some(m => m.stat === 'actionCost' && m.targetId === target.id && m.source === 'ability' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0)) break;
-                s = addModifier(s, target.owner, target.id, 'actionCost', effect.value ?? 1, 'ADD', 0, effect.duration ?? 1, 'ability', cfg.id);
+                s = addModifier(s, target.owner, target.id, 'actionCost', effect.value ?? 1, 'ADD', effect.remainingTurns ?? 100, effect.remainingUses ?? 1, 'ability', cfg.id);
             } else if (effect.type === 'inmovil' && !s.graveyard[target.id]) {
-                s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', effect.duration ?? 1, undefined, undefined, 'ability', cfg.id);
+                s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', effect.duration ?? 1, undefined, 'ability', cfg.id);
             } else if (effect.type === 'occupation') {
                 const dq = target.position.q - unit.position.q;
                 const dr = target.position.r - unit.position.r;
@@ -348,20 +627,22 @@ function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: Abi
         }
     }
 
+    // A la carga: push enemy after hit
+    if (action.abilityId === 'a_la_carga' && action.to && result.hit && !s.graveyard[target.id]) {
+        const dest = action.to;
+        if (isWithinBounds(dest, s.map.radius) && (dest.q !== target.position.q || dest.r !== target.position.r)) {
+            if (!isHexOccupied(s, dest, target.id)) {
+                s = updateUnit(s, target.id, (u) => ({ ...u, position: dest }));
+            }
+        }
+    }
+
     return s;
 }
 
 function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
-    // Check ability-specific state flags
-    if (cfg.id === 'rayo_celestial' && unit.usedRayoCelestial) return state;
-
-    let s = consumeAP(state, unit.owner, baseCost);
-    s = consumeCostMods(s, unit.owner, unit.id);
-
-    // Apply setFlags (ejecutar, etc.)
-    if (cfg.setFlags) {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, ...cfg.setFlags }));
-    }
+    let s = state;
+    // AP already consumed by handleAbility
 
     if (cfg.effects) {
         for (const effect of cfg.effects) {
@@ -377,6 +658,31 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 const maxRange = cfg.range ?? 2;
                 if (dist > maxRange) return state;
                 s = addModifier(s, unit.owner, action.targetId, 'attack', effect.value ?? 1, 'ADD', 0, effect.duration ?? 1, 'ability', cfg.displayName ?? cfg.id);
+            } else if (effect.type === 'attack' && effect.target === 'ally') {
+                if (!action.targetId) return state;
+                const atkTarget = state.units[action.targetId];
+                if (!atkTarget || atkTarget.owner !== unit.owner) return state;
+                const dist = hexDistance(unit.position, atkTarget.position);
+                const maxRange = typeof cfg.range === 'object' ? (cfg.range as any).value ?? 3 : (cfg.range ?? 3);
+                if (dist > maxRange) return state;
+                s = addModifier(s, unit.owner, action.targetId, 'attack', effect.value ?? 1, 'ADD', effect.duration ?? 0, effect.remainingUses, 'ability', cfg.id);
+            } else if (effect.type === 'defense' && effect.target === 'ally') {
+                if (!action.targetId) return state;
+                const defTarget = state.units[action.targetId];
+                if (!defTarget || defTarget.owner !== unit.owner) return state;
+                const dist = hexDistance(unit.position, defTarget.position);
+                const maxRange = typeof cfg.range === 'object' ? (cfg.range as any).value ?? 3 : (cfg.range ?? 3);
+                if (dist > maxRange) return state;
+                s = addModifier(s, unit.owner, action.targetId, 'defense', effect.value ?? 1, 'ADD', effect.duration ?? 0, effect.remainingUses, 'ability', cfg.id);
+                // Custom ID for proteger
+                if (cfg.id === 'proteger') {
+                    const last = s.activeModifiers[s.activeModifiers.length - 1];
+                    if (last) {
+                        s = { ...s, activeModifiers: s.activeModifiers.map((m, i) =>
+                            i === s.activeModifiers.length - 1 ? { ...m, id: `proteger_${action.targetId}` } : m
+                        ) };
+                    }
+                }
             } else if (effect.type === 'shield' && effect.target === 'ally') {
                 if (!action.targetId) return state;
                 const shieldTarget = state.units[action.targetId];
@@ -401,7 +707,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 [unit.owner]: { ...s.players[unit.owner], aLaCargaCost: nextCost },
             },
         };
-        s = updateUnit(s, unit.id, (u) => ({ ...u, aLaCargaActive: true }));
+        s = updateUnit(s, unit.id, (u) => ({ ...u, flags: [...(u.flags ?? []), 'a_la_carga'] }));
         // Build history entry
         s = {
             ...s,
@@ -412,7 +718,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 playerId: unit.owner,
                 type: 'card' as const,
                 cardId: cfg.id,
-                cardName: cfg.nameKey,
+                cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
                 targetId: unit.id,
                 targetClass: unit.class,
@@ -424,14 +730,13 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             nextHistoryId: s.nextHistoryId + 1,
         };
     } else if (action.abilityId === 'angel_guardian') {
-        if (unit.usedAngelGuardian) return state;
-        s = consumeAP(s, unit.owner, baseCost);
-        s = consumeCostMods(s, unit.owner, unit.id);
+        if ((unit.flags ?? []).includes('angel_guardian')) return state;
+
         const allies = Object.values(s.units).filter(u => u.owner === unit.owner && u.class !== 'general');
-        let shieldedCount = 0;
+        const allyIds: string[] = [];
         for (const u of allies) {
             s = updateUnit(s, u.id, (u2) => ({ ...u2, auraShield: (u2.auraShield ?? 0) + 2 }));
-            shieldedCount++;
+            allyIds.push(u.id);
         }
         let healedId = '';
         const allUnits = Object.values(s.units).filter(u => u.owner === unit.owner);
@@ -444,7 +749,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             s = updateUnit(s, chosen.id, (u) => ({ ...u, hp: Math.min(u.hp + 1, maxHp) }));
             healedId = chosen.id;
         }
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedAngelGuardian: true }));
+        s = updateUnit(s, unit.id, (u) => ({ ...u, flags: [...(u.flags ?? []), 'angel_guardian'] }));
         s = {
             ...s,
             gameHistory: [...s.gameHistory, {
@@ -454,57 +759,20 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 playerId: unit.owner,
                 type: 'card' as const,
                 cardId: cfg.id,
-                cardName: cfg.nameKey,
+                cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
                 targetId: healedId || unit.id,
                 targetClass: healedId ? (s.units[healedId]?.class ?? unit.class) : unit.class,
-                details: `Escudo +2 HP a ${shieldedCount} aliados`,
+                alliesHit: allyIds,
+                details: `Escudo +2 HP a ${allyIds.length} aliados${healedId ? ` · +1 HP a [${healedId}]` : ''}`,
                 paCost: baseCost + costMods,
                 sourceClass: unit.class,
                 sourceIdentityKey: 'escudo_comandante',
             }],
             nextHistoryId: s.nextHistoryId + 1,
         };
-    } else if (action.abilityId === 'proteger') {
-        if (!action.targetId) return state;
-        const tgt = state.units[action.targetId];
-        if (!tgt || tgt.owner !== unit.owner) return state;
-        const dist = hexDistance(unit.position, tgt.position);
-        if (dist > 3) return state;
-
-        s = addModifier(s, unit.owner, action.targetId, 'defense', 1, 'ADD', 0, undefined, 'ability', 'Proteger');
-        const last = s.activeModifiers[s.activeModifiers.length - 1];
-        if (last) {
-            s = { ...s, activeModifiers: s.activeModifiers.map((m, i) =>
-                i === s.activeModifiers.length - 1 ? { ...m, id: `proteger_${action.targetId}` } : m
-            )};
-        }
-        s = {
-            ...s,
-            players: {
-                ...s.players,
-                [unit.owner]: { ...s.players[unit.owner], protegerUsedThisTurn: true },
-            },
-            gameHistory: [...s.gameHistory, {
-                id: `h${s.nextHistoryId}`,
-                turn: s.turn,
-                actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner,
-                type: 'card' as const,
-                cardId: cfg.id,
-                cardName: cfg.nameKey,
-                cardType: 'BUFF' as const,
-                targetId: action.targetId,
-                targetClass: tgt.class,
-                details: `+1 defensa`,
-                paCost: 0,
-                sourceClass: unit.class,
-                sourceIdentityKey: 'escudo_comandante',
-            }],
-            nextHistoryId: s.nextHistoryId + 1,
-        };
     } else if (action.abilityId === 'rayo_celestial') {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedRayoCelestial: true }));
+        s = updateUnit(s, unit.id, (u) => ({ ...u, flags: [...(u.flags ?? []), 'rayo_celestial'] }));
         // Build history entry
         const buffTarget = action.targetId ? state.units[action.targetId] : undefined;
         const sourceIdentity = 'dios_trueno';
@@ -517,7 +785,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 playerId: unit.owner,
                 type: 'card' as const,
                 cardId: cfg.id,
-                cardName: cfg.nameKey,
+                cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
                 targetId: action.targetId,
                 targetClass: buffTarget?.class,
@@ -529,7 +797,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             nextHistoryId: s.nextHistoryId + 1,
         };
     } else if (action.abilityId === 'en_nombre_del_rey') {
-        s = updateUnit(s, unit.id, (u) => ({ ...u, usedEnNombreDelRey: true }));
+        s = updateUnit(s, unit.id, (u) => ({ ...u, flags: [...(u.flags ?? []), 'en_nombre_del_rey'] }));
         const buffTarget = action.targetId ? state.units[action.targetId] : undefined;
         s = {
             ...s,
@@ -537,7 +805,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner, type: 'card' as const,
-                cardId: cfg.id, cardName: cfg.nameKey, cardType: 'BUFF' as const,
+                cardId: cfg.id, cardName: `ability.${cfg.id}.name`, cardType: 'BUFF' as const,
                 targetId: action.targetId, targetClass: buffTarget?.class,
                 details: '+2 ataque · Escudo +3 HP',
                 paCost: baseCost + costMods,
@@ -563,135 +831,104 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner, type: 'attack' as const,
-                attackerId: unit.id, targetId: ally.id,
-                die1: 0, die2: 0, total: 0,
-                difficulty: 0, baseDifficulty: 0,
-                hit: true, damage: 2, baseAttack: unit.attack, counterDamage: 0,
-                attackerClass: unit.class, targetClass: ally.class,
-                attackName: cfg.nameKey,
-                modifiers: [`General recupera ${allyDied ? '5' : '3'} HP`],
+                playerId: unit.owner, type: 'card' as const,
+                cardId: cfg.id, cardName: `ability.${cfg.id}.name`, cardType: 'BUFF' as const,
+                targetId: ally.id, targetClass: ally.class,
+                alliesHit: [ally.id, unit.id],
+                details: `-2 HP a [${ally.id}] · +${allyDied ? '5' : '3'} HP a [${unit.id}]`,
                 paCost: baseCost + costMods,
+                sourceClass: unit.class,
+                sourceIdentityKey: 'furia_tirano',
             }],
             nextHistoryId: s.nextHistoryId + 1,
         };
     }
 
+    // Generic support history entry for abilities with effects
+    if (cfg.effects && cfg.effects.length > 0 && !cfg.flags?.skipGenericHistoryEntry) {
+        s = { ...s, gameHistory: [...s.gameHistory, {
+            id: `h${s.nextHistoryId}`,
+            turn: s.turn,
+            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                playerId: unit.owner,
+                type: 'card' as const,
+                cardId: cfg.id,
+                configId: cfg.id,
+                cardName: `ability.${cfg.id}.name`,
+                cardType: 'BUFF' as const,
+            targetId: action.targetId ?? unit.id,
+            targetClass: action.targetId ? (state.units[action.targetId]?.class ?? unit.class) : unit.class,
+            paCost: baseCost + costMods,
+            details: cfg.effects.map(e => {
+                if (e.activation?.turnStart || e.timing === 'turnStart') return ''; // Turn-start passives not applied on use
+                if (e.type === 'stateChange' && e.healType === 'hp') return `+${e.value ?? 3} HP`;
+                if (e.type === 'heal') return `+${e.value ?? 3} HP`;
+                if (e.type === 'attack') return `+${e.value ?? 1} ataque`;
+                if (e.type === 'defense') return `+${e.value ?? 1} defensa`;
+                if (e.type === 'buff') return `+${e.value ?? 1}`;
+                if (e.type === 'shield') return `Escudo +${e.value ?? 3} HP`;
+                return '';
+            }).filter(Boolean).join(' · '),
+            sourceClass: unit.class,
+        }], nextHistoryId: s.nextHistoryId + 1 };
+    }
+
+    // Consume cost modifiers (actionCost) after the ability executes
+    if (costMods > 0) {
+        s = consumeModifier(s, unit.owner, 'actionCost', costMods, unit.id);
+    }
+
     return s;
 }
 
-function handleMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, moveFinalCost?: number): GameState {
     if (!action.to && !action.path) return state;
 
     // Check move replacement flags
-    if (cfg.flags?.replacesMove && unit.movedThisTurn) return state;
+    if (cfg.flags?.replacesMove && (unit.flags ?? []).includes('move')) return state;
 
     // Path-based movement (cabalgar_2)
     if (action.path && action.path.length >= 2) {
         return handlePathMove(state, action, unit, cfg, baseCost, costMods);
     }
 
-    const maxDist = cfg.move?.maxDist ?? 1;
-    const distance = hexDistance(unit.position, action.to);
-    if (distance > maxDist || distance < 1) return state;
-
-    const isStraightLine = cfg.flags?.straightLine;
-    if (isStraightLine) {
-        const dq = action.to.q - unit.position.q;
-        const dr = action.to.r - unit.position.r;
-        if (dq !== 0 && dr !== 0 && dq !== -dr) return state;
-    }
-
-    if (cfg.flags?.noCrossUnits) {
-        const dq = action.to.q - unit.position.q;
-        const dr = action.to.r - unit.position.r;
-        for (let i = 1; i < distance; i++) {
-            const mid = { q: unit.position.q + Math.round((dq * i) / distance), r: unit.position.r + Math.round((dr * i) / distance) };
-            if (isHexOccupied(state, mid)) return state;
-        }
-    }
-
-    // Allow move into enemy-occupied hex (for charge-style abilities)
-    const destOccupied = isHexOccupied(state, action.to, unit.id);
-    const destEnemy = destOccupied && Object.values(state.units).some(u => u.id !== unit.id && u.position.q === action.to!.q && u.position.r === action.to!.r && u.owner !== unit.owner);
-    if (destOccupied && !destEnemy) return state;
-
-    // Posición estratégica: move must end adjacent to an ally, no AP cost
+    // Posición estratégica: special handling
     if (action.abilityId === 'posicion_estrategica') {
-        if (unit.usedPosicionEstrategica) return state;
+        if ((unit.flags ?? []).includes('posicion_estrategica')) return state;
         const hasAdjacentAlly = Object.values(state.units)
             .some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(action.to!, u.position) === 1);
         if (!hasAdjacentAlly) return state;
         let s = updateUnit(state, unit.id, (u) => ({
-            ...u, position: action.to!, usedPosicionEstrategica: true,
+            ...u, position: action.to!, flags: [...(u.flags ?? []), 'posicion_estrategica'],
         }));
-        const pathStr = `(${unit.position.q},${unit.position.r}) → (${action.to!.q},${action.to!.r})`;
-        s = {
-            ...s,
-            gameHistory: [...s.gameHistory, {
-                id: `h${s.nextHistoryId}`, turn: s.turn,
-                actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner, type: 'card' as const,
-                cardId: cfg.id, cardName: cfg.nameKey, cardType: 'BUFF' as const,
-                details: pathStr, paCost: 0,
-                sourceClass: unit.class, sourceIdentityKey: 'corazon_estratega',
-            }],
-            nextHistoryId: s.nextHistoryId + 1,
-        };
         return s;
     }
 
-    let s = consumeAP(state, unit.owner, baseCost);
-    s = consumeCostMods(s, unit.owner, unit.id);
-
-    // Post-move flags from config
-    const extraFlags: Record<string, any> = { ...cfg.move?.setFlags };
-    // Set cabalgarDir for straight-line moves (needed by Carga)
-    if (cfg.flags?.straightLine && extraFlags.usedCabalgar) {
-        const dq = action.to.q - unit.position.q;
-        const dr = action.to.r - unit.position.r;
-        const steps = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(-dq - dr));
-        if (steps > 0) {
-            extraFlags.cabalgarDir = { dq: dq / steps, dr: dr / steps };
-        }
+    // Config-driven validation: check if destination hex is a valid target
+    const hasRangeCfg = typeof cfg.range === 'object' && cfg.range && Object.keys(cfg.range).length > 0;
+    const hasTargetCfg = typeof cfg.target === 'object' && cfg.target && Object.keys(cfg.target).length > 0;
+    if (hasRangeCfg || hasTargetCfg) {
+        const highlights = getAbilityHighlights(state, unit.id, cfg.id);
+        const isValid = highlights.some(h => h.highlight !== 'range' && h.hex.q === action.to!.q && h.hex.r === action.to!.r);
+        if (!isValid) return state;
     }
+
+    let s = state;
+    // AP already consumed by handleAbility
+
+    // Record previous position for front-range abilities (carga)
+    const lastHex = unit.position;
 
     s = updateUnit(s, unit.id, (u) => ({
         ...u, position: action.to!,
-        ...extraFlags,
+        lastHex,
+        flags: [...new Set([...(u.flags ?? []), 'move'])],
     }));
 
-    // Build move ability history entry (card-type with inline PA cost)
-    const moveCostStrs: string[] = [];
-    const actCostSrc = state.activeModifiers.find(m => m.stat === 'actionCost' && m.targetId === unit.id && m.sourcePlayerId === unit.owner && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
-    if (actCostSrc) moveCostStrs.push(`${actCostSrc.sourceName ?? 'Coste acción'}: +${actCostSrc.value} PA`);
-
-            s = {
-            ...s,
-            gameHistory: [...s.gameHistory, {
-                id: `h${s.nextHistoryId}`,
-                turn: s.turn,
-                actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner,
-                type: 'card' as const,
-                cardId: cfg.id,
-                cardName: cfg.nameKey,
-                cardType: 'BUFF' as const,
-                targetId: unit.id,
-                targetClass: unit.class,
-                unitId: unit.id,
-                unitClass: unit.class,
-                from: unit.position,
-                to: action.to!,
-                baseCost: baseCost,
-                cost: baseCost + costMods,
-                details: `(${unit.position.q},${unit.position.r}) → (${action.to!.q},${action.to!.r})`,
-                paCost: baseCost + costMods,
-                modifiers: moveCostStrs,
-                sourceClass: unit.class,
-            }],
-        nextHistoryId: s.nextHistoryId + 1,
-    };
+    // Consume cost modifiers (actionCost) after the ability executes
+    if (costMods > 0) {
+        s = consumeModifier(s, unit.owner, 'actionCost', costMods, unit.id);
+    }
 
     return s;
 }
@@ -709,48 +946,21 @@ function handlePathMove(state: GameState, action: GameAction, unit: Unit, cfg: A
     const dest = path[path.length - 1];
     if (isHexOccupied(state, dest, unit.id)) return state;
 
-    let s = consumeAP(state, unit.owner, baseCost);
-    s = consumeCostMods(s, unit.owner, unit.id);
+let s = state;
 
-    const lastStep = path.length >= 2 ? path[path.length - 2] : unit.position;
-    const dir = { dq: dest.q - lastStep.q, dr: dest.r - lastStep.r };
-    const extraFlags: Record<string, any> = { ...cfg.move?.setFlags };
-    extraFlags.cabalgarDir = dir;
+
+    const originPos = path.length >= 2 ? path[path.length - 2] : unit.position;
 
     s = updateUnit(s, unit.id, (u) => ({
-        ...u, position: dest, ...extraFlags,
+        ...u, position: dest,
+        lastHex: originPos,
+        flags: [...new Set([...(u.flags ?? []), 'move'])],
     }));
 
-    const pathStr = [unit.position, ...path].map((h: any) => `(${h.q},${h.r})`).join(' → ');
-    const moveCostStrs: string[] = [];
-    const actCostSrc = state.activeModifiers.find(m => m.stat === 'actionCost' && m.targetId === unit.id && m.sourcePlayerId === unit.owner && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
-    if (actCostSrc) moveCostStrs.push(`${actCostSrc.sourceName ?? 'Coste acción'}: +${actCostSrc.value} PA`);
-    s = {
-        ...s,
-                gameHistory: [...s.gameHistory, {
-                    id: `h${s.nextHistoryId}`,
-                    turn: s.turn,
-                    actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                    playerId: unit.owner,
-                    type: 'card' as const,
-                    cardId: cfg.id,
-                    cardName: cfg.nameKey,
-                    cardType: 'BUFF' as const,
-                    targetId: unit.id,
-                    targetClass: unit.class,
-                    unitId: unit.id,
-                    unitClass: unit.class,
-                    from: unit.position,
-                    to: dest,
-                    baseCost: baseCost,
-                    cost: baseCost + costMods,
-                    details: `${path.length} casillas · ${pathStr}`,
-                    paCost: baseCost + costMods,
-                    modifiers: moveCostStrs,
-                    sourceClass: unit.class,
-            }],
-        nextHistoryId: s.nextHistoryId + 1,
-    };
+    // Consume cost modifiers (actionCost) after the ability executes
+    if (costMods > 0) {
+        s = consumeModifier(s, unit.owner, 'actionCost', costMods, unit.id);
+    }
 
     return s;
 }
