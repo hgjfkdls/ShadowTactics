@@ -10,6 +10,9 @@ import { applyCostAbilities } from '../combat/ability-effects';
 import type { CombatResult } from '../combat/ability-effects';
 import { BASE_STATS } from '../units';
 import { getIdentityKey } from '../data/identities';
+import { applyConfigEffectsToState } from '../passive';
+import { ABILITY_CONFIG } from '../data/ability-config';
+import { ABILITIES } from '../data/abilities';
 
 function killed(state: GameState, targetId: string): { dead: boolean; isGeneral: boolean } {
     const dead = !!state.graveyard[targetId];
@@ -34,13 +37,13 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     // Ataque extra: permite atacar de nuevo aunque ya atacó
     const ataqueExtraCharges = unit.ataqueExtraCharges ?? 0;
     const ataqueExtra = ataqueExtraCharges > 0;
-    if (!ataqueExtra && unit.attackedThisTurn) return state;
+    if (!ataqueExtra && (unit.flags ?? []).includes('basic_attack')) return state;
 
     const distance = hexDistance(unit.position, target.position);
     const attackerIdentity = getIdentityKey(state.players[unit.owner]?.selectedIdentity ?? '');
     const isArcher = unit.class === 'archer' || unit.class === 'general';
     const espartanoRangeBonus = unit.espartanoRangeBonus ? 1 : 0;
-    const basicRangeBonus = (attackerIdentity === 'francotirador' && isArcher ? 1 : 0) + espartanoRangeBonus;
+    const basicRangeBonus = espartanoRangeBonus;
     if (distance > unit.range + basicRangeBonus) return state;
 
     const ap = getPlayerAP(state, playerId);
@@ -80,7 +83,7 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         result.state,
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnit(s, action.unitId, (u) => {
-            let updated = { ...u, attackedThisTurn: true, performedActionThisTurn: true };
+            let updated = { ...u, flags: [...new Set([...(u.flags ?? []), 'basic_attack', 'performed_action'])] };
             if (ataqueExtra) updated.ataqueExtraCharges = Math.max(0, (updated.ataqueExtraCharges ?? 0) - 1);
             if (precision) updated.precisionCharges = Math.max(0, (updated.precisionCharges ?? 0) - 1);
             return updated;
@@ -89,47 +92,6 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
 
     s = consumeModifier(s, playerId, 'attackCost', 1);
     s = consumeModifier(s, playerId, 'actionCost', 1);
-
-    // Robin Hood: primer arquero que acierta cada turno se cura 1 HP
-    if (result.hit && result.damage > 0 && !s.players[playerId]?.identityHealedThisTurn) {
-        const attacker = s.units[action.unitId];
-        if (attacker && (attacker.class === 'archer' || attacker.class === 'general')) {
-            const identityKey = getIdentityKey(s.players[playerId]?.selectedIdentity ?? '');
-            if (identityKey === 'robin_hood') {
-                const maxHp = BASE_STATS[attacker.class].hp;
-                if (attacker.hp < maxHp) {
-                    s = {
-                        ...s,
-                        units: {
-                            ...s.units,
-                            [action.unitId]: { ...attacker, hp: Math.min(attacker.hp + 1, maxHp) },
-                        },
-                        players: {
-                            ...s.players,
-                            [playerId]: { ...s.players[playerId], identityHealedThisTurn: true },
-                        },
-                        gameHistory: [...s.gameHistory, {
-                            id: `h${s.nextHistoryId}`,
-                            turn: s.turn,
-                            actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                            playerId,
-                            type: 'card' as const,
-                            cardId: 'robar_ricos',
-                            cardName: 'Robar a los ricos',
-                            cardType: 'BUFF' as const,
-                            targetId: action.unitId,
-                            targetClass: attacker.class,
-                            details: '+1 HP',
-                            paCost: 0,
-                            sourceClass: attacker.class,
-                            sourceIdentity: 'Robin Hood',
-                        }],
-                        nextHistoryId: s.nextHistoryId + 1,
-                    };
-                }
-            }
-        }
-    }
 
     const histMods: string[] = [];
     const isArcherFormula = (unit.abilities ?? []).includes('blanco_facil') || unit.class === 'archer';
@@ -144,11 +106,9 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         else diffMods.push(`+${diff} = ${result.difficulty}`);
     }
     histMods.push(`Dificultad: ${diffMods.join(', ')}`);
-    // Blanco fácil
+    // Blanco fácil — display handled by config-driven identityBonus
     if ((unit.abilities ?? []).includes('blanco_facil') && target.didMovePreviousTurn === false) {
-        const identity = state.players[playerId]?.selectedIdentity ?? '';
-        const bonus = identity.startsWith('francotirador') ? 2 : 1;
-        histMods.push(`[diff] [id:blanco_facil] Blanco fácil: -${bonus} dificultad`);
+        histMods.push(`[diff] [id:blanco_facil] Blanco fácil: -1 dificultad`);
     }
     // Hostigar (Cazadores)
     if (attackerIdentity.startsWith('cazadores') && (unit.class === 'cavalry' || unit.class === 'general')) {
@@ -159,19 +119,19 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     }
     if (ataqueExtra) histMods.push('[mixed] [id:ataque_extra] Ataque extra: +1 daño, +2 dificultad, 0 PA');
     if (precision) histMods.push('[diff] [id:precision] Precisión: -2 dificultad');
-    const dmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0 && !m.targetId && m.sourcePlayerId === unit.owner);
+    const dmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0 && !m.targetId && m.sourcePlayerId === unit.owner);
     for (const m of dmgMods) {
         histMods.push(`[atk] Ataque: ${m.value > 0 ? '+' : ''}${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
     }
-    const atkMods = state.activeModifiers.filter(m => m.stat === 'attack' && m.value > 0 && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0 && m.targetId === unit.id && m.sourcePlayerId === unit.owner);
+    const atkMods = state.activeModifiers.filter(m => m.stat === 'attack' && m.value > 0 && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0 && m.targetId === unit.id && m.sourcePlayerId === unit.owner);
     for (const m of atkMods) {
         histMods.push(`[atk] ${m.sourceName}: +${m.value} ataque`);
     }
-    const defDmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0 && (!m.targetId || m.targetId === target.id) && m.sourcePlayerId === target.owner);
+    const defDmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0 && (!m.targetId || m.targetId === target.id) && m.sourcePlayerId === target.owner);
     for (const m of defDmgMods) {
         if (m.value < 0) histMods.push(`[def] Defensa: ${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
     }
-    const defMods = state.activeModifiers.filter(m => m.stat === 'defense' && m.value > 0 && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0 && m.targetId === target.id && m.sourcePlayerId === target.owner);
+    const defMods = state.activeModifiers.filter(m => m.stat === 'defense' && m.value > 0 && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0 && m.targetId === target.id && m.sourcePlayerId === target.owner);
     for (const m of defMods) {
         histMods.push(`[def] ${m.sourceName}: +${m.value} defensa`);
     }
@@ -190,22 +150,36 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             }
         }
     }
-    const rangeBonus = (attackerIdentity === 'francotirador' && isArcher ? 1 : 0) + (unit.espartanoRangeBonus ? 1 : 0);
+    const rangeBonus = (unit.espartanoRangeBonus ? 1 : 0);
     if (rangeBonus > 0) histMods.push(`[range] Bonificación rango: +${rangeBonus}`);
     if ((unit.abilities ?? []).includes('anti_caballeria') && (target.class === 'cavalry' || (target.class === 'general' && (s.players[target.owner]?.selectedIdentity ?? '').match(/^(caballos_guerra|cazadores)/)))) {
         histMods.push('[atk] [id:anti_caballeria] Anti-caballería: +1 ataque');
     }
     const hasRomperFilas = (unit.abilities ?? []).includes('romper_filas');
     const tgtAbils = target.abilities ?? [];
-    const hasResistencia = tgtAbils.includes('resistencia') && !target.timesDamagedThisTurn;
-    const hasLineaDef = tgtAbils.includes('linea_defensiva') && target.didMovePreviousTurn === false;
-    if (hasLineaDef) {
-        histMods.push('[def] [id:linea_defensiva] Línea defensiva: +1 defensa');
-    } else if (hasResistencia) {
-        histMods.push('[def] [id:resistencia] Resistencia: +1 defensa');
+    // Generic display for turnStart passives: show only if modifier still exists in activeModifiers
+    let hasActiveLineaDef = false;
+    let hasActiveResistencia = false;
+    for (const abil of tgtAbils) {
+        const cfg = ABILITY_CONFIG[abil];
+        if (!cfg?.activation?.turnStart) continue;
+        const hasMod = state.activeModifiers.some(m =>
+            m.stat === 'defense' && m.sourceName === abil && m.targetId === target.id
+            && m.sourcePlayerId === target.owner
+            && (m.remainingTurns === undefined || m.remainingTurns >= 0)
+            && (m.remainingUses ?? 1) > 0
+        );
+        if (!hasMod) continue;
+        for (const e of cfg.effects ?? []) {
+            if (e.type === 'defense') {
+                histMods.push(`[def] [id:${abil}] ${ABILITIES[abil]?.name ?? abil}: +${e.value ?? 1} defensa`);
+                if (abil === 'linea_defensiva') hasActiveLineaDef = true;
+                if (abil === 'resistencia') hasActiveResistencia = true;
+            }
+        }
     }
-    if (hasRomperFilas && (hasResistencia || hasLineaDef)) {
-        const ignored = hasLineaDef ? 'Línea defensiva' : 'Resistencia';
+    if (hasRomperFilas && (hasActiveResistencia || hasActiveLineaDef)) {
+        const ignored = hasActiveLineaDef ? 'Línea defensiva' : 'Resistencia';
         histMods.push(`[mixed] [id:romper_filas] [ignores:resistencia,linea_defensiva] Romper filas: ignora ${ignored}`);
     }
     // Espartano: Lanza y escudo (+1 defensa)
@@ -222,17 +196,6 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             const hasAdjacentLancer = Object.values(state.units).some(u => u.owner === target.owner && (u.class === 'lancer' || u.class === 'general') && u.id !== target.id && hexDistance(target.position, u.position) === 1);
             if (hasAdjacentLancer) {
                 histMods.push('[def] [id:muro_espartano] Muro espartano: +1 defensa');
-            }
-        }
-    }
-    // Furia berserker (Dios del Trueno)
-    const atkIdentity = state.players[playerId]?.selectedIdentity ?? '';
-    if (atkIdentity.startsWith('dios_trueno')) {
-        const isInfantryOrGeneral = unit.class === 'infantry' || unit.class === 'general';
-        if (isInfantryOrGeneral) {
-            const maxHp = BASE_STATS[unit.class].hp;
-            if (unit.hp <= Math.floor(maxHp / 2)) {
-                histMods.push('[atk] [id:furia_berserker] Furia berserker: +1 ataque');
             }
         }
     }
@@ -344,25 +307,31 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
                 { q: target.position.q + stepQ, r: target.position.r + stepR },
                 { q: target.position.q + stepQ * 2, r: target.position.r + stepR * 2 },
             ].filter(h => isWithinBounds(h, s.map.radius));
-            const hitTargets: string[] = [];
+            const hitUnits: { id: string; class: string; owner: string }[] = [];
             for (const h of behind) {
                 const hitUnit = Object.values(s.units).find(u => u.position.q === h.q && u.position.r === h.r);
                 if (hitUnit && hitUnit.owner !== playerId) {
                     s = dealDamage(s, hitUnit.id, 1);
-                    hitTargets.push(`[${hitUnit.id}]${hitUnit.class}`);
+                    hitUnits.push({ id: hitUnit.id, class: hitUnit.class, owner: hitUnit.owner });
                 }
             }
-            if (hitTargets.length > 0) {
+            if (hitUnits.length > 0) {
                 s = {
                     ...s,
                     gameHistory: [...s.gameHistory, {
                         id: `h${s.nextHistoryId}`, turn: s.turn,
                         actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                        playerId, type: 'card' as const,
-                        cardId: 'proyeccion', cardName: 'ability.proyeccion.name', cardType: 'DEBUFF' as const,
-                        details: hitTargets.join('|'),
-                        paCost: 0, sourceClass: unit.class, sourceIdentityKey: 'punta_lanza',
-                    }],
+                        playerId, type: 'attack' as const,
+                        attackerId: unit.id, targetId: target.id,
+                        die1: 0, die2: 0, total: 0, difficulty: 10, baseDifficulty: 10,
+                        hit: true, damage: hitUnits.length, baseAttack: hitUnits.length, counterDamage: 0,
+                        attackerClass: unit.class, targetClass: hitUnits[0]?.class ?? unit.class,
+                        attackName: 'ability.proyeccion.name',
+                        configId: 'proyeccion',
+                        modifiers: hitUnits.map(t => `[${t.owner === unit.owner ? 'ally' : 'enemy'}]${t.id}: 1 daño`),
+                        enemiesHit: hitUnits.filter(t => t.owner !== playerId).map(t => t.id),
+                        paCost: 0,
+                    } as any],
                     nextHistoryId: s.nextHistoryId + 1,
                 };
             }
@@ -414,6 +383,42 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             }],
             nextHistoryId: s.nextHistoryId + 1,
         };
+    }
+
+    // Process config-driven onHit effects (robar_ricos, etc.)
+    const atkUnit = s.units[action.unitId];
+    const defUnit = s.units[action.targetId] ?? s.graveyard[action.targetId];
+    if (atkUnit && defUnit) {
+        s = applyConfigEffectsToState(
+            { attacker: atkUnit, defender: defUnit },
+            s,
+            result.hit
+        );
+    }
+
+    // Flush pending heal entry (robar_ricos) after attack history
+    if ((s as any).pendingHealEntry) {
+        const phe = (s as any).pendingHealEntry;
+        s = {
+            ...s,
+            gameHistory: [...s.gameHistory, {
+                id: `h${s.nextHistoryId}`,
+                turn: s.turn,
+                actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
+                playerId: action.playerId,
+                type: 'card' as const,
+                cardId: phe.abilId,
+                cardName: `ability.${phe.abilId}.name`,
+                cardType: 'BUFF' as const,
+                targetId: phe.attackerId,
+                targetClass: phe.attackerClass,
+                details: '+1 HP',
+                paCost: 0,
+                sourceClass: phe.attackerClass,
+            }],
+            nextHistoryId: s.nextHistoryId + 1,
+        };
+        s = { ...s, pendingHealEntry: undefined } as any;
     }
 
     return s;

@@ -227,7 +227,7 @@ export function GameModals(props: Props) {
                                         const cname = getCardName(cid);
                                         const isConfusionPending = pendingCard && pendingCard.cardId.startsWith('confusion');
                                         return (
-                                            <button key={cid} className="w-full bg-violet-800 hover:bg-violet-700 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => { if (cid.startsWith('espejo') && isConfusionPending) { setPendingCounterEspejoCard(cid); } else { sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId: cid }); } }}>
+                                            <button key={cid} className="w-full bg-violet-800 hover:bg-violet-700 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => { if (cid.startsWith('espejo') && isConfusionPending) { setPendingCounterEspejoCard(cid); } else { setPendingCounterEspejoCard(null); sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId: cid }); } }}>
                                                 {cname}
                                             </button>
                                         );
@@ -235,7 +235,7 @@ export function GameModals(props: Props) {
                                 </div>
                             )}
                             {counterCards.length === 0 && <div className="text-xs text-zinc-500">{l('counter.noCounterCards')}</div>}
-                            <button className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => sendAction({ type: 'PASS_COUNTER', playerId: myPlayerId })}>
+                            <button className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => { setPendingCounterEspejoCard(null); sendAction({ type: 'PASS_COUNTER', playerId: myPlayerId }); }}>
                                 {l('button.pass')}
                             </button>
                         </div>

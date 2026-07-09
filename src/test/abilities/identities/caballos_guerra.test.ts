@@ -47,7 +47,7 @@ function makeState(): GameState {
     assert(st !== s, 'Cabalgar_2 — movimiento por path permitido');
     assert(st.units['u2']?.position.q === 3, 'Cabalgar_2 — destino Q es el último hex del path');
     assert(st.units['u2']?.position.r === -1, 'Cabalgar_2 — destino R es el último hex del path');
-    assert(!!st.units['u2']?.usedCabalgar, 'Cabalgar_2 — marca usedCabalgar');
+    assert(!!st.units['u2']?.flags?.includes('cabalgar'), 'Cabalgar_2 — marca flag cabalgar');
 }
 
 {
@@ -56,7 +56,7 @@ function makeState(): GameState {
         ...s,
         units: {
             ...s.units,
-            u2: { ...s.units['u2'], abilities: ['cabalgar_2'], movedThisTurn: true },
+            u2: { ...s.units['u2'], abilities: ['cabalgar_2'], flags: ['move'] },
         },
     };
     const st = applyAction(s, {
@@ -82,7 +82,7 @@ function makeState(): GameState {
     });
     assert(st !== s, 'A la carga — habilidad permitida');
     assert(st.players['p1']?.aLaCargaCost === 1, 'A la carga — coste pasa de 0 a 1');
-    assert(!!st.units['u2']?.aLaCargaActive, 'A la carga — marca aLaCargaActive');
+    assert(!!st.units['u2']?.flags?.includes('a_la_carga'), 'A la carga — marca flag a_la_carga');
     const st2 = applyAction(st, {
         type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar_2',
         path: [{ q: 3, r: 0 }, { q: 3, r: -1 }, { q: 2, r: -1 }],

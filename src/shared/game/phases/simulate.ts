@@ -169,5 +169,15 @@ export function simulatePreparation(state: GameState): GameState {
         }
     }
 
+    // Mover cartas específicas al principio del mazo para testeo rápido
+    const TEST_CARD_KEYS = ['espejo', 'confusion'];
+    let deck2 = s.effectDeck;
+    for (const key of TEST_CARD_KEYS) {
+        const testCards = deck2.filter((c: string) => c.startsWith(key + '_'));
+        const rest2 = deck2.filter((c: string) => !c.startsWith(key + '_'));
+        deck2 = [...testCards, ...rest2];
+    }
+    s = { ...s, effectDeck: deck2 };
+
     return s;
 }

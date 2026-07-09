@@ -8,20 +8,33 @@ export function handleIdentity(state: GameState, action: GameAction): GameState 
     const player = state.players[playerId];
     if (!player) return state;
     if (player.selectedIdentity) return state;
-    if (!player.identityCards?.includes(action.cardId)) return state;
 
-    // Devolver las 2 cartas no seleccionadas al mazo de identidad
-    const returned: CardId[] = player.identityCards.filter(id => id !== action.cardId);
+    // Allow selecting from identityCards (normal) or identityDeck (simulated test mode)
+    const inCards = player.identityCards?.includes(action.cardId);
+    const inDeck = state.identityDeck?.includes(action.cardId);
+    if (!inCards && !inDeck) return state;
+
+    // Cards to return to deck (normal mode: return unchosen cards)
+    let newDeck = [...(state.identityDeck ?? [])];
+    let returned: CardId[] = [];
+
+    if (inCards) {
+        returned = player.identityCards!.filter(id => id !== action.cardId);
+        newDeck = [...newDeck, ...returned];
+    } else if (inDeck) {
+        // Simulated mode: remove selected card from deck
+        newDeck = newDeck.filter(id => id !== action.cardId);
+    }
 
     let newState: GameState = {
         ...state,
-        identityDeck: [...state.identityDeck, ...returned],
+        identityDeck: newDeck,
         players: {
             ...state.players,
             [playerId]: {
                 ...player,
                 selectedIdentity: action.cardId,
-                identityCards: [],  // limpiar — ya no se necesitan
+                identityCards: [],
             }
         }
     };

@@ -1,7 +1,6 @@
 import { l } from '@shared/i18n';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 import { hexDistance } from '@shared/hex';
-import { getAuraBuffs } from '@shared/game/aura';
 import type { GameState } from '@shared/game/state';
 import PanelTitle from './PanelTitle';
 import PanelSource from './PanelSource';
@@ -26,7 +25,10 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
     const pShowDescription = panelCfg.showDescription ?? false;
     const pShowModifiers = panelCfg.showModifiers ?? true;
     const pShowFormula = panelCfg.showFormula ?? ['PA', 'diff', 'dmg', 'range'];
-    const pShowMovement = panelCfg.showMovement ?? false;
+    const logCfg = (configId ? ABILITY_CONFIG[configId]?.log : undefined) ?? {};
+    const abilityCfg = configId ? ABILITY_CONFIG[configId] : undefined;
+    const mvDefault = abilityCfg?.type === 'move';
+    const pShowMovement = panelCfg.showMovement ?? logCfg.showMovement ?? mvDefault;
     const pShowTarget = panelCfg.showTarget ?? false;
     const pShowUnitsAffected = panelCfg.showUnitsAffected ?? false;
 
@@ -46,20 +48,7 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
     let letterIdx = 0;
     const nextLetter = () => String.fromCharCode(97 + letterIdx++);
 
-    if (entry.attackerClass === 'general' || entry.targetClass === 'general') {
-        const atkUnit = entry.attackerId ? (state.units[entry.attackerId] ?? state.graveyard[entry.attackerId]) : undefined;
-        const defUnit = entry.targetId ? (state.units[entry.targetId] ?? state.graveyard[entry.targetId]) : undefined;
-        if (entry.attackerClass === 'general' && atkUnit) {
-            const ab = getAuraBuffs(state, atkUnit.owner);
-            if (ab.difficultyReduction > 0) modItems.push({ letter: nextLetter(), text: l('aura.precision', { n: ab.difficultyReduction }), color: 'var(--color-class-archer)' });
-        }
-        if (entry.targetClass === 'general' && defUnit) {
-            const ab = getAuraBuffs(state, defUnit.owner);
-            if (ab.difficultyPenalty > 0) modItems.push({ letter: nextLetter(), text: l('aura.evasion', { n: ab.difficultyPenalty }), color: 'var(--color-class-cavalry)' });
-            if (ab.defenseBonus > 0) modItems.push({ letter: nextLetter(), text: l('aura.defense', { n: ab.defenseBonus }), color: 'var(--color-class-lancer)' });
-            if (ab.shieldPoints > 0 && defUnit && (defUnit.auraShield ?? 0) > 0) modItems.push({ letter: nextLetter(), text: l('aura.shieldActive', { n: defUnit.auraShield ?? 0 }), color: 'var(--color-class-infantry)' });
-        }
-    }
+    // Aura modifiers are now in entry.modifiers (snapshotted at attack time)
 
     const catLabels: Record<string, string> = { diff: l('cat.diff'), atk: l('cat.atk'), range: l('cat.range'), def: l('cat.def'), pa: l('cat.pa'), cost: l('cat.pa'), mixed: l('cat.mixed') };
     const catColors: Record<string, string> = { diff: 'var(--color-effect-diff)', atk: 'var(--color-effect-atk)', range: 'var(--color-effect-range)', def: 'var(--color-effect-def)', pa: 'var(--color-effect-pa)', cost: 'var(--color-effect-pa)' };
@@ -136,9 +125,14 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
     };
     for (const item of allItems) {
         const rawText = item.text;
-        item.text = item.text.replace(/\[(?:id|ignores):[\w,]+\]\s*/g, '');
+        item.text = item.text.replace(/\[(?:id|ignores):[\w,.]+\]\s*/g, '');
+        const i18nMatch = rawText.match(/\[i18n:([\w.]+)\]\s*/);
+        if (i18nMatch) {
+            const val = rawText.match(/([+-]?\d+)$/)?.[1] ?? '0';
+            item.text = l(i18nMatch[1], { n: parseInt(val) });
+        }
         const idMatch = rawText.match(/\[id:(\w+)\]/);
-        if (idMatch) {
+        if (idMatch && !i18nMatch) {
             const translated = l(`ability.${idMatch[1]}.name`);
             if (translated && translated !== `ability.${idMatch[1]}.name`) {
                 const colonIdx = item.text.indexOf(':');
@@ -149,7 +143,19 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
             }
         }
         const statPart = item.text.match(/:\s*([+-]?\d+)\s+(\w+)/);
-        if (statPart) {
+        const statTag = item.text.match(/\[stat:(\w+)\]/);
+        if (statTag) {
+            const statMap: Record<string, string> = {
+                attack: l('cat.atk'),
+                defense: l('cat.def'),
+                difficulty: l('cat.diff'),
+                range: l('cat.range'),
+                pa: l('cat.pa'),
+                damage: l('cat.dmg') || 'dmg',
+            };
+            const translated = statMap[statTag[1]] ?? statTag[1];
+            item.text = item.text.replace(`[stat:${statTag[1]}]`, translated);
+        } else if (statPart) {
             const translatedStat = MODIFIER_TRANSLATIONS[statPart[2]];
             if (translatedStat) {
                 item.text = item.text.replace(statPart[0], `: ${statPart[1]} ${translatedStat}`);
@@ -172,7 +178,7 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
     const archerDist = diffFormula?.match(/distancia \+(\d+)/) ? parseInt(diffFormula.match(/distancia \+(\d+)/)![1]) : null;
     const isArcher = archerDist !== null;
 
-    const diffModLetters = [...modItems.filter(m => m.text.includes('dificultad') || m.text.includes('difficulty')), ...(catMap.get('diff') ?? [])].map(m => m.letter).filter(l => l && !ignoredLetters.has(l));
+    const diffModLetters = [...modItems.filter(m => m.text.includes('dificultad') || m.text.includes('difficulty') || m.text.includes('[stat:difficulty]')), ...(catMap.get('diff') ?? [])].map(m => m.letter).filter(l => l && !ignoredLetters.has(l));
     const rangeModLetters = [...(catMap.get('range') ?? [])].map(m => m.letter);
     const paModLetters = [...(catMap.get('pa') ?? []), ...(catMap.get('cost') ?? [])].map(m => m.letter);
     // Compute base PA cost by subtracting modifier values from final cost
@@ -187,7 +193,8 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
         return (entry.paCost ?? 0) - modSum;
     })();
     const rangeStats: Record<string, number> = { archer: 3, infantry: 1, cavalry: 1, lancer: 1, general: 1 };
-    const baseRange = entry.attackerClass ? (rangeStats[entry.attackerClass] ?? 1) : 0;
+    const atkUnit = entry.attackerId ? (state.units[entry.attackerId] ?? state.graveyard[entry.attackerId]) : undefined;
+    const baseRange = atkUnit ? atkUnit.range : (entry.attackerClass ? (rangeStats[entry.attackerClass] ?? 1) : 0);
     const atkDistance = entry.distance ?? 99;
     const hasRangeBonus = rangeModLetters.length > 0 && baseRange > 0 && atkDistance > baseRange;
     const finalRange = hasRangeBonus ? baseRange + rangeModLetters.length : baseRange;
@@ -221,12 +228,12 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
             const signMatch = m.text.match(/([+-])\s*\d/);
             return { letter: m.letter, sign: (signMatch ? signMatch[1] : '+') as string };
         }),
-        ...modItems.filter(m => m.text.includes('daño') || m.text.includes('damage')).map(m => {
+        ...modItems.filter(m => m.text.includes('daño') || m.text.includes('damage') || m.text.includes('[stat:damage]')).map(m => {
             const text = m.text ?? '';
             const signMatch = text.match(/([+-])\s*\d/);
             return { letter: m.letter, sign: (signMatch ? signMatch[1] : '-') as string };
         }),
-        ...modItems.filter(m => m.text.includes('defensa') || m.text.includes('defense')).map(m => ({
+        ...modItems.filter(m => m.text.includes('defensa') || m.text.includes('defense') || m.text.includes('[stat:defense]')).map(m => ({
             letter: m.letter, sign: '-' as const,
         })),
         ...(critApplied ? [{ letter: allItems.find(i => i.text.includes('Crítico') || i.text.includes('Critical'))?.letter ?? '', sign: '+' as const }] : []),
@@ -248,24 +255,98 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
         'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_del_guerrero', 'robar_ricos',
         'cabalgar', 'cabalgar_2', 'a_la_carga', 'posicion_estrategica',
         'angel_guardian', 'proteger', 'torbellino', 'sacrificar', 'desenvainado_veloz',
-        'proyeccion',
     ]);
     const isSupportCard = CARD_SUPPORT_DETAIL.has(entry.cardId);
     const isCounter = entry.cardType === 'COUNTER';
+    const isRegularCard = isCardEntry && !isSupportCard && entry.cardType;
 
     return (
         <div className="space-y-4">
-            {pTitle && <PanelTitle entry={entry} isAttackEntry={isAttackEntry} isMoveEntry={isMoveEntry} isSupportCard={isSupportCard} isCounter={isCounter} />}
-            {pShowSource && <PanelSource entry={entry} cls={cls} />}
-            {pShowAttacker && <PanelAttacker entry={entry} />}
-            {pShowTarget && <PanelTarget entry={entry} cls={cls} />}
-            {pShowDefender && <PanelDefender entry={entry} state={state} cls={cls} />}
-            {pShowDescription && configId && <PanelDescription configId={configId} />}
-            {pShowModifiers && allItems.length > 0 && <PanelModifiers allItems={allItems} entry={entry} />}
-            {pShowFormula.length > 0 && <PanelFormula entry={entry} paModLetters={paModLetters} paBaseCost={paBaseCost} diffFormulaRef={diffFormulaRef} diffModLetters={diffModLetters} isArcher={isArcher} archerBase={archerBase} archerDist={archerDist} dmgFormula={dmgFormula} dmgClamped={dmgClamped} hasRangeBonus={hasRangeBonus} baseRange={baseRange} rangeModLetters={rangeModLetters} finalRange={finalRange} isCritical={isCritical} dieFaces={dieFaces} pShowFormula={pShowFormula} pShowUnitsAffected={pShowUnitsAffected} />}
-            {pShowMovement && isMoveEntry && <PanelMovement entry={entry} cls={cls} />}
-            {!isSupportCard && isCardEntry && pTitle && <PanelCounterCard entry={entry} cls={cls} isCounter={isCounter} />}
-            {pShowUnitsAffected && (entry.enemiesHit?.length > 0 || entry.alliesHit?.length > 0 || entry.targetId) && <PanelUnitsAffected entry={entry} state={state} cls={cls} />}
+            {isRegularCard ? (
+                <>
+                    {/* Línea 1: Icono + Título */}
+                    <div className="flex items-start gap-3">
+                        <div className="text-3xl">🃏</div>
+                        <div>
+                            <div className="text-lg font-bold">{entry.cardName?.startsWith('card.') ? l(entry.cardName) : (entry.cardName ?? l('button.basicAttack'))}</div>
+                            <div className={[
+                                'text-xs font-semibold',
+                                entry.cardType === 'BUFF' ? 'text-emerald-400' : entry.cardType === 'DEBUFF' ? 'text-red-400' : 'text-violet-400',
+                            ].join(' ')}>
+                                {l('cardType.' + entry.cardType)}
+                            </div>
+                        </div>
+                    </div>
+                    {/* Línea 2: Jugador · Turno · Acción */}
+                    <div className="text-xs text-zinc-500">
+                        {l('history.player', { n: entry.playerId === 'p1' ? '1' : '2' })} · {l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}
+                    </div>
+                    {/* Línea 3: Carta original + contra (si existe) */}
+                    {entry.counterCardId ? (
+                        <div className="space-y-3">
+                            <div>
+                                <div className="text-xs text-zinc-400">
+                                    <span className="font-semibold">{l('cardDetail.playerPlays', { n: entry.playerId === 'p1' ? '2' : '1' })}: </span>
+                                    <span className="font-semibold text-red-400">{entry.counterCardName?.startsWith('card.') ? l(entry.counterCardName) : (entry.counterCardName ?? '?')}</span>
+                                </div>
+                                <div className="rounded-lg border-2 border-red-800/50 bg-red-900/20 p-3 text-xs text-red-300 mt-1">
+                                    {entry.counterCardName?.startsWith('card.') ? l(entry.counterCardName.replace('.name', '.desc')) : ''}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-zinc-400">
+                                    <span className="font-semibold">{l('cardDetail.butOpponentCounters', { n: entry.playerId === 'p1' ? '1' : '2' })}: </span>
+                                    <span className="font-semibold text-violet-400">{entry.cardName?.startsWith('card.') ? l(entry.cardName) : (entry.cardName ?? '?')}</span>
+                                </div>
+                                <div className="rounded-lg border-2 border-violet-800/50 bg-violet-900/20 p-3 text-xs text-violet-300 mt-1">
+                                    {entry.cardName?.startsWith('card.') ? l(entry.cardName.replace('.name', '.desc')) : ''}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className={[
+                            'rounded-lg border-2 p-3 text-xs min-h-[60px]',
+                            entry.cardType === 'BUFF' ? 'border-emerald-800/50 bg-emerald-900/20 text-emerald-300'
+                                : entry.cardType === 'DEBUFF' ? 'border-red-800/50 bg-red-900/20 text-red-300'
+                                : 'border-violet-800/50 bg-violet-900/20 text-violet-300',
+                        ].join(' ')}>
+                            {configId && ABILITY_CONFIG[configId] && (ABILITY_CONFIG[configId] as any).cardImg ? (
+                                <img src={(ABILITY_CONFIG[configId] as any).cardImg} alt={entry.cardName} className="w-full h-auto rounded" />
+                            ) : entry.details ? (
+                                <span>{entry.details}</span>
+                            ) : configId ? (
+                                <PanelDescription configId={configId} />
+                            ) : null}
+                        </div>
+                    )}
+                    {/* Línea 4: Efecto snapshot (mismo estilo que PanelUnitsAffected) */}
+                    {entry.modifiers && entry.modifiers.length > 0 && (
+                        <div className="bg-panel-sub-bg border border-panel-sub-border rounded-lg p-3 space-y-1.5 text-sm">
+                            <div className="text-xs font-semibold text-panel-title uppercase tracking-wide">{l('cardDetail.effects')}</div>
+                            {entry.modifiers.map((m: string, i: number) => {
+                                const i18nMatch = m.match(/^\[i18n:([\w.]+)\]/);
+                                const displayText = i18nMatch ? l(i18nMatch[1]) : m;
+                                return <div key={i} className="text-xs text-zinc-300">{displayText}</div>;
+                            })}
+                        </div>
+                    )}
+
+                </>
+            ) : (
+                <>
+                    {pTitle && <PanelTitle entry={entry} isAttackEntry={isAttackEntry} isMoveEntry={isMoveEntry} isSupportCard={isSupportCard} isCounter={isCounter} />}
+                    {pShowSource && <PanelSource entry={entry} cls={cls} />}
+                    {pShowAttacker && <PanelAttacker entry={entry} />}
+                    {pShowTarget && <PanelTarget entry={entry} cls={cls} />}
+                    {pShowDefender && <PanelDefender entry={entry} state={state} cls={cls} />}
+                    {pShowDescription && configId && <PanelDescription configId={configId} />}
+                    {pShowModifiers && (allItems.length > 0 || (isMoveEntry && (entry.modifiers?.length ?? 0) > 0)) && <PanelModifiers allItems={allItems} entry={entry} />}
+                    {pShowFormula.length > 0 && <PanelFormula entry={entry} paModLetters={paModLetters} paBaseCost={paBaseCost} diffFormulaRef={diffFormulaRef} diffModLetters={diffModLetters} isArcher={isArcher} archerBase={archerBase} archerDist={archerDist} dmgFormula={dmgFormula} dmgClamped={dmgClamped} hasRangeBonus={hasRangeBonus} baseRange={baseRange} rangeModLetters={rangeModLetters} finalRange={finalRange} isCritical={isCritical} dieFaces={dieFaces} pShowFormula={pShowFormula} pShowUnitsAffected={pShowUnitsAffected} />}
+                    {!isSupportCard && isCardEntry && pTitle && <PanelCounterCard entry={entry} cls={cls} isCounter={isCounter} />}
+                    {pShowUnitsAffected && (entry.enemiesHit?.length > 0 || entry.alliesHit?.length > 0 || entry.targetId) && <PanelUnitsAffected entry={entry} state={state} cls={cls} />}
+                    {pShowMovement && (isMoveEntry || entry.from != null) && <PanelMovement entry={entry} cls={cls} />}
+                </>
+            )}
         </div>
     );
 }

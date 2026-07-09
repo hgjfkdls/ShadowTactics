@@ -48,6 +48,7 @@ export function createInitialGameState(seed?: number): GameState {
                 actionPoints: 0,
                 carryOver: 0,
                 lastAcknowledgedIndex: -1,
+                flags: [],
 
                 cardsInHand: p1Cards,
 
@@ -78,6 +79,7 @@ export function createInitialGameState(seed?: number): GameState {
                 actionPoints: 0,
                 carryOver: 0,
                 lastAcknowledgedIndex: -1,
+                flags: [],
 
                 cardsInHand: p2Cards,
 

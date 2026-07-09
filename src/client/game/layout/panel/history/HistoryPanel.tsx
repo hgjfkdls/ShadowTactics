@@ -3,8 +3,6 @@ import { l } from '@shared/i18n';
 import { getCardName } from '@shared/game/actions/card';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 
-const DIE_FACES: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
-
 type HistoryEntry = {
     id: string;
     turn: number;
@@ -66,13 +64,28 @@ export function HistoryPanel({ gameHistory, selectedInfo, onSelectEntry }: {
     );
 }
 
+function getDefaultLogByType(type?: string) {
+    switch (type) {
+        case 'attack':
+            return { showActionName: true, showAttacker: true, showDefender: true, showDmg: true, showResult: true, showCost: true, showTurn: true, showActionNumber: true, showGameTime: true };
+        case 'move':
+            return { showActionName: true, showMovement: true, showCost: true, showTurn: true, showActionNumber: true, showGameTime: true, showAttacker: false, showDefender: false };
+        case 'support':
+            return { showActionName: true, showSource: true, showEffects: true, showCost: true, showTurn: true, showActionNumber: true, showGameTime: true, showAttacker: false, showDefender: false };
+        default:
+            return {};
+    }
+}
+
 function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: boolean }) {
     const borderCls = selected ? 'border-yellow-400' : 'border-zinc-600/60';
     const bgCls = 'bg-zinc-700/40';
     const playerBorder = entry.playerId === 'p1' ? 'border-l-player1' : 'border-l-player2';
 
     const cfgId = entry.configId ?? entry.cardId;
-    const logCfg = (cfgId ? ABILITY_CONFIG[cfgId]?.log : undefined) ?? {};
+    const cfg = cfgId ? ABILITY_CONFIG[cfgId] : undefined;
+    const typeDefault = cfg ? getDefaultLogByType(cfg.type) : {};
+    const logCfg = { ...typeDefault, ...(cfg?.log ?? {}) };
     const pShowGameTime = logCfg.showGameTime ?? true;
     const pShowActionName = logCfg.showActionName ?? true;
     const pShowTurn = logCfg.showTurn ?? true;
@@ -91,7 +104,6 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
     const pCountEnemies = logCfg.countEnemies ?? false;
 
     if (entry.type === 'attack') {
-        const isCritical = !entry.noCritical && entry.total >= 11;
         return (
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
                 <div className="space-y-0.5 flex-1">
@@ -136,34 +148,35 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                             <span className="text-red-400">🛡</span> [{entry.targetId}]{l(`unit.class.${entry.targetClass}`) ?? entry.targetClass}
                         </div>
                     ) : null}
-                    {entry.difficulty > 0 && (
-                        <div className="flex items-center gap-2 text-zinc-400 text-[10px]">
-                            <span>{l('board.difAbbrev')} {entry.difficulty}</span>
-                            {entry.die1 > 0 && <><span className="text-zinc-600">|</span><span>{DIE_FACES[entry.die1] ?? entry.die1}+{DIE_FACES[entry.die2] ?? entry.die2}={entry.total}{isCritical ? ' 💥' : ''}</span></>}
-                        </div>
-                    )}
                 </div>
                 {pShowResult && (
-                <div className="flex items-center justify-between text-[10px] mt-0.5">
-                    <div>
-                        {entry.attackName === 'Sacrificar' ? (
-                            <span className="text-red-400 font-semibold">🔴 -{entry.damage} HP</span>
-                        ) : entry.hit ? (
-                            <span className="text-hit-text font-semibold">{pShowDmg ? `✅ -${entry.damage} HP` : '✅'}{entry.counterDamage > 0 && entry.counterDamage !== 2 ? <span className="text-red-400">{` (${l('board.counter')} -${entry.counterDamage} HP)`}</span> : ''}</span>
-                        ) : (
-                            <span className="text-red-400 font-semibold">❌ {l('board.miss')}{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage} HP)` : ''}</span>
-                        )}
-                        {(entry.targetKilled || entry.attackerKilled) && (
-                            <span className="text-yellow-400 ml-1">⚫</span>
-                        )}
+                    <div className="flex items-center justify-between text-[10px] mt-0.5">
+                        <div>
+                            {entry.attackName === 'Sacrificar' ? (
+                                <span className="text-red-400 font-semibold">🔴 -{entry.damage} HP</span>
+                            ) : entry.hit ? (
+                                <span className="text-hit-text font-semibold">{pShowDmg ? `✅ -${entry.damage} HP` : '✅'}{entry.counterDamage > 0 && entry.counterDamage !== 2 ? <span className="text-red-400">{` (${l('board.counter')} -${entry.counterDamage} HP)`}</span> : ''}</span>
+                            ) : (
+                                <span className="text-red-400 font-semibold">❌ {l('board.miss')}{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage} HP)` : ''}</span>
+                            )}
+                            {(entry.targetKilled || entry.attackerKilled) && (
+                                <span className="text-yellow-400 ml-1">⚫</span>
+                            )}
+                        </div>
+                        {pShowCost && <div className="text-[9px] font-bold text-effect-pa">{entry.paCost ?? 1} PA</div>}
                     </div>
-                    {pShowCost && <div className="text-[9px] font-bold text-effect-pa">{entry.paCost ?? 1} PA</div>}
-                </div>
                 )}
                 {(pCountAllies || pCountEnemies) && (
                     <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">
                         {pCountAllies && entry.alliesHit !== undefined && entry.alliesHit.length > 0 && <span>{l('history.alliesAffected', { count: entry.alliesHit.length })}</span>}
                         {pCountEnemies && entry.enemiesHit !== undefined && entry.enemiesHit.length > 0 && <span>{l('history.enemiesAffected', { count: entry.enemiesHit.length })}</span>}
+                    </div>
+                )}
+                {pShowMovement && entry.from && (
+                    <div className="flex items-center gap-1 text-[10px] text-zinc-400 mt-0.5">
+                        <span className="text-amber-400">👟</span>
+                        <span className="font-semibold truncate">{entry.unitClass ? (l(`unit.class.${entry.unitClass}`) ?? entry.unitClass) : ''}</span>
+                        <span>{`(${entry.from.q},${entry.from.r}) → (${entry.to.q},${entry.to.r})`}</span>
                     </div>
                 )}
             </div>
@@ -178,8 +191,8 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                         <span>{pShowGameTime && entry.gameTime ? `${entry.gameTime} — ` : ''}{l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber })}</span>
                         {pShowActionName && (entry.attackName ? (
                             <span className="text-effect-range text-[10px]">{attackNameDisplay(entry)}</span>
-                        ) : entry.configId && ABILITY_CONFIG[entry.configId]?.nameKey ? (
-                            <span className="text-effect-range text-[10px]">{l(ABILITY_CONFIG[entry.configId].nameKey)}</span>
+                        ) : entry.configId ? (
+                            <span className="text-effect-range text-[10px]">{l(`ability.${entry.configId}.name`)}</span>
                         ) : null)}
                     </div>
                     <div className="flex items-center gap-1 text-zinc-300">
@@ -189,9 +202,55 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                     </div>
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-0.5">
-                    <span>{entry.path ? entry.path : `(${entry.from.q},${entry.from.r}) → (${entry.to.q},${entry.to.r})`}{entry.cost !== entry.baseCost ? <span className="text-zinc-500 ml-1">({l('board.baseLabel')} {entry.baseCost} PA)</span> : ''}</span>
+                    <span>{entry.details ?? entry.path ?? `(${entry.from.q},${entry.from.r}) → (${entry.to.q},${entry.to.r})`}{entry.cost !== entry.baseCost ? <span className="text-zinc-500 ml-1">({l('board.baseLabel')} {entry.baseCost} PA)</span> : ''}</span>
                     {pShowCost && <span className="font-bold text-effect-pa">{entry.cost} PA</span>}
                 </div>
+            </div>
+        );
+    }
+
+    if (entry.type === 'support') {
+        const effLines: { text: string; color: string }[] = [];
+        const cls = (c: string) => l(`unit.class.${c}`) ?? c;
+        if (entry.details) {
+            const detailsText = entry.details.startsWith('ability.') || entry.details.startsWith('passive.') ? l(entry.details) : entry.details;
+            effLines.push({ text: detailsText, color: 'text-zinc-300' });
+        }
+        return (
+            <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+                <div className="space-y-0.5 flex-1">
+                    <div className="text-zinc-500 flex justify-between">
+                        <span>{pShowGameTime && entry.gameTime ? `${entry.gameTime} — ` : ''}{pShowTurn && pShowActionNumber ? l('history.turnAndAction', { turn: entry.turn, action: entry.actionNumber }) : pShowTurn ? `${l('board.turnLabel')} ${entry.turn}` : `${l('board.actionLabel')} ${entry.actionNumber}`}</span>
+                        {pShowActionName && (entry.attackName ? (
+                            <span className="text-effect-range text-[10px]">{attackNameDisplay(entry)}</span>
+                        ) : entry.configId ? (
+                            <span className="text-effect-range text-[10px]">{l(`ability.${entry.configId}.name`)}</span>
+                        ) : null)}
+                    </div>
+                    {pShowSource && entry.sourceClass && (
+                        <div className="flex items-center gap-1 text-zinc-300">
+                            <span className="text-purple-400">✦</span>
+                            <span className="text-zinc-200 font-semibold truncate">{cls(entry.sourceClass)}</span>
+                        </div>
+                    )}
+                    {pShowTarget && entry.targetId && entry.targetClass && (
+                        <div className="text-zinc-400 text-[10px]">
+                            <span className="text-violet-400">{l('cardDetail.objective')}</span> [{entry.targetId}]{cls(entry.targetClass)}
+                        </div>
+                    )}
+                    {pShowEffects && effLines.length > 0 && (
+                        <div className="text-zinc-300 text-[10px] space-y-0.5">
+                            {effLines.map((line, i) => (
+                                <div key={i} className={line.color}>{line.text}</div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                {pShowCost && entry.paCost > 0 && (
+                    <div className="flex items-center justify-end text-[10px] mt-0.5">
+                        <span className="font-bold text-effect-pa">{entry.paCost} PA</span>
+                    </div>
+                )}
             </div>
         );
     }
@@ -201,7 +260,6 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
         'lanza_escudo', 'voz_de_mando', 'plan_batalla', 'camino_del_guerrero', 'robar_ricos',
         'cabalgar', 'cabalgar_2', 'a_la_carga', 'posicion_estrategica',
         'angel_guardian', 'proteger', 'torbellino', 'sacrificar', 'desenvainado_veloz',
-        'proyeccion',
     ]);
 
     if (entry.type === 'card') {
@@ -232,8 +290,11 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                 const parts = (entry.details ?? '').split(' · ');
                 effLines.push({ text: `👟 ${parts[0] ?? ''}`, color: 'text-effect-diff' });
                 if (parts.length > 1) effLines.push({ text: `  ${parts[1]}`, color: 'text-zinc-500' });
+            } else if (entry.cardId === 'cabalgar_2' && entry.details) {
+                effLines.push({ text: `👟 ${entry.details}`, color: 'text-effect-diff' });
             } else if (entry.cardId === 'meditacion') {
-                effLines.push({ text: `💚 +${entry.details?.match(/(\d+)/)?.[1] ?? '?'} HP (${entry.sourceIdentity})`, color: 'text-effect-heal' });
+                const healMatch = entry.details?.match(/(\d+)/);
+                effLines.push({ text: `💚 +${healMatch?.[1] ?? '?'} HP`, color: 'text-effect-heal' });
             } else if (entry.cardId === 'lanza_escudo') {
                 const isRange = entry.details?.includes('rango');
                 effLines.push({ text: isRange ? `⚔ +1 ${l('cat.range')}` : `🛡 +1 ${l('cat.def')}`, color: isRange ? 'text-effect-range' : 'text-effect-def' });
@@ -261,11 +322,11 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                         <div className="text-zinc-400 text-[10px] mb-0.5"><span className="text-violet-400">{l('cardDetail.objective')}</span> [{entry.targetId}]{cls(entry.targetClass)}</div>
                     )}
                     {pShowEffects && effLines.length > 0 && (
-                    <div className="text-zinc-300 text-[10px] space-y-0.5">
-                        {effLines.map((line, i) => (
-                            <div key={i} className={line.color}>{line.text}</div>
-                        ))}
-                    </div>
+                        <div className="text-zinc-300 text-[10px] space-y-0.5">
+                            {effLines.map((line, i) => (
+                                <div key={i} className={line.color}>{line.text}</div>
+                            ))}
+                        </div>
                     )}
                     {(pCountAllies || pCountEnemies) && (
                         <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">

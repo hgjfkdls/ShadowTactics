@@ -55,7 +55,7 @@ function makeState(): GameState {
         ...s,
         units: {
             ...s.units,
-            gen1: { ...s.units['gen1'], abilities: ['angel_guardian'], usedAngelGuardian: true },
+            gen1: { ...s.units['gen1'], abilities: ['angel_guardian'], flags: ['angel_guardian'] },
         },
     };
     const st = applyAction(s, {

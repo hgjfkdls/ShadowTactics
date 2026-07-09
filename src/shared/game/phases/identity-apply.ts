@@ -55,18 +55,31 @@ export function applyIdentityEffects(state: GameState): GameState {
           abilities: unit.abilities ?? [],
         };
       } else if (key === 'francotirador' && isArcherOrGeneral(unit.class)) {
-        // Global +1 range for basic attacks is handled dynamically in attack.ts
-        // Special +1 ability range for general handled dynamically in ability.ts
+        units[uid] = {
+          ...unit,
+          abilities: [...new Set([...(unit.abilities ?? []), 'tiro_a_distancia'])],
+        };
+      } else if (key === 'dios_trueno' && (unit.class === 'infantry' || unit.class === 'general')) {
+        units[uid] = {
+          ...unit,
+          abilities: [...new Set([...(unit.abilities ?? []), 'furia_berserker'])],
+        };
+      } else if (key === 'cazadores' && (unit.class === 'cavalry' || unit.class === 'general')) {
+        units[uid] = {
+          ...unit,
+          abilities: [...new Set([...(unit.abilities ?? []), 'acechar', 'hostigar'])],
+        };
       } else if (key === 'caballos_guerra' && unit.class === 'cavalry') {
         units[uid] = {
           ...unit,
           abilities: unit.abilities?.map(a => a === 'cabalgar' ? 'cabalgar_2' : a) ?? [],
         };
       } else if (key === 'monje_shaolin' && unit.class === 'general') {
-        // Monje Shaolin: performedActionThisTurn tracking starts at false
+        // Monje Shaolin: performed_action tracking starts clear
         units[uid] = {
           ...unit,
-          performedActionThisTurn: false,
+          abilities: [...(unit.abilities ?? []), 'meditacion_2'],
+          flags: [],
         };
       }
     }

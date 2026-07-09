@@ -17,12 +17,12 @@ function makeState(): GameState {
             p2: { ...s.players['p2'], actionPoints: 5, cardsInHand: [] },
         },
         units: {
-            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2, class: 'archer', abilities: ['blanco_facil', 'patada_acrobatica', 'fuego_cobertura'] },
-            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'] },
-            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
-            u4: { id: 'u4', owner: 'p2', position: { q: 3, r: 1 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'] },
-            gen: { id: 'gen', owner: 'p2', position: { q: 5, r: 0 }, attack: 4, hp: 20, difficulty: 6, range: 1, movementCost: 1, class: 'general', abilities: [] },
-            gen1: { id: 'gen1', owner: 'p1', position: { q: -2, r: 0 }, attack: 4, hp: 20, difficulty: 6, range: 1, movementCost: 1, class: 'general', abilities: [] },
+            u1: { id: 'u1', owner: 'p1', position: { q: 0, r: 0 }, attack: 3, hp: 12, difficulty: 6, range: 3, movementCost: 2, class: 'archer', abilities: ['blanco_facil', 'patada_acrobatica', 'fuego_cobertura'], flags: [] },
+            u2: { id: 'u2', owner: 'p1', position: { q: 2, r: 0 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'], flags: [] },
+            u3: { id: 'u3', owner: 'p2', position: { q: 4, r: 0 }, attack: 2, hp: 16, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'], flags: [] },
+            u4: { id: 'u4', owner: 'p2', position: { q: 3, r: 1 }, attack: 3, hp: 14, difficulty: 7, range: 1, movementCost: 1, class: 'cavalry', abilities: ['romper_filas', 'doble_ataque', 'cabalgar', 'carga'], flags: [] },
+            gen: { id: 'gen', owner: 'p2', position: { q: 5, r: 0 }, attack: 4, hp: 20, difficulty: 6, range: 1, movementCost: 1, class: 'general', abilities: [], flags: [] },
+            gen1: { id: 'gen1', owner: 'p1', position: { q: -2, r: 0 }, attack: 4, hp: 20, difficulty: 6, range: 1, movementCost: 1, class: 'general', abilities: [], flags: [] },
         }
     };
     return s;
@@ -156,8 +156,8 @@ function makeState(): GameState {
             'Doble ataque — ejecutado tras ataque normal');
         assert(result.players['p1'].actionPoints === 8,
             'Doble ataque — cuesta 1 PA (10-1-1 tras ataque normal + habilidad)');
-        assert(result.units['u2']?.usedDobleAtaque === true,
-            'Doble ataque — flag usedDobleAtaque');
+        assert(!!result.units['u2']?.flags?.includes('doble_ataque'),
+            'Doble ataque — flag doble_ataque');
     }
 }
 
@@ -238,7 +238,7 @@ function makeState(): GameState {
     // Cabalgar de (2,0) a (4,0) — línea recta, distancia 2, sin obstáculos
     const r1 = applyAction(state, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar', to: { q: 4, r: 0 } });
     assert(r1 !== state, 'Combo cab→carga→doble: cabalgar ok');
-    assert(r1.units['u2']?.usedCabalgar, 'Combo cab→carga→doble: usedCabalgar true');
+    assert(!!r1.units['u2']?.flags?.includes('cabalgar'), 'Combo cab→carga→doble: cabalgar flag');
 
     // Carga: u2 en (4,0), cabalgarDir = (1,0), espera objetivo en (5,0)
     // Mover u4 de (3,1) a (5,0) para que carga funcione
@@ -251,7 +251,7 @@ function makeState(): GameState {
     };
     const r2 = applyAction(cargaSetup, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'carga', targetId: 'u4' });
     assert(r2 !== cargaSetup, 'Combo cab→carga→doble: carga ejecutada');
-    assert(r2.units['u2']?.usedCarga, 'Combo cab→carga→doble: usedCarga true');
+    assert(!!r2.units['u2']?.flags?.includes('carga'), 'Combo cab→carga→doble: carga flag');
 
     // Doble ataque después de carga sobre u4
     const r3 = applyAction(r2, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u4' });

@@ -38,6 +38,7 @@
     --color-panel-title: #71717a;
 
     /* ── Hex board ── */
+    --color-gold: #fbbf24;
     --color-range: #3b82f6;
     --color-range-overlay: rgba(59, 130, 246, 0.12);
     --color-available: #10b981;

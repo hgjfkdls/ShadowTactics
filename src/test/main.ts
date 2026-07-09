@@ -39,6 +39,11 @@ async function main() {
     await import('./modifiers/index.test');
     await import('./combat/index.test');
 
+    await import('./systems/range-target.test');
+    await import('./systems/activation-effects.test');
+    await import('./systems/modifiers.test');
+    await import('./systems/modifier-display.test');
+
     const { getPassed, getFailed } = await import('./shared');
     const passed = getPassed();
     const failed = getFailed();

@@ -57,7 +57,7 @@ export function handleMove(state: GameState, action: GameAction): GameState {
         state,
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnitPos(s, unit.id, to),
-        (s) => updateUnit(s, unit.id, (u) => ({ ...u, movedThisTurn: true, performedActionThisTurn: true })),
+        (s) => updateUnit(s, unit.id, (u) => ({ ...u, flags: [...new Set([...(u.flags ?? []), 'move', 'performed_action'])] })),
     );
 
     // Consumir modificadores de coste
