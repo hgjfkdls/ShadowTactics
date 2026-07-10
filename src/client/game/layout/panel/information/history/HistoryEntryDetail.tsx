@@ -181,8 +181,12 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
     const diffModLetters = [...modItems.filter(m => m.text.includes('dificultad') || m.text.includes('difficulty') || m.text.includes('[stat:difficulty]')), ...(catMap.get('diff') ?? [])].map(m => m.letter).filter(l => l && !ignoredLetters.has(l));
     const rangeModLetters = [...(catMap.get('range') ?? [])].map(m => m.letter);
     const paModLetters = [...(catMap.get('pa') ?? []), ...(catMap.get('cost') ?? [])].map(m => m.letter);
-    // Compute base PA cost by subtracting modifier values from final cost
-    const paBaseCost = (() => {
+    // SET modifier letter: detected when paIntermediate differs from final paCost
+    const paSetLetter = entry.paIntermediate !== undefined && entry.paIntermediate !== entry.paCost && paModLetters.length > 0
+        ? paModLetters[paModLetters.length - 1]
+        : null;
+    // Use stored paBaseCost if available, otherwise compute from final cost minus modifiers
+    const paBaseCost = entry.paBaseCost ?? (() => {
         if (paModLetters.length === 0) return entry.paCost ?? 0;
         const all = [...modItems, ...grouped.flatMap(g => g.items)];
         const modSum = paModLetters.reduce((sum, l) => {
@@ -341,7 +345,7 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                     {pShowDefender && <PanelDefender entry={entry} state={state} cls={cls} />}
                     {pShowDescription && configId && <PanelDescription configId={configId} />}
                     {pShowModifiers && (allItems.length > 0 || (isMoveEntry && (entry.modifiers?.length ?? 0) > 0)) && <PanelModifiers allItems={allItems} entry={entry} />}
-                    {pShowFormula.length > 0 && <PanelFormula entry={entry} paModLetters={paModLetters} paBaseCost={paBaseCost} diffFormulaRef={diffFormulaRef} diffModLetters={diffModLetters} isArcher={isArcher} archerBase={archerBase} archerDist={archerDist} dmgFormula={dmgFormula} dmgClamped={dmgClamped} hasRangeBonus={hasRangeBonus} baseRange={baseRange} rangeModLetters={rangeModLetters} finalRange={finalRange} isCritical={isCritical} dieFaces={dieFaces} pShowFormula={pShowFormula} pShowUnitsAffected={pShowUnitsAffected} />}
+                    {pShowFormula.length > 0 && <PanelFormula entry={entry} paModLetters={paModLetters} paBaseCost={paBaseCost} paSetLetter={paSetLetter} diffFormulaRef={diffFormulaRef} diffModLetters={diffModLetters} isArcher={isArcher} archerBase={archerBase} archerDist={archerDist} dmgFormula={dmgFormula} dmgClamped={dmgClamped} hasRangeBonus={hasRangeBonus} baseRange={baseRange} rangeModLetters={rangeModLetters} finalRange={finalRange} isCritical={isCritical} dieFaces={dieFaces} pShowFormula={pShowFormula} pShowUnitsAffected={pShowUnitsAffected} />}
                     {!isSupportCard && isCardEntry && pTitle && <PanelCounterCard entry={entry} cls={cls} isCounter={isCounter} />}
                     {pShowUnitsAffected && (entry.enemiesHit?.length > 0 || entry.alliesHit?.length > 0 || entry.targetId) && <PanelUnitsAffected entry={entry} state={state} cls={cls} />}
                     {pShowMovement && (isMoveEntry || entry.from != null) && <PanelMovement entry={entry} cls={cls} />}

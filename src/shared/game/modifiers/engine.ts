@@ -124,22 +124,10 @@ export function getLastDebuffSource(state: GameState): PlayerId | null {
 }
 
 export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId): GameState {
-    let mods = state.activeModifiers
-        .map(m => {
-            if (m.remainingTurns !== undefined && m.remainingTurns >= 0) {
-                return { ...m, remainingTurns: m.remainingTurns - 1 };
-            }
-            return m;
-        })
-        .filter(m => m.remainingTurns === undefined || m.remainingTurns >= 0);
-
-    // Limpiar expirados
-    mods = mods.filter(m => !(m.remainingUses !== undefined && m.remainingUses <= 0));
-
-    let newState: GameState = { ...state, activeModifiers: mods };
-
-    // Aplicar modificadores de AP al jugador
-    const apMod = getModifierSum(newState, playerId, null, 'ap');
+    // 1. Aplicar AP modifiers del jugador actual ANTES de decrementar,
+    //    para que remainingTurns represente turnos del jugador afectado
+    const apMod = getModifierSum(state, playerId, null, 'ap');
+    let newState: GameState = state;
     if (apMod !== 0) {
         const player = newState.players[playerId];
         if (player) {
@@ -154,7 +142,29 @@ export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId
                 }
             };
         }
+        // Remover modifiers de AP del jugador inmediatamente después de aplicar
+        newState = {
+            ...newState,
+            activeModifiers: newState.activeModifiers.filter(
+                m => !(m.stat === 'ap' && m.sourcePlayerId === playerId && m.remainingUses === undefined)
+            )
+        };
     }
+
+    // 2. Decrementar remainingTurns de TODOS los modifiers
+    let mods = newState.activeModifiers
+        .map(m => {
+            if (m.remainingTurns !== undefined && m.remainingTurns >= 0) {
+                return { ...m, remainingTurns: m.remainingTurns - 1 };
+            }
+            return m;
+        })
+        .filter(m => m.remainingTurns === undefined || m.remainingTurns >= 0);
+
+    // Limpiar expirados por remainingUses
+    mods = mods.filter(m => !(m.remainingUses !== undefined && m.remainingUses <= 0));
+
+    newState = { ...newState, activeModifiers: mods };
 
     // Aplicar daño pasivo (flechas_fuego) al inicio del turno del jugador afectado
     let dotMods = newState.activeModifiers;
@@ -179,12 +189,6 @@ export function processModifiersAtTurnStart(state: GameState, playerId: PlayerId
         }
         newState = { ...newState, activeModifiers: dotMods };
     }
-
-    // Limpiar modificadores de AP que ya se aplicaron este turno
-    newState = {
-        ...newState,
-        activeModifiers: newState.activeModifiers.filter(m => !(m.stat === 'ap' && m.remainingTurns === 0 && m.remainingUses === undefined))
-    };
 
     return newState;
 }

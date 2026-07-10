@@ -74,7 +74,16 @@ function getMod(state: GameState, stat: string) {
     const result = playCard(withCard, 'ataque_extra_1', 'u1');
 
     const u = result.units['u1'];
-    assert(u.ataqueExtraCharges === 1, 'Ataque extra — 1 carga en u1');
+    const atkMod = result.activeModifiers.find(m => m.stat === 'attack' && m.targetId === 'u1');
+    const diffMod = result.activeModifiers.find(m => m.stat === 'difficulty' && m.targetId === 'u1');
+    const costMod = result.activeModifiers.find(m => m.stat === 'attackCost' && m.targetId === 'u1');
+    assert(atkMod?.value === 1, 'Ataque extra — attack +1');
+    assert(atkMod?.remainingUses === 1, 'Ataque extra — attack 1 uso');
+    assert(diffMod?.value === 2, 'Ataque extra — difficulty +2');
+    assert(diffMod?.remainingUses === 1, 'Ataque extra — difficulty 1 uso');
+    assert(costMod?.value === 0, 'Ataque extra — attackCost 0');
+    assert(costMod?.operator === 'SET', 'Ataque extra — attackCost SET');
+    assert(costMod?.remainingUses === 1, 'Ataque extra — attackCost 1 uso');
     assert(!(u.flags ?? []).includes('basic_attack'), 'Ataque extra — flag basic_attack reseteado');
     assert(result.effectDiscard.includes('ataque_extra_1'), 'Ataque extra — descartada');
 }
@@ -94,16 +103,18 @@ function getMod(state: GameState, stat: string) {
 {
     const state = makeState();
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['flechas_fuego_1'] } } };
-    const result = playCard(withCard, 'flechas_fuego_1');
+    const result = playCard(withCard, 'flechas_fuego_1', 'u1');
 
-    const dmg = getMod(result, 'damage');
-    assert(dmg?.value === 1, 'Flechas fuego — damage +1');
+    const dmg = getMod(result, 'attack');
+    assert(dmg?.value === 1, 'Flechas fuego — attack +1');
     assert(dmg?.remainingTurns === 0, 'Flechas fuego — sin duración por turnos');
     assert(dmg?.remainingUses === 1, 'Flechas fuego — 1 uso (próximo ataque)');
+    assert(dmg?.targetId === 'u1', 'Flechas fuego — attack en u1');
 
     const dot = getMod(result, 'dotOnHit');
     assert(dot?.value === 1, 'Flechas fuego — dotOnHit +1');
     assert(dot?.remainingUses === 1, 'Flechas fuego — dotOnHit 1 uso');
+    assert(dot?.targetId === 'u1', 'Flechas fuego — dotOnHit en u1');
 
     assert(result.effectDiscard.includes('flechas_fuego_1'), 'Flechas fuego — descartada');
 }

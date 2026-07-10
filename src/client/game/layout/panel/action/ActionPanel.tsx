@@ -33,7 +33,11 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     const unit = (unitId && state.units[unitId]?.owner === playerId && canAct) ? state.units[unitId] : null;
 
     const ap = unit ? getPlayerAP(state, playerId) : 0;
-    const extraCharges = unit?.ataqueExtraCharges ?? 0;
+    const hasFreeAttack = unit ? state.activeModifiers.some(m =>
+        m.stat === 'attackCost' && m.operator === 'SET' && m.value === 0
+        && m.targetId === unit.id && m.sourcePlayerId === playerId
+        && (m.remainingTurns ?? 0) >= 0 && (m.remainingUses ?? 1) > 0
+    ) : false;
 
     const effectiveMoveCost = unit ? (() => {
         let cost = unit.movementCost;
@@ -60,12 +64,12 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
         : false;
 
     const uFlags = unit?.flags ?? [];
-    const basicAttackDisabled = extraCharges > 0 ? false : !!(unit && isAbilityDisabled(state, 'ataque_basico', unit, playerId, ap));
+    const basicAttackDisabled = hasFreeAttack ? false : !!(unit && isAbilityDisabled(state, 'ataque_basico', unit, playerId, ap));
     const basicActions = unit ? [
         {
             id: '__attack__',
             label: basicAttackDisabled ? l('button.alreadyAttacked') : l('button.basicAttack'),
-            cost: extraCharges > 0 ? 0 : 1,
+            cost: hasFreeAttack ? 0 : 1,
             disabled: basicAttackDisabled,
             binding: bindings.BASIC_ATTACK,
         },
@@ -99,10 +103,9 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     function handleClick(actionId: string) {
         if (!unit) return;
         if (actionId === '__attack__') {
-            const ec = unit.ataqueExtraCharges ?? 0;
-            if (unit.attackedThisTurn && !ec) {
+            if (!hasFreeAttack && unit.attackedThisTurn) {
                 addAlert?.(l('alert.alreadyAttacked'), 'warning');
-            } else if (ap < 1 && !ec) {
+            } else if (ap < (hasFreeAttack ? 0 : 1)) {
                 addAlert?.(l('alert.noPA'), 'warning');
             } else {
                 onRequestAttack?.(unit.id);

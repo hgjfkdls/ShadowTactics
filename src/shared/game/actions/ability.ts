@@ -273,7 +273,7 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
 
 // ── storeAttackResult ──
 
-export function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[], preTimesDamaged?: number): GameState {
+export function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[], preTimesDamaged?: number, paBaseCost?: number, paIntermediate?: number, paSetSource?: string | null): GameState {
     let s = result.state;
     const { combat: modsFromBuild, paMods: costModsFromBuild } = buildAttackModifiers(s, attackerId, targetId, result.configId, preTimesDamaged, result.consumedModifiers);
     const mods = modsFromBuild;
@@ -354,6 +354,9 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
             configId: result.configId,
             modifiers: mods,
             paCost,
+            paBaseCost: paBaseCost,
+            paIntermediate: paIntermediate ?? paCost,
+            paSetSource: paSetSource ?? null,
             paModifiers: allPaMods,
             distance: dist,
         }],

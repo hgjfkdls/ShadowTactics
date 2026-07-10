@@ -34,10 +34,7 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     // Confusión (blocked con duración): unidad no puede atacar
     if (state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === unit.id && m.remainingTurns > 0 && (m.remainingUses === undefined || m.remainingUses > 0))) return state;
 
-    // Ataque extra: permite atacar de nuevo aunque ya atacó
-    const ataqueExtraCharges = unit.ataqueExtraCharges ?? 0;
-    const ataqueExtra = ataqueExtraCharges > 0;
-    if (!ataqueExtra && (unit.flags ?? []).includes('basic_attack')) return state;
+    if ((unit.flags ?? []).includes('basic_attack')) return state;
 
     const distance = hexDistance(unit.position, target.position);
     const attackerIdentity = getIdentityKey(state.players[unit.owner]?.selectedIdentity ?? '');
@@ -52,18 +49,32 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         { state, attacker: unit, defender: target, distance, roll: 0, ctx: {} },
         costResult
     );
-    let cost = getAttackCost() + costResult.attackCost + costResult.actionCost;
-    if (ataqueExtra) cost = 0;
+    let paIntermediate = getAttackCost();
+    let paSetSource: string | null = null;
+    let cost = paIntermediate;
+    // Procesar ADD/MUL normalmente, luego SET overridea todo
+    const atkCostMods = state.activeModifiers.filter(m =>
+        m.stat === 'attackCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
+        && (m.targetId === undefined || m.targetId === unit.id)
+        && m.sourcePlayerId === playerId
+    );
+    for (const m of atkCostMods) {
+        if (m.operator === 'ADD') paIntermediate += m.value;
+        else if (m.operator === 'MUL') paIntermediate *= m.value;
+        else if (m.operator === 'SET' && paSetSource === null) paSetSource = m.sourceName ?? 'SET';
+    }
+    paIntermediate += costResult.actionCost;
+    cost = paIntermediate;
+    if (paSetSource !== null) {
+        const setMod = atkCostMods.find(m => m.sourceName === paSetSource);
+        if (setMod) cost = setMod.value;
+    }
     if (ap < cost) return state;
 
-    // Bonos de carta por ataque básico (se consumen al atacar, acierte o no)
+    // Precisión: reduce dificultad
     const precisionCharges = unit.precisionCharges ?? 0;
     const precision = precisionCharges > 0;
     let attackUnit = unit;
-    let clearFlags: string[] = [];
-    if (ataqueExtra) {
-        attackUnit = { ...attackUnit, attack: attackUnit.attack + 1, difficulty: attackUnit.difficulty + 2 };
-    }
     if (precision) {
         attackUnit = { ...attackUnit, difficulty: attackUnit.difficulty - 2 };
     }
@@ -74,7 +85,6 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         from: unit.position,
         to: target.position,
         distance,
-        isExtraAttack: ataqueExtra,
         configId: 'ataque_basico',
         paCost: cost,
     });
@@ -84,7 +94,6 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
         (s) => consumeAP(s, playerId, cost),
         (s) => updateUnit(s, action.unitId, (u) => {
             let updated = { ...u, flags: [...new Set([...(u.flags ?? []), 'basic_attack', 'performed_action'])] };
-            if (ataqueExtra) updated.ataqueExtraCharges = Math.max(0, (updated.ataqueExtraCharges ?? 0) - 1);
             if (precision) updated.precisionCharges = Math.max(0, (updated.precisionCharges ?? 0) - 1);
             return updated;
         }),
@@ -117,8 +126,11 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             histMods.push('[diff] [id:hostigar] Hostigar: -1 dificultad');
         }
     }
-    if (ataqueExtra) histMods.push('[mixed] [id:ataque_extra] Ataque extra: +1 daño, +2 dificultad, 0 PA');
     if (precision) histMods.push('[diff] [id:precision] Precisión: -2 dificultad');
+    const unitDiffMods = state.activeModifiers.filter(m => m.stat === 'difficulty' && m.value > 0 && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0 && m.targetId === unit.id && m.sourcePlayerId === unit.owner);
+    for (const m of unitDiffMods) {
+        histMods.push(`[diff] ${m.sourceName}: +${m.value} dificultad`);
+    }
     const dmgMods = state.activeModifiers.filter(m => m.stat === 'damage' && (m.remainingTurns === undefined || m.remainingTurns >= 0) && (m.remainingUses ?? 1) > 0 && !m.targetId && m.sourcePlayerId === unit.owner);
     for (const m of dmgMods) {
         histMods.push(`[atk] Ataque: ${m.value > 0 ? '+' : ''}${m.value}${m.source && m.sourceName ? ` (${m.source}: ${m.sourceName})` : ''}`);
@@ -229,11 +241,14 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
     const paMods: string[] = [];
     if (costResult.attackCost > 0) paMods.push(`+${costResult.attackCost} PA (ataque)`);
     if (costResult.actionCost > 0) paMods.push(`+${costResult.actionCost} PA (acción)`);
-    if (cost === 0 && ataqueExtra) paMods.push('0 PA (ataque extra)');
+    if (costResult.attackCost < 0) paMods.push(`${costResult.attackCost} PA (ataque)`);
+    if (costResult.actionCost < 0) paMods.push(`${costResult.actionCost} PA (acción)`);
+    if (paSetSource) paMods.push(`${cost} PA (${paSetSource})`);
 
     // Add cost modifiers to histMods (from attacker's perspective)
-    const atkCostMod = state.activeModifiers.find(m => m.stat === 'attackCost' && !m.targetId && m.sourcePlayerId === playerId && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
-    if (atkCostMod) histMods.push(`[cost] ${atkCostMod.sourceName ?? 'Coste ataque'}: +${atkCostMod.value} PA`);
+    for (const m of atkCostMods) {
+        histMods.push(`[cost] ${m.sourceName ?? 'Coste ataque'}: ${m.value > 0 ? '+' : ''}${m.value} PA`);
+    }
     const actCostMod = state.activeModifiers.find(m => m.stat === 'actionCost' && m.targetId === unit.id && m.sourcePlayerId === playerId && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
     if (actCostMod) histMods.push(`[cost] ${actCostMod.sourceName ?? 'Coste acción'}: +${actCostMod.value} PA`);
 
@@ -261,6 +276,9 @@ export function handleAttack(state: GameState, action: GameAction): GameState {
             type: 'attack' as const,
             attackName: 'button.basicAttack',
             paCost: cost,
+            paBaseCost: getAttackCost(),
+            paIntermediate: paIntermediate,
+            paSetSource: paSetSource,
             paModifiers: paMods,
             attackerId: action.unitId,
             targetId: action.targetId,

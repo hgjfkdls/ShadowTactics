@@ -77,8 +77,27 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
         if (!unitHasAbility(unit, action.abilityId)) return state;
     }
 
-    const costMods = getModifierSum(state, action.playerId, action.unitId, 'attackCost') + getModifierSum(state, action.playerId, action.unitId, 'actionCost');
+    let costMods = getModifierSum(state, action.playerId, action.unitId, 'attackCost') + getModifierSum(state, action.playerId, action.unitId, 'actionCost');
     let baseCost = cfg.base.paCost === 'unit.movementCost' ? unit.movementCost : (cfg.base.paCost ?? 0);
+    // Apply attackCost modifiers (ataque_extra card with SET)
+    let hasAttackSet = false;
+    let paSetSource: string | null = null;
+    let paIntermediate = baseCost + costMods;
+    if (cfg.type === 'attack' && cfg.allowedModifiers?.includes('attackCost')) {
+        const atkMods = state.activeModifiers.filter(m =>
+            m.stat === 'attackCost' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0
+            && (m.targetId === undefined || m.targetId === unit.id)
+            && m.sourcePlayerId === action.playerId
+        );
+        const setMod = atkMods.find(m => m.operator === 'SET');
+        if (setMod) {
+            paIntermediate = baseCost + costMods;
+            baseCost = setMod.value;
+            hasAttackSet = true;
+            paSetSource = setMod.sourceName ?? null;
+        }
+    }
+    if (hasAttackSet) costMods = 0;
     // Apply movementCost modifiers (movilidad card, pantano, etc.)
     let hasMovementSet = false;
     let movementMul = 1;
@@ -146,13 +165,13 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     }
 
     // Consume AP (base cost + cost modifiers + movementCost MUL)
-    const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods);
+    const moveFinalCost = cfg.type === 'move' ? totalCost : (hasAttackSet ? baseCost : (baseCost + costMods));
     s = consumeAP(s, unit.owner, moveFinalCost);
 
 
     switch (cfg.type) {
         case 'attack':
-            s = handleAttack(s, action, unit, cfg, baseCost, costMods);
+            s = handleAttack(s, action, unit, cfg, baseCost, costMods, paIntermediate, paSetSource);
             break;
         case 'support':
             s = handleSupport(s, action, unit, cfg, baseCost, costMods);
@@ -314,7 +333,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     return s;
 }
 
-function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, paIntermediate?: number, paSetSource?: string | null): GameState {
     // Torbellino: AoE attack — no necesita targetId
     if (action.abilityId === 'torbellino') {
         if ((unit.flags ?? []).includes('torbellino') || (unit.flags ?? []).includes('carga')) return state;
@@ -487,7 +506,7 @@ let s = state;
         });
 
         s = result.state;
-        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged, cfg.base.paCost === 'unit.movementCost' ? unit.movementCost : (cfg.base.paCost ?? 0), paIntermediate, paSetSource);
 
         // Ocupar posición si murió
         if (s.graveyard[target.id]) {
@@ -517,7 +536,7 @@ let s = state;
     s = result.state;
 
     // Store game history first (reusing legacy helper)
-    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged, cfg.base.paCost === 'unit.movementCost' ? unit.movementCost : (cfg.base.paCost ?? 0), paIntermediate, paSetSource);
 
     // Liderar a las tropas (Capitán de la Guardia): cuando el General ataca
     const capIdentity = state.players[unit.owner]?.selectedIdentity ?? '';

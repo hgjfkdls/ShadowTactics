@@ -310,7 +310,9 @@ function getIndicatorsForUnitSafe(
             if (effect.type !== 'indicator') continue;
             if (effect.modifierStat && effect.modifierStat !== modifier.stat) continue;
             if (effect.modifierSourceName && effect.modifierSourceName !== modifier.sourceName) continue;
-            const label = effect.indicatorLabel ?? modifier.sourceName ?? '';
+            const label = effect.indicatorLabel?.startsWith('[i18n:') && effect.indicatorLabel.endsWith(']')
+                ? l(effect.indicatorLabel.slice(6, -1))
+                : (effect.indicatorLabel ?? modifier.sourceName ?? '');
             const icon = effect.indicatorIcon ?? 'crosshair';
             const category = mapToNewCategory(effect.indicatorCategory, modifier.sourceName ?? '');
             if (indicators.some(i => i.label === label && i.icon === icon)) continue;

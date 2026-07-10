@@ -18,18 +18,18 @@ function toAbilityConfig(card: any): any {
     const effects = (card.effects ?? []).filter((e: any) => e.type === 'modifierPush' || e.type === 'stateChange' || e.type === 'flagPop');
     const indicators = effects.map((e: any) => {
         const stat = e.stat ?? '';
-        const cat = stat === 'difficulty' ? 'difficulty' : stat === 'attack' ? 'attack' : stat === 'defense' ? 'defense' : 'other';
-        const prefix = (e.value ?? 0) > 0 ? '+' : '';
+        const cat = stat === 'difficulty' ? 'difficulty' : stat === 'attack' ? 'attack' : stat === 'defense' ? 'defense' : stat === 'attackCost' ? 'cost' : 'other';
+        const icon = stat === 'difficulty' || stat === 'attack' || stat === 'attackCost' ? 'crosshair' as const : 'shield' as const;
         return {
             type: 'indicator' as const,
             target: 'self' as const,
-            indicatorIcon: (stat === 'difficulty' || stat === 'attack') ? 'crosshair' as const : 'shield' as const,
+            indicatorIcon: icon,
             indicatorCategory: cat as any,
             indicatorTrigger: 'always' as const,
             indicatorVisibleTo: 'all' as const,
             modifierStat: stat,
             modifierSourceName: card.id,
-            indicatorLabel: `${card.id}: ${prefix}${e.value} ${cat}`,
+            indicatorLabel: `[i18n:card.${card.id}.effectLabel]`,
         };
     });
     return { id: card.id, type: 'card' as const, targetType: 'none' as const, base: {}, allowedModifiers: [] as string[], effects: indicators };

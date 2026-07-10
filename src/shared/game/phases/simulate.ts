@@ -169,14 +169,16 @@ export function simulatePreparation(state: GameState): GameState {
         }
     }
 
-    // Mover cartas específicas al principio del mazo para testeo rápido
-    const TEST_CARD_KEYS = ['espejo', 'confusion'];
+    // Mover cartas específicas al principio del mazo para testeo rápido (2 copias cada una)
+    const TEST_CARD_KEYS = ['flechas_fuego', 'ataque_extra', 'espejo'];
     let deck2 = s.effectDeck;
+    const front: string[] = [];
     for (const key of TEST_CARD_KEYS) {
         const testCards = deck2.filter((c: string) => c.startsWith(key + '_'));
-        const rest2 = deck2.filter((c: string) => !c.startsWith(key + '_'));
-        deck2 = [...testCards, ...rest2];
+        front.push(...testCards.slice(0, 2));
     }
+    const rest2 = deck2.filter((c: string) => !front.includes(c));
+    deck2 = [...front, ...rest2];
     s = { ...s, effectDeck: deck2 };
 
     return s;

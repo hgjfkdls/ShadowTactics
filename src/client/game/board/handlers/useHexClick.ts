@@ -246,8 +246,8 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
             if (target && (isCardTargetAlly ? target.owner === myPlayerId : target.owner !== myPlayerId)) {
                 const cardId = selectedInfo?.cardId ?? '';
                 sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId: target.id });
-                onInfoSelect?.(null);
-                clearAll();
+                onInfoSelect?.({ type: 'unit', unitId: target.id });
+                dispatch({ type: 'SELECT_UNIT', unitId: target.id });
             }
         } else {
             onInfoSelect?.(null);

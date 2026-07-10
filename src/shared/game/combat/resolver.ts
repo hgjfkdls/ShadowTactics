@@ -104,14 +104,17 @@ export function resolveAttack(input: AttackInput): AttackResult {
         }
         // Consumir modificadores incluso en fallo (flechas de fuego, rayo celestial, etc.)
         s = consumeModifier(s, unit.owner, 'damage', 1);
+        s = consumeModifier(s, unit.owner, 'damage', 1, unit.id);
         s = consumeModifier(s, target.owner, 'damage', 1, target.id);
         s = consumeModifier(s, target.owner, 'defense', 1, target.id);
         s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
+        s = consumeModifier(s, unit.owner, 'dotOnHit', 1, unit.id);
         s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
         s = consumeModifier(s, unit.owner, 'attack', 1);  // player-wide (Mantenimiento)
         s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id);
         s = consumeModifier(s, unit.owner, 'difficulty', 1);
         s = consumeModifier(s, unit.owner, 'attackCost', 1);
+        s = consumeModifier(s, unit.owner, 'attackCost', 1, unit.id);
         s = consumeModifier(s, unit.owner, 'actionCost', 1);
         return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg, compute, configId: input.configId, consumedModifiers };
     }
@@ -156,15 +159,18 @@ export function resolveAttack(input: AttackInput): AttackResult {
     s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
     s = consumeModifier(s, unit.owner, 'attack', 1);  // player-wide (Mantenimiento)
     s = consumeModifier(s, unit.owner, 'damage', 1);
+    s = consumeModifier(s, unit.owner, 'damage', 1, unit.id);
     // Consumir modificadores defensivos del objetivo (por unidad específica)
     s = consumeModifier(s, target.owner, 'damage', 1, target.id);
     s = consumeModifier(s, target.owner, 'defense', 1, target.id);
     s = consumeModifier(s, unit.owner, 'attackCost', 1);
+    s = consumeModifier(s, unit.owner, 'attackCost', 1, unit.id);
     s = consumeModifier(s, unit.owner, 'actionCost', 1);
 
     // Aplicar DoT si el atacante tenía flechas_fuego (dotOnHit)
     const hadDot = s.activeModifiers.some(m => m.stat === 'dotOnHit' && m.sourcePlayerId === unit.owner && m.remainingUses !== undefined && m.remainingUses > 0);
     s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
+    s = consumeModifier(s, unit.owner, 'dotOnHit', 1, unit.id);
     if (hadDot) {
         s = addModifier(s, unit.owner, target.id, 'passiveDamage', 1, 'ADD', 0, 2);
     }

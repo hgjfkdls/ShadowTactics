@@ -1,26 +1,25 @@
 import { l } from '@shared/i18n';
 
-function PanelFormula({ entry, paModLetters, paBaseCost, diffFormulaRef, diffModLetters, isArcher, archerBase, archerDist, dmgFormula, dmgClamped, hasRangeBonus, baseRange, rangeModLetters, finalRange, isCritical, dieFaces, pShowFormula, pShowUnitsAffected }: { entry: any; paModLetters: string[]; paBaseCost: number; diffFormulaRef: string | null; diffModLetters: string[]; isArcher: boolean; archerBase: number | null; archerDist: number | null; dmgFormula: string | null; dmgClamped: boolean; hasRangeBonus: boolean; baseRange: number; rangeModLetters: string[]; finalRange: number; isCritical: boolean; dieFaces: Record<number, string>; pShowFormula: string[]; pShowUnitsAffected: boolean }) {
+function PanelFormula({ entry, paModLetters, paBaseCost, paSetLetter, diffFormulaRef, diffModLetters, isArcher, archerBase, archerDist, dmgFormula, dmgClamped, hasRangeBonus, baseRange, rangeModLetters, finalRange, isCritical, dieFaces, pShowFormula, pShowUnitsAffected }: { entry: any; paModLetters: string[]; paBaseCost: number; paSetLetter: string | null; diffFormulaRef: string | null; diffModLetters: string[]; isArcher: boolean; archerBase: number | null; archerDist: number | null; dmgFormula: string | null; dmgClamped: boolean; hasRangeBonus: boolean; baseRange: number; rangeModLetters: string[]; finalRange: number; isCritical: boolean; dieFaces: Record<number, string>; pShowFormula: string[]; pShowUnitsAffected: boolean }) {
     const isAttackEntry = entry.attackerId != null;
     const isMoveEntry = !isAttackEntry && entry.from != null;
     const isCardEntry = !isAttackEntry && !isMoveEntry;
+    const paLabel = l('cat.pa');
     return (
         <div className="bg-panel-sub-bg border border-panel-sub-border rounded-lg p-3 space-y-1.5 text-sm">
             {isAttackEntry && pShowFormula.includes('PA') && (
                 <>
                     <div className="flex items-center justify-between">
                         <span className="text-zinc-500">{l('moveDetail.baseCost')}</span>
-                        <span className="text-zinc-200">{paBaseCost} PA</span>
+                        <span className="text-zinc-200">{paBaseCost} {paLabel}</span>
                     </div>
                     {paModLetters.length > 0 && (
-                        <div className="text-xs text-zinc-400 text-right">{paBaseCost} {paModLetters.map(l => `+${l}`).join(' ')} = {entry.paCost ?? 0}</div>
+                        <div className="text-xs text-zinc-400 text-right">{paBaseCost} {paModLetters.map(l => `+${l}`).join(' ')} = {entry.paIntermediate ?? entry.paCost}</div>
                     )}
-                    {paModLetters.length > 0 && (
-                        <div className="flex items-center justify-between">
-                            <span className="text-zinc-500">{l('moveDetail.finalCost')}</span>
-                            <span className="text-zinc-200 font-semibold">{entry.paCost ?? 0} PA</span>
-                        </div>
-                    )}
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-500">{l('moveDetail.finalCost')}</span>
+                        <span className="text-zinc-200 font-semibold">{paSetLetter ? `${paSetLetter} → ${entry.paCost} ${paLabel}` : `${entry.paCost} ${paLabel}`}</span>
+                    </div>
                 </>
             )}
             {isAttackEntry && pShowFormula.includes('dmg') && (

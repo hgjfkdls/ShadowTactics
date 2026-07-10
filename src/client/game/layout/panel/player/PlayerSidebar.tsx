@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { GameState, GameAction } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../../../prep/identityData';
-import { getCardName, getCardType } from '@shared/game/actions/card';
+import { getCardName, getCardType, getKey } from '@shared/game/actions/card';
+import { CARD_CONFIG } from '@shared/game/data/card-config';
 import { l } from '@shared/i18n';
 
 const CLASS_BORDER: Record<string, string> = {
@@ -163,10 +164,13 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
         } else if (actionLabel === 'counter') {
             if (setPendingCounterEspejoCard) setPendingCounterEspejoCard(null);
             sendAction({ type: 'USE_CARD', playerId, cardId });
-        } else if ((actionLabel === 'useCard' || actionLabel === 'counter') && cardId.startsWith('ataque_extra') && onInfoSelect) {
-            onInfoSelect({ type: 'cardTarget', cardId });
-        } else {
-            sendAction({ type: 'USE_CARD', playerId, cardId });
+        } else if ((actionLabel === 'useCard' || actionLabel === 'counter') && onInfoSelect) {
+            const cfg = CARD_CONFIG[getKey(cardId)];
+            if (cfg && cfg.targetType && cfg.targetType !== 'none') {
+                onInfoSelect({ type: 'cardTarget', cardId });
+            } else {
+                sendAction({ type: 'USE_CARD', playerId, cardId });
+            }
         }
         setHoveredCard(null);
     }
@@ -239,24 +243,32 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                     return !m.targetId && m.sourcePlayerId === playerId;
                 });
                 if (playerMods.length === 0) return null;
+                const groups = new Map<string, { mod: (typeof playerMods)[0]; count: number }>();
+                for (const m of playerMods) {
+                    const key = m.source === 'card' ? `card:${m.sourceName}` : m.id;
+                    const existing = groups.get(key);
+                    if (existing) {
+                        existing.count++;
+                    } else {
+                        groups.set(key, { mod: m, count: 1 });
+                    }
+                }
                 return (
                     <div className="px-3 py-1.5 space-y-1">
                         <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
                         <div className="flex flex-wrap gap-1">
-                            {playerMods.map((m, i) => {
+                            {Array.from(groups.values()).map(({ mod: m, count }) => {
                                 const isCard = m.source === 'card';
                                 const cardName = isCard && m.sourceName ? l(`card.${m.sourceName}.name`) : null;
                                 const effectLabel = isCard && m.sourceName ? l(`card.${m.sourceName}.effectLabel`) : null;
                                 const isBuff = !(m.stat === 'ap' && m.value < 0) && !(m.stat === 'movementCost' && m.value > 1) && !(m.stat === 'attack' && m.value < 0) && !(m.stat === 'attackCost' && m.value > 0) && !(m.stat === 'difficulty' && m.value > 0);
                                 return (
                                     <button
-                                        key={i}
+                                        key={m.id}
                                         onClick={() => {
-                                            // Buscar la entrada de historial que generó este efecto
                                             const historyEntry = state.gameHistory?.slice().reverse().find(e =>
                                                 e.type === 'card' && e.cardId && e.cardId.startsWith(m.sourceName + '_')
                                             ) || state.gameHistory?.slice().reverse().find(e =>
-                                                // También buscar entradas COUNTER cuyo counterCardId coincida
                                                 e.type === 'card' && e.cardType === 'COUNTER' && e.counterCardId && e.counterCardId.split('_')[0] === m.sourceName
                                             );
                                             if (historyEntry) {
@@ -273,6 +285,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                         ].join(' ')}
                                     >
                                         {isBuff ? '🟢' : '🔴'} {effectLabel && effectLabel !== `card.${m.sourceName}.effectLabel` ? effectLabel : (cardName ?? statusLabel(m.stat))}
+                                        {count > 1 && <span className="ml-1 text-[9px] text-zinc-400">x{count}</span>}
                                     </button>
                                 );
                             })}
@@ -352,47 +365,56 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 </div>
             )}
 
-            {/* Unit-specific debuffs from cards (GAME) */}
+            {/* Unit-specific card modifiers (GAME) */}
             {mode === 'GAME' && (() => {
-                const unitDebuffs = state.activeModifiers.filter(m => {
+                const unitMods = state.activeModifiers.filter(m => {
                     if (m.source !== 'card') return false;
                     if (m.remainingTurns < 0) return false;
                     if (m.remainingUses !== undefined && m.remainingUses <= 0) return false;
                     if (!m.targetId) return false;
                     if (m.sourcePlayerId !== playerId) return false;
                     const unit = state.units[m.targetId];
-                    return unit && unit.owner === playerId;
+                    return !!unit && unit.owner === playerId;
                 });
-                if (unitDebuffs.length === 0) return null;
+                // Agrupar por (sourceName, targetId) para una entrada por carta por unidad
+                const groups = new Map<string, { targetId: string; unitClass: string; cardName: string; sourceName: string }>();
+                for (const m of unitMods) {
+                    const key = `${m.sourceName}_${m.targetId}`;
+                    if (groups.has(key)) continue;
+                    const unit = state.units[m.targetId!];
+                    const cardName = l(`card.${m.sourceName}.name`);
+                    groups.set(key, {
+                        targetId: m.targetId!,
+                        unitClass: unit ? l(`unit.class.${unit.class}`) : '?',
+                        cardName: cardName !== `card.${m.sourceName}.name` ? cardName : m.sourceName,
+                        sourceName: m.sourceName,
+                    });
+                }
+                if (groups.size === 0) return null;
                 return (
                     <div className="px-3 py-1.5 space-y-1">
-                        <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">Unidades afectadas</div>
+                        <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">Modificadores de carta</div>
                         <div className="flex flex-wrap gap-1">
-                            {unitDebuffs.map((m, i) => {
-                                const unit = state.units[m.targetId!];
-                                const label = unit ? `[${unit.id}] ${l(`unit.class.${unit.class}`)}` : m.targetId!;
-                                const displayLabel = `${label}: ${l(m.stat === 'bloqueo' ? 'unit.status.bloqueo' : m.stat)}`;
-                                return (
-                                    <button
-                                        key={i}
-                                        onClick={() => {
-                                            const historyEntry = state.gameHistory?.slice().reverse().find(e =>
-                                                e.type === 'card' && e.cardId && e.cardId.startsWith(m.sourceName + '_')
-                                            ) || state.gameHistory?.slice().reverse().find(e =>
-                                                e.type === 'card' && e.cardType === 'COUNTER' && e.counterCardId && e.counterCardId.split('_')[0] === m.sourceName
-                                            );
-                                            if (historyEntry) {
-                                                onInfoSelect?.({ type: 'historyCard', entry: historyEntry as any });
-                                            } else if (m.sourceName) {
-                                                onInfoSelect?.({ type: 'card', cardId: m.sourceName + '_0' });
-                                            }
-                                        }}
-                                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800/50 cursor-pointer hover:bg-red-900/60 transition"
-                                    >
-                                        {displayLabel}
-                                    </button>
-                                );
-                            })}
+                            {Array.from(groups.values()).map(({ targetId, unitClass, cardName, sourceName }) => (
+                                <button
+                                    key={`${sourceName}_${targetId}`}
+                                    onClick={() => {
+                                        const historyEntry = state.gameHistory?.slice().reverse().find(e =>
+                                            e.type === 'card' && e.cardId && e.cardId.startsWith(sourceName + '_')
+                                        ) || state.gameHistory?.slice().reverse().find(e =>
+                                            e.type === 'card' && e.cardType === 'COUNTER' && e.counterCardId && e.counterCardId.split('_')[0] === sourceName
+                                        );
+                                        if (historyEntry) {
+                                            onInfoSelect?.({ type: 'historyCard', entry: historyEntry as any });
+                                        } else {
+                                            onInfoSelect?.({ type: 'card', cardId: sourceName + '_0' });
+                                        }
+                                    }}
+                                    className="text-[10px] font-semibold px-2 py-0.5 rounded bg-zinc-800/60 text-zinc-300 border border-white/20 cursor-pointer hover:bg-white/30 transition"
+                                >
+                                    [{targetId}] {unitClass}: {cardName}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 );

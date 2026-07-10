@@ -38,7 +38,7 @@ export const SHARED_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         type: 'attack',
         targetType: 'enemy',
         base: { attack: 'unit.attack', difficulty: 'unit.difficulty', paCost: 1 },
-        activation: { requireFlags: ['basic_attack'], blockFlags: ['doble_ataque', 'ventaja_alcance'] },
+        activation: { requireFlags: ['basic_attack'], blockFlags: ['doble_ataque', 'ventaja_alcance', 'ataque_extra'] },
         effects: [
             { type: 'modifierPush', target: 'self', stat: 'attack', value: -1, remainingUses: 1 },
             { type: 'flagPush', target: 'self', flags: ['doble_ataque'] },

@@ -1,6 +1,8 @@
 import type { GameState, HexCoord, UnitId } from '@shared';
 import { l } from '@shared/i18n';
 import { getCardName, getCardType } from '@shared/game/actions/card';
+import { CARD_CONFIG } from '@shared/game/data/card-config';
+import { hexDistance } from '@shared/hex';
 import type { PendingAbility } from '../../board/useSelection';
 
 type Props = {
@@ -225,9 +227,13 @@ export function GameModals(props: Props) {
                                 <div className="space-y-2">
                                     {counterCards.map(cid => {
                                         const cname = getCardName(cid);
-                                        const isConfusionPending = pendingCard && pendingCard.cardId.startsWith('confusion');
+                                        const needsTarget = pendingCard && getCardType(pendingCard.cardId) === 'DEBUFF' && (pendingCard.targetId === undefined || pendingCard.targetId === null) && (() => {
+                                            const ckey = pendingCard.cardId.split('_')[0];
+                                            const cfg = CARD_CONFIG[ckey];
+                                            return cfg && cfg.targetType && cfg.targetType !== 'none';
+                                        })();
                                         return (
-                                            <button key={cid} className="w-full bg-violet-800 hover:bg-violet-700 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => { if (cid.startsWith('espejo') && isConfusionPending) { setPendingCounterEspejoCard(cid); } else { setPendingCounterEspejoCard(null); sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId: cid }); } }}>
+                                            <button key={cid} className="w-full bg-violet-800 hover:bg-violet-700 transition text-white px-4 py-2 rounded-md text-sm cursor-pointer" onClick={() => { if (cid.startsWith('espejo') && needsTarget) { setPendingCounterEspejoCard(cid); } else { setPendingCounterEspejoCard(null); sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId: cid }); } }}>
                                                 {cname}
                                             </button>
                                         );

@@ -59,7 +59,7 @@ export function getCardDescription(cardId: CardId): string {
 
 const CARD_KEYS = Object.keys(CARD_CONFIG);
 
-function getKey(cardId: CardId): string {
+export function getKey(cardId: CardId): string {
     const sorted = [...CARD_KEYS].sort((a, b) => b.length - a.length);
     for (const key of sorted) {
         if (cardId.startsWith(key + '_')) return key;
@@ -269,7 +269,7 @@ export function handleCard(state: GameState, action: GameAction): GameState {
 
         const pendingKey = getKey(pending.cardId);
         const pendingConfig = CARD_CONFIG[pendingKey];
-        if (!pendingConfig || pendingConfig.type !== 'DEBUFF') return state;
+        if (!pendingConfig || (pendingConfig.type !== 'DEBUFF' && key !== 'ladron')) return state;
 
         // Panacea: cancela el debuff, ambas cartas se descartan
         if (key === 'panacea') {
@@ -288,15 +288,15 @@ export function handleCard(state: GameState, action: GameAction): GameState {
             return s;
         }
 
-        // Espejo: refleja el debuff contra el dueño original. B selecciona target, se aplica desde la perspectiva de A
+        // Espejo: refleja el debuff contra el dueño original (quien jugó el debuff)
         if (key === 'espejo') {
-            if (!action.targetId) return state;
+            const reflectTarget = action.targetId; // undefined para player-wide, específico para confusion
             let s = { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
-            // Aplicar el efecto desde la perspectiva del dueño original (A) con el target que eligió B
-            s = applyCardEffects(s, pendingConfig, pending.playerId, action.targetId);
+            // Aplicar desde perspectiva del counter player: su 'opponent' es el dueño original del debuff
+            s = applyCardEffects(s, pendingConfig, action.playerId, reflectTarget);
             const reflectedEffect = `[i18n:card.${pendingKey}.effectLabel]`;
             s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId, pending.cardId], lastCardAction: undefined, turnPhase: 'MAIN' };
-            s = recordCardHistory(s, action.cardId, action.playerId, action.targetId, pending.cardId, `card.${pendingKey}.name`, [reflectedEffect]);
+            s = recordCardHistory(s, action.cardId, action.playerId, reflectTarget, pending.cardId, `card.${pendingKey}.name`, [reflectedEffect]);
             return s;
         }
     }

@@ -17,6 +17,22 @@ export const BUFF_CARD_CONFIG: Record<string, CardConfig> = {
         effects: [{ type: 'stateChange', target: 'self', value: 1 }],
         allowedModifiers: [],
     },
-    ataque_extra: { id: 'ataque_extra', type: 'BUFF', targetType: 'none', effects: [], allowedModifiers: [] },
-    flechas_fuego: { id: 'flechas_fuego', type: 'BUFF', targetType: 'none', effects: [], allowedModifiers: [] },
+    ataque_extra: {
+        id: 'ataque_extra', type: 'BUFF', targetType: 'unit_ally',
+        effects: [
+            { type: 'flagPop', target: 'ally', flags: ['basic_attack'] },
+            { type: 'modifierPush', target: 'ally', stat: 'attack', value: 1, remainingUses: 1 },
+            { type: 'modifierPush', target: 'ally', stat: 'difficulty', value: 2, remainingUses: 1 },
+            { type: 'modifierPush', target: 'ally', stat: 'attackCost', operator: 'SET', value: 0, remainingUses: 1 },
+        ],
+        allowedModifiers: [],
+    },
+    flechas_fuego: {
+        id: 'flechas_fuego', type: 'BUFF', targetType: 'unit_ally',
+        effects: [
+            { type: 'modifierPush', target: 'ally', stat: 'attack', value: 1, remainingUses: 1 },
+            { type: 'modifierPush', target: 'ally', stat: 'dotOnHit', value: 1, remainingUses: 1 },
+        ],
+        allowedModifiers: [],
+    },
 };
