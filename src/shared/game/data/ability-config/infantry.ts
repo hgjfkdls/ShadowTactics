@@ -49,8 +49,8 @@ export const INFANTRY_ABILITY_CONFIG: Record<string, AbilityConfig> = {
     ejecutar: {
         //OK
         id: 'ejecutar',
-        range: {mode:'around', self: false, operator: '=', value: 'unit.range'},
-        target: {type: 'attack', allies: false, enemies: true, self: false, empty: false, operator: '=', value: 'unit.range', hpCondition: { operator: '<=', value: 2 }},
+        range: {mode:'around', self: false, operator: '<=', value: 'unit.range'},
+        target: {type: 'attack', allies: false, enemies: true, self: false, empty: false, operator: '<=', value: 'unit.range', hpCondition: { operator: '<=', value: 2 }},
         type: 'attack',
         targetType: 'enemy',
         base: { paCost: 1 },

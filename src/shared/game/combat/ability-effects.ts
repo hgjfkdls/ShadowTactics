@@ -222,6 +222,17 @@ export function applyPostHitAbilities(ctx: AbilityContext, state: GameState, hit
                     // History entry — store as pending for handleAbility to flush after attack entry
                     if (healed) {
                         s = { ...s, pendingHealEntry: { abilId, attackerId: ctx.attacker.id, attackerClass: ctx.attacker.class } };
+                        // Mark identityHealedThisTurn for Robin Hood identity tracking
+                        s = {
+                            ...s,
+                            players: {
+                                ...s.players,
+                                [ctx.attacker.owner]: {
+                                    ...s.players[ctx.attacker.owner],
+                                    identityHealedThisTurn: true,
+                                } as any,
+                            },
+                        };
                     }
                 }
             }

@@ -63,6 +63,7 @@ function selectionReducer(state: SelectionState, action: SelectionAction): Selec
         pendingTorbellino: false,
         pendingAngelGuardian: false,
         pendingCounterEspejoCard: null as string | null,
+        hoveredHex: null as HexCoord | null,
     };
 
     switch (action.type) {

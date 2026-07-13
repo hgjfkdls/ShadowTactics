@@ -31,20 +31,6 @@ export type GameAction =
 
     // GAMEPLAY
     | {
-        type: 'MOVE_UNIT';
-        playerId: PlayerId;
-        unitId: UnitId;
-        to: HexCoord;
-    }
-
-    | {
-        type: 'ATTACK_UNIT';
-        playerId: PlayerId;
-        unitId: UnitId;
-        targetId: UnitId;
-    }
-
-    | {
         type: 'END_TURN';
         playerId: PlayerId;
     }

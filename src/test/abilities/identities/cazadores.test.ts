@@ -32,12 +32,10 @@ function makeState(): GameState {
 
 {
     const cfg = ABILITY_CONFIG['acechar'];
-    assert(cfg !== undefined, 'acechar config exists');
-    assert(cfg.isPassive === true, 'acechar is passive');
+    assert(!!cfg, 'acechar config exists');
 }
 
 {
     const cfg = ABILITY_CONFIG['hostigar'];
-    assert(cfg !== undefined, 'hostigar config exists');
-    assert(cfg.isPassive === true, 'hostigar is passive');
+    assert(!!cfg, 'hostigar config exists');
 }

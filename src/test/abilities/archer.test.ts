@@ -60,6 +60,7 @@ function makeState(): GameState {
     // Destino (0,1) está adyacente a u1 pero no a u3 en (1,0) → distancia 1 a u1, distancia 1 a u3 = inválido
     // (1,0) está a distancia 1 de u3, que es 0 (misma posición) o 1 → inválido
     // Probar un destino inválido: (0,1) está a distancia 1 de u3 (1,0)? hexDistance((0,1),(1,0)) = 1 → adyacente → inválido
+    // El handler rechaza la patada porque el destino está adyacente al enemigo
     const resultInvalidDest = applyAction(adjacent, {
         type: 'USE_ABILITY',
         playerId: 'p1',

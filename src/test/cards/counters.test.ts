@@ -49,10 +49,10 @@ function getMod(state: GameState, stat: string) {
     return state.activeModifiers.find(m => m.stat === stat);
 }
 
-// ── 11. Panacea (COUNTER: elimina debuffs propios, solo contra DEBUFF) ──
+// ── 11. Panacea (COUNTER: previene activación del debuff pendiente) ──
 {
     const state = makeState();
-    // COUNTER phase: p1 jugó DEBUFF, p2 tiene Panacea y debuffs propios
+    // COUNTER phase: p1 jugó DEBUFF (pendiente), p2 tiene Panacea
     let s: GameState = {
         ...state,
         turnPhase: 'COUNTER',
@@ -62,7 +62,7 @@ function getMod(state: GameState, stat: string) {
             p1: { ...state.players['p1'], cardsInHand: [] },
             p2: { ...state.players['p2'], cardsInHand: ['panacea_1'] },
         },
-        activeModifiers: [{ id: 'debuff_1', sourcePlayerId: 'p2', stat: 'ap', value: -1, operator: 'ADD', remainingTurns: 1 }]
+        activeModifiers: [{ id: 'debuff_existente', sourcePlayerId: 'p2', stat: 'ap', value: -1, operator: 'ADD', remainingTurns: 1 }]
     };
 
     const result = applyAction(s, {
@@ -71,8 +71,11 @@ function getMod(state: GameState, stat: string) {
         cardId: 'panacea_1'
     });
 
-    assert(result.activeModifiers.length === 0, 'Panacea — debuffs de p2 eliminados');
-    assert(result.effectDiscard.includes('panacea_1'), 'Panacea — descartada');
+    // Panacea cancela el debuff pendiente pero no remueve debuffs existentes
+    assert(result.activeModifiers.length === 1, 'Panacea — debuffs existentes no se eliminan');
+    assert(result.effectDiscard.includes('panacea_1'), 'Panacea — panacea descartada');
+    assert(result.effectDiscard.includes('bajar_moral_1'), 'Panacea — debuff pendiente descartado');
+    assert(!result.lastCardAction, 'Panacea — pendiente limpiado');
     assertEqual(result.turnPhase, 'MAIN',
         'Panacea — vuelve a MAIN');
     assertEqual(result.activePlayer, 'p1',
@@ -101,15 +104,15 @@ function getMod(state: GameState, stat: string) {
         cardId: 'ladron_1'
     });
 
-    // Ladrón roba movilidad_1 (la carta pendiente)
+    // Ladrón roba movilidad_1 (la carta pendiente, no se descarta)
     assert(ladronResult.players['p2'].cardsInHand?.includes('movilidad_1'),
         'Ladrón — carta robada está en mano de p2');
     assert(ladronResult.lastCardAction === undefined,
         'Ladrón — pendiente limpiado');
     assert(ladronResult.effectDiscard.includes('ladron_1'),
-        'Ladrón — descartada');
-    assert(ladronResult.effectDiscard.includes('movilidad_1'),
-        'Ladrón — carta original descartada');
+        'Ladrón — ladrón descartada');
+    assert(!ladronResult.effectDiscard.includes('movilidad_1'),
+        'Ladrón — carta original no se descarta (se roba)');
     assertEqual(ladronResult.turnPhase, 'MAIN',
         'Ladrón — vuelve a MAIN');
     assertEqual(ladronResult.activePlayer, 'p1',
@@ -243,12 +246,12 @@ function getMod(state: GameState, stat: string) {
     assertEqual(afterDraw.players['p1'].cardsInHand?.length, 4,
         'Bloqueo — pool de 4');
 
-    // MOVE_UNIT debe ser rechazado durante DRAW con mano llena
+    // Movimiento debe ser rechazado durante DRAW con mano llena
     const blocked = applyAction(afterDraw, {
-        type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u1', to: { q: 1, r: 0 }
+        type: 'USE_ABILITY', playerId: 'p1', unitId: 'u1', abilityId: 'movimiento', to: { q: 1, r: 0 }
     });
     assert(blocked === afterDraw,
-        'Bloqueo — MOVE_UNIT rechazado durante DRAW con mano llena');
+        'Bloqueo — movimiento rechazado durante DRAW con mano llena');
 }
 
 // ── 15. Restricción COUNTER: activo no puede jugar cartas ──
@@ -300,10 +303,13 @@ function getMod(state: GameState, stat: string) {
         type: 'USE_CARD', playerId: 'p2', cardId: 'panacea_1'
     });
 
-    assert(result.activeModifiers.length === 0,
-        'Panacea COUNTER rival — debuffs de p2 eliminados');
+    // Panacea cancela el debuff pendiente, no remueve debuffs existentes
+    assert(result.activeModifiers.length === 1,
+        'Panacea COUNTER rival — debuffs existentes no se eliminan');
     assert(result.effectDiscard.includes('panacea_1'),
         'Panacea COUNTER rival — descartada');
+    assert(result.effectDiscard.includes('bajar_moral_1'),
+        'Panacea COUNTER rival — debuff pendiente descartado');
     assertEqual(result.turnPhase, 'MAIN',
         'Panacea COUNTER rival — vuelve a MAIN');
     assertEqual(result.activePlayer, 'p1',

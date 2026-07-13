@@ -179,7 +179,3 @@ export function resolveAttack(input: AttackInput): AttackResult {
 
     return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: true, damage: finalDamage, counterDamage: cdmg, noCritical: input.noCritical, compute, configId: input.configId, consumedModifiers };
 }
-
-export function debugResolveAttack(state: GameState, attackerId: string, targetId: string, configId: string): void {
-    debugCombat(state, attackerId, targetId, configId);
-}

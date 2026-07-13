@@ -44,7 +44,7 @@ function makeState(): GameState {
 
     // Ataque básico elimina al enemigo → pendingOccupation se setea
     const afterAttack = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p1',
         unitId: 'u5',
         targetId: 'uTarget'
@@ -89,7 +89,7 @@ function makeState(): GameState {
     };
 
     const result = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p1',
         unitId: 'u1',
         targetId: 'u2'
@@ -124,11 +124,13 @@ function makeState(): GameState {
         units: {
             u1: { id: 'u1', owner: 'p2', position: { q: 0, r: 0 }, attack: 3, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
             u2: { id: 'u2', owner: 'p1', position: { q: 1, r: 0 }, attack: 3, hp: 10, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
-        }
-    };
+        },
+        // Resistencia aplica defense +1 al iniciar el turno (modifierPush con timing: 'turnStart'). Agregarlo manualmente.
+        activeModifiers: [{ id: 'res_def', stat: 'defense', value: 1, operator: 'ADD', remainingTurns: 1, targetId: 'u2', sourcePlayerId: 'p1', source: 'ability', sourceName: 'resistencia' }],
+    } as GameState;
 
     const result = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p2',
         unitId: 'u1',
         targetId: 'u2'
@@ -160,13 +162,14 @@ function makeState(): GameState {
         },
         units: {
             u1: { id: 'u1', owner: 'p2', position: { q: 0, r: 0 }, attack: 3, hp: 10, difficulty: 0, range: 1, movementCost: 1, class: 'infantry', abilities: [] },
-            // u2 es el defensor con Línea defensiva y sin movimiento previo
             u2: { id: 'u2', owner: 'p1', position: { q: 1, r: 0 }, attack: 2, hp: 10, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['linea_defensiva'], didMovePreviousTurn: false },
-        }
+        },
     };
+    // Línea defensiva aplica defense +1 via modifierPush al iniciar el turno. Agregarlo manualmente.
+    const withMod = { ...setup, activeModifiers: [{ id: 'linea_def', stat: 'defense', value: 1, operator: 'ADD', remainingTurns: 1, targetId: 'u2', sourcePlayerId: 'p1', source: 'ability', sourceName: 'linea_defensiva' }] } as unknown as GameState;
 
-    const result = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+    const result = applyAction(withMod, {
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p2',
         unitId: 'u1',
         targetId: 'u2'
@@ -198,7 +201,7 @@ function makeState(): GameState {
     };
 
     const result = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p1',
         unitId: 'u1',
         targetId: 'u2'
@@ -236,7 +239,7 @@ function makeState(): GameState {
 
     // Primer ataque
     const firstHit = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p2',
         unitId: 'u1',
         targetId: 'u2'
@@ -250,7 +253,7 @@ function makeState(): GameState {
         // Segundo ataque al mismo objetivo (necesitamos PA extra)
         // El ataque actualiza lastTargetId automáticamente en resolver
         const secondHit = applyAction(firstHit, {
-            type: 'ATTACK_UNIT',
+            type: 'USE_ABILITY', abilityId: 'ataque_basico',
             playerId: 'p2',
             unitId: 'u1',
             targetId: 'u2'

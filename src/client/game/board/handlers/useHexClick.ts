@@ -105,14 +105,7 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
             const highlights = getAbilityHighlights(state, unitId, abilityId, 0);
             const targetEntry = highlights.find(h => h.highlight !== 'range' && h.hex.q === hex.q && h.hex.r === hex.r);
             if (!targetEntry) {
-                const occupant = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
-                if (occupant) {
-                    dispatch({ type: 'SELECT_UNIT', unitId: occupant.id });
-                    onInfoSelect?.({ type: 'unit', unitId: occupant.id });
-                } else {
-                    onInfoSelect?.(null);
-                    dispatch({ type: 'DESELECT_ALL' });
-                }
+                handleInvalidHex(hex);
                 return;
             }
             dispatch({ type: 'START_MULTI_STEP', abilityId, unitId, hex });
@@ -142,14 +135,7 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
             const targetEntry = highlights.find(h => h.highlight !== 'range' && h.hex.q === hex.q && h.hex.r === hex.r);
 
             if (!targetEntry) {
-                const occupant = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
-                if (occupant) {
-                    dispatch({ type: 'SELECT_UNIT', unitId: occupant.id });
-                    onInfoSelect?.({ type: 'unit', unitId: occupant.id });
-                } else {
-                    onInfoSelect?.(null);
-                    dispatch({ type: 'DESELECT_ALL' });
-                }
+                handleInvalidHex(hex);
                 return;
             }
 
@@ -180,29 +166,7 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
         const targetEntry = highlights.find(h => h.highlight !== 'range' && h.hex.q === hex.q && h.hex.r === hex.r);
 
         if (!targetEntry) {
-            // If there's a unit on this hex, select it
-            const occupant = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
-            if (occupant) {
-                dispatch({ type: 'SELECT_UNIT', unitId: occupant.id });
-                onInfoSelect?.({ type: 'unit', unitId: occupant.id });
-        } else {
-            // Click on hex: select unit if present, otherwise clear
-            const occupant = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
-            if (occupant) {
-                dispatch({ type: 'SELECT_UNIT', unitId: occupant.id });
-                onInfoSelect?.({ type: 'unit', unitId: occupant.id });
-        } else {
-            // Click on hex: select unit if present, otherwise clear
-            const occupant = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
-            if (occupant) {
-                dispatch({ type: 'SELECT_UNIT', unitId: occupant.id });
-                onInfoSelect?.({ type: 'unit', unitId: occupant.id });
-            } else {
-                onInfoSelect?.(null);
-                clearAll();
-            }
-        }
-        }
+            handleInvalidHex(hex);
             return;
         }
 
@@ -239,6 +203,18 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
         setTimeout(() => onInfoSelect?.({ type: 'unit', unitId }), 150);
     }
 
+    // Helper: al clickear un hex inválido, seleccionar unidad si la hay, sino deseleccionar todo
+    function handleInvalidHex(hex: HexCoord) {
+        const occupant = Object.values(state.units).find(u => u.position.q === hex.q && u.position.r === hex.r);
+        if (occupant) {
+            dispatch({ type: 'SELECT_UNIT', unitId: occupant.id });
+            onInfoSelect?.({ type: 'unit', unitId: occupant.id });
+        } else {
+            onInfoSelect?.(null);
+            clearAll();
+        }
+    }
+
     function handleCard(hex: HexCoord) {
         if (!isCardTargetMode) return;
         if (isCardTarget(hex)) {
@@ -246,12 +222,11 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
             if (target && (isCardTargetAlly ? target.owner === myPlayerId : target.owner !== myPlayerId)) {
                 const cardId = selectedInfo?.cardId ?? '';
                 sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId: target.id });
-                onInfoSelect?.(null);
-                clearAll();
+                onInfoSelect?.({ type: 'unit', unitId: target.id });
+                dispatch({ type: 'SELECT_UNIT', unitId: target.id });
             }
         } else {
-            onInfoSelect?.(null);
-            clearAll();
+            handleInvalidHex(hex);
         }
     }
 
@@ -261,8 +236,11 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
         if (target && target.owner !== myPlayerId) {
             sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId: pendingCounterEspejoCard, targetId: target.id });
             setPendingCounterEspejoCard(null);
+            onInfoSelect?.({ type: 'unit', unitId: target.id });
+            dispatch({ type: 'SELECT_UNIT', unitId: target.id });
         } else {
             setPendingCounterEspejoCard(null);
+            handleInvalidHex(hex);
         }
     }
 

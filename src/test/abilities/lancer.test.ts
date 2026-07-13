@@ -40,7 +40,7 @@ function makeState(): GameState {
         ...state,
         units: {
             ...state.units,
-            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 1 }, attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'] },
+            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 1 }, attack: 4, hp: 10, difficulty: 7, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'], flags: [] },
             uTarget: { id: 'uTarget', owner: 'p2', position: { q: 3, r: 1 }, attack: 3, hp: 5, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: ['resistencia', 'linea_defensiva', 'presion', 'avance'] },
         }
     };
@@ -65,15 +65,14 @@ function makeState(): GameState {
     // Crear lancer p1 en (0,0), target en (2,0) — distancia 2, rango 1 + 1 bonus = 2 ✓
     const withLancer: GameState = {
         ...state,
+        rngSeed: 42,
         units: {
             ...state.units,
-            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 0 }, attack: 4, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'] },
+            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 0 }, attack: 4, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'], flags: [] },
             uTarget: { id: 'uTarget', owner: 'p2', position: { q: 2, r: 0 }, attack: 3, hp: 5, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: [] },
+            u2: { ...state.units['u2'], position: { q: 3, r: 0 } },
         }
     };
-
-    // Dificultad baja para garantizar impacto
-    withLancer.units['u5'] = { ...withLancer.units['u5'], difficulty: 2 };
 
     const result = applyAction(withLancer, {
         type: 'USE_ABILITY',
@@ -97,10 +96,12 @@ function makeState(): GameState {
     const state = makeState();
     const withLancer: GameState = {
         ...state,
+        rngSeed: 42,
         units: {
             ...state.units,
-            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 1 }, attack: 4, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'] },
-            uTarget: { id: 'uTarget', owner: 'p2', position: { q: 1, r: 0 }, attack: 3, hp: 5, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: [] },
+            u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 0 }, attack: 4, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'], flags: [] },
+            uTarget: { id: 'uTarget', owner: 'p2', position: { q: 2, r: 0 }, attack: 3, hp: 5, difficulty: 6, range: 1, movementCost: 1, class: 'infantry', abilities: [] },
+            u2: { ...state.units['u2'], position: { q: 3, r: 0 } },
         }
     };
 
@@ -134,6 +135,7 @@ function makeState(): GameState {
     const state = makeState();
     const withLancer: GameState = {
         ...state,
+        rngSeed: 42,
         units: {
             ...state.units,
             u5: { id: 'u5', owner: 'p1', position: { q: 0, r: 0 }, attack: 4, hp: 10, difficulty: 2, range: 1, movementCost: 1, class: 'lancer', abilities: ['anti_caballeria', 'formacion_defensiva', 'doble_ataque', 'ventaja_alcance'] },
@@ -153,7 +155,7 @@ function makeState(): GameState {
     const targetAlive = afterVA.units['uTarget'];
     if (targetAlive) {
         const result = applyAction(afterVA, {
-            type: 'ATTACK_UNIT',
+            type: 'USE_ABILITY', abilityId: 'ataque_basico',
             playerId: 'p1',
             unitId: 'u5',
             targetId: 'uTarget',

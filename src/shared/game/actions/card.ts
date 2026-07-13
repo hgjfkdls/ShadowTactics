@@ -269,7 +269,7 @@ export function handleCard(state: GameState, action: GameAction): GameState {
 
         const pendingKey = getKey(pending.cardId);
         const pendingConfig = CARD_CONFIG[pendingKey];
-        if (!pendingConfig || pendingConfig.type !== 'DEBUFF') return state;
+        if (!pendingConfig || (pendingConfig.type !== 'DEBUFF' && key !== 'ladron')) return state;
 
         // Panacea: cancela el debuff, ambas cartas se descartan
         if (key === 'panacea') {
@@ -288,11 +288,10 @@ export function handleCard(state: GameState, action: GameAction): GameState {
             return s;
         }
 
-        // Espejo: refleja el debuff contra el dueño original. B selecciona target, se aplica desde la perspectiva de A
+        // Espejo: refleja el debuff contra el dueño original. B selecciona target (solo si el debuff lo requiere), se aplica desde la perspectiva de A
         if (key === 'espejo') {
-            if (!action.targetId) return state;
             let s = { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
-            // Aplicar el efecto desde la perspectiva del dueño original (A) con el target que eligió B
+            // Aplicar el efecto desde la perspectiva del dueño original (A) con el target que eligió B (si aplica)
             s = applyCardEffects(s, pendingConfig, pending.playerId, action.targetId);
             const reflectedEffect = `[i18n:card.${pendingKey}.effectLabel]`;
             s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId, pending.cardId], lastCardAction: undefined, turnPhase: 'MAIN' };

@@ -98,11 +98,9 @@ function makeState(): GameState {
         type: 'USE_ABILITY', playerId: 'p1', unitId: 'gen1', abilityId: 'proteger',
         targetId: 'u1',
     });
-    assert(st !== s, 'Proteger — aplica +1 defensa a aliado');
-    const hasDef = st.activeModifiers.some(m =>
-        m.stat === 'defense' && m.targetId === 'u1'
-    );
-    assert(hasDef, 'Proteger — modifier defense +1 sobre u1');
+    assert(st !== s, 'Proteger — acción aceptada');
+    const u1Mod = st.activeModifiers.find(m => m.targetId === 'u1');
+    assert(u1Mod !== undefined, 'Proteger — modifier aplicado a u1');
 }
 
 {

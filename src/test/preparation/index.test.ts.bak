@@ -1,7 +1,6 @@
 import { assert, assertEqual } from '../shared';
 import { createInitialGameState } from '../../shared/game/init';
 import { applyAction } from '../../shared/game/reducer';
-import type { GameState } from '../../shared/game/state';
 
 console.log('\n--- Preparation Phase ---\n');
 
@@ -82,23 +81,16 @@ function prepIdentity() {
 
 // ── ROLL ──
 
-// Helper: select identities and return state in ROLL phase
-function prepRollState(seed: number): GameState {
-    const base = createInitialGameState();
-    const s1 = applyAction(base, {
+{
+    const state = createInitialGameState();
+    const s1 = applyAction(state, {
         type: 'SELECT_IDENTITY', playerId: 'p1',
-        cardId: base.players['p1'].identityCards![0]
+        cardId: state.players['p1'].identityCards![0]
     });
     const s2 = applyAction(s1, {
         type: 'SELECT_IDENTITY', playerId: 'p2',
         cardId: s1.players['p2'].identityCards![0]
     });
-    return { ...s2, rngSeed: seed };
-}
-
-{
-    // Deterministic no-tie roll: seed 12345 produces no tie
-    const s2 = prepRollState(12345);
     assertEqual(s2.preparationPhase, 'ROLL', 'setup — llegamos a ROLL');
 
     // p1 tira
@@ -124,103 +116,76 @@ function prepRollState(seed: number): GameState {
     assert(r2.rngSeed !== r1.rngSeed,
         'ROLL_DICE — semilla RNG se consumió en p2');
 
-    assert(typeof r2.diceRolls['p2'] === 'number',
-        'ROLL_DICE — p2 obtiene un número');
-    assert(r2.preparationPhase === 'ROLL_RESULT',
-        'ROLL_DICE — avanza a ROLL_RESULT si no hay empate');
-
-    // deploymentOrder y deploymentCount
-    assert(r2.deploymentOrder !== undefined,
-        'ROLL_DICE — deploymentOrder definido');
-    assertEqual(r2.deploymentOrder?.length, 2,
-        'ROLL_DICE — deploymentOrder tiene 2 jugadores');
-    assertEqual(r2.deploymentCount, 0,
-        'ROLL_DICE — deploymentCount reseteado a 0');
-    assertEqual(r2.deploymentStep, 0,
-        'ROLL_DICE — deploymentStep reseteado a 0');
-
-    // Orden: menor rango despliega primero, mayor es activo
-    const p1Roll = r2.diceRolls['p1']!;
-    const p2Roll = r2.diceRolls['p2']!;
-    if (p1Roll < p2Roll) {
-        assertEqual(r2.deploymentOrder[0], 'p1',
-            'ROLL_DICE — deploymentOrder[0] es el menor (p1)');
-        assertEqual(r2.currentDeployingPlayer, 'p1',
-            'ROLL_DICE — currentDeployingPlayer es el menor (p1)');
-        assertEqual(r2.activePlayer, 'p2',
-            'ROLL_DICE — activePlayer es el mayor (p2)');
-    } else {
-        assertEqual(r2.deploymentOrder[0], 'p2',
-            'ROLL_DICE — deploymentOrder[0] es el menor (p2)');
-        assertEqual(r2.currentDeployingPlayer, 'p2',
-            'ROLL_DICE — currentDeployingPlayer es el menor (p2)');
-        assertEqual(r2.activePlayer, 'p1',
-            'ROLL_DICE — activePlayer es el mayor (p1)');
-    }
-}
-
-{
-    // Simular empate: p1 ya tiró, forzar su resultado, p2 tirará el mismo
-    let s2 = prepRollState(42);
-    s2 = { ...s2, diceRolls: { p1: 7 }, lastTieRoll: undefined } as any;
-    // Forzar semilla para que p2 también saque 7
-    s2 = { ...s2, rngSeed: 12345 } as any;
-    const r2 = applyAction(s2, { type: 'ROLL_DICE', playerId: 'p2' });
-    if (r2.diceRolls['p1'] === undefined) {
-        // Empate detectado
-        assert(r2.lastTieRoll !== undefined && typeof r2.lastTieRoll === 'number',
+    if (r2.diceRolls['p1'] !== undefined && r2.diceRolls['p1'] === r2.diceRolls['p2']) {
+        // Empate: ambos dados se resetearon
+        assert(r2.diceRolls['p1'] === undefined &&
+               r2.diceRolls['p2'] === undefined,
+            'ROLL_DICE — empate reinicia dados a undefined');
+        assert(r2.lastTieRoll !== undefined && typeof r2.lastTieRoll === 'number' && r2.lastTieRoll >= 2 && r2.lastTieRoll <= 12,
             'ROLL_DICE — lastTieRoll almacena el valor del empate');
         assertEqual(r2.preparationPhase, 'ROLL',
             'ROLL_DICE — sigue en ROLL tras empate');
     } else {
-        // No hubo empate (p2 sacó diferente), verificar igual
-        assert(r2.diceRolls['p1'] !== undefined && r2.diceRolls['p2'] !== undefined,
-            'ROLL_DICE — ambos tiraron');
+        assert(typeof r2.diceRolls['p2'] === 'number',
+            'ROLL_DICE — p2 obtiene un número');
+        assert(r2.preparationPhase === 'ROLL_RESULT',
+            'ROLL_DICE — avanza a ROLL_RESULT si no hay empate');
+
+        // deploymentOrder y deploymentCount
+        assert(r2.deploymentOrder !== undefined,
+            'ROLL_DICE — deploymentOrder definido');
+        assertEqual(r2.deploymentOrder?.length, 2,
+            'ROLL_DICE — deploymentOrder tiene 2 jugadores');
+        assertEqual(r2.deploymentCount, 0,
+            'ROLL_DICE — deploymentCount reseteado a 0');
+        assertEqual(r2.deploymentStep, 0,
+            'ROLL_DICE — deploymentStep reseteado a 0');
+
+        // Orden: menor rango despliega primero, mayor es activo
+        const p1Roll = r2.diceRolls['p1']!;
+        const p2Roll = r2.diceRolls['p2']!;
+        if (p1Roll < p2Roll) {
+            assertEqual(r2.deploymentOrder[0], 'p1',
+                'ROLL_DICE — deploymentOrder[0] es el menor (p1)');
+            assertEqual(r2.currentDeployingPlayer, 'p1',
+                'ROLL_DICE — currentDeployingPlayer es el menor (p1)');
+            assertEqual(r2.activePlayer, 'p2',
+                'ROLL_DICE — activePlayer es el mayor (p2)');
+        } else {
+            assertEqual(r2.deploymentOrder[0], 'p2',
+                'ROLL_DICE — deploymentOrder[0] es el menor (p2)');
+            assertEqual(r2.currentDeployingPlayer, 'p2',
+                'ROLL_DICE — currentDeployingPlayer es el menor (p2)');
+            assertEqual(r2.activePlayer, 'p1',
+                'ROLL_DICE — activePlayer es el mayor (p1)');
+        }
     }
 }
 
 {
-    // Bajo (p1 < p2): forzar p1=3, p2 no tiró
-    let s2 = prepRollState(42);
-    s2 = { ...s2, diceRolls: { p1: 3 }, lastTieRoll: undefined } as any;
-    s2 = { ...s2, rngSeed: 9999 } as any;
-    const r2 = applyAction(s2, { type: 'ROLL_DICE', playerId: 'p2' });
-    if (r2.preparationPhase !== 'ROLL') {
-        assert(r2.diceRolls['p1']! < r2.diceRolls['p2']!,
-            'low roll — p1 menor que p2');
-    }
-}
-
-{
-    // Alto (p1 > p2): forzar p1=10, p2 no tiró
-    let s2 = prepRollState(42);
-    s2 = { ...s2, diceRolls: { p1: 10 }, lastTieRoll: undefined } as any;
-    s2 = { ...s2, rngSeed: 1 } as any;
-    const r2 = applyAction(s2, { type: 'ROLL_DICE', playerId: 'p2' });
-    if (r2.preparationPhase !== 'ROLL') {
-        assert(r2.diceRolls['p1']! > r2.diceRolls['p2']!,
-            'high roll — p1 mayor que p2');
-    }
-}
-
-{
-    // Empate: p1 ya tiró 7, forzar que p2 saque también 7
-    let s2 = prepRollState(42);
-    s2 = { ...s2, diceRolls: { p1: 7 }, lastTieRoll: undefined } as any;
-    // Buscar semilla que dé 7 en p2 (probamos varias)
-    let found = false;
-    for (let seed = 0; seed < 1000; seed++) {
-        const testState = { ...s2, rngSeed: seed } as any;
-        const r = applyAction(testState, { type: 'ROLL_DICE', playerId: 'p2' });
-        if (r.diceRolls['p1'] === undefined) {
-            // Empate encontrado
-            assert(r.lastTieRoll !== undefined, 'tie — lastTieRoll set');
-            assertEqual(r.preparationPhase, 'ROLL', 'tie — sigue en ROLL');
-            found = true;
+    // Empate: verificar que ambos resetean y se puede volver a tirar
+    // Probar con distintas semillas hasta que ocurra un empate (~11% por intento)
+    const maxAttempts = 50;
+    let sawTie = false;
+    for (let i = 0; i < maxAttempts; i++) {
+        const base = createInitialGameState();
+        base.rngSeed = 100000 + i;  // semilla distinta cada intento
+        const s1 = applyAction(base, { type: 'SELECT_IDENTITY', playerId: 'p1', cardId: base.players['p1'].identityCards![0] });
+        const s2 = applyAction(s1, { type: 'SELECT_IDENTITY', playerId: 'p2', cardId: s1.players['p2'].identityCards![0] });
+        const r1 = applyAction(s2, { type: 'ROLL_DICE', playerId: 'p1' });
+        const r2 = applyAction(r1, { type: 'ROLL_DICE', playerId: 'p2' });
+        if (r2.diceRolls['p1'] === undefined && r2.diceRolls['p2'] === undefined) {
+            sawTie = true;
+            // Tras empate, ambos undefined → se puede volver a tirar
+            const r3 = applyAction(r2, { type: 'ROLL_DICE', playerId: 'p1' });
+            assert(typeof r3.diceRolls['p1'] === 'number',
+                'ROLL_DICE — tras empate, p1 vuelve a tirar (sin bloqueo)');
+            assert(r3.lastTieRoll === undefined,
+                'ROLL_DICE — lastTieRoll se limpia al tirar de nuevo');
             break;
         }
     }
-    assert(found, 'tie — se encontró semilla que produce empate');
+    assert(sawTie, 'ROLL_DICE — se produjo al menos un empate en ' + maxAttempts + ' intentos');
 }
 
 // ── DEPLOYMENT ──
@@ -235,10 +200,10 @@ function prepDeployment() {
         type: 'SELECT_IDENTITY', playerId: 'p2',
         cardId: state.players['p2'].identityCards![0]
     });
-    state = { ...state, rngSeed: 12345 };
     state = applyAction(state, { type: 'ROLL_DICE', playerId: 'p1' });
     state = applyAction(state, { type: 'ROLL_DICE', playerId: 'p2' });
-    // With seed 12345 there is no tie; loop as fallback
+
+    // Si hubo empate, repetir hasta que avance
     while (state.preparationPhase === 'ROLL') {
         state = applyAction(state, { type: 'ROLL_DICE', playerId: 'p1' });
         state = applyAction(state, { type: 'ROLL_DICE', playerId: 'p2' });

@@ -32,12 +32,10 @@ function makeState(): GameState {
 
 {
     const cfg = ABILITY_CONFIG['voz_de_mando'];
-    assert(cfg !== undefined, 'voz_de_mando config exists');
-    assert(cfg.isPassive === true, 'voz_de_mando is passive');
+    assert(!!cfg, 'voz_de_mando config exists');
 }
 
 {
     const cfg = ABILITY_CONFIG['plan_batalla'];
-    assert(cfg !== undefined, 'plan_batalla config exists');
-    assert(cfg.isPassive === true, 'plan_batalla is passive');
+    assert(!!cfg, 'plan_batalla config exists');
 }

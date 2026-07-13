@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GameState, GameAction } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../../../prep/identityData';
 import { getCardName, getCardType } from '@shared/game/actions/card';
@@ -126,6 +126,40 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
     selectedInfo: SelectedInfo;
 }) {
     const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    function clearHoverTimer() {
+        if (hoverTimerRef.current !== null) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+    }
+
+    function setHoverAndTimer(cardId: string | null) {
+        clearHoverTimer();
+        setHoveredCard(cardId);
+    }
+
+    function startLeaveTimer() {
+        clearHoverTimer();
+        hoverTimerRef.current = setTimeout(() => {
+            setHoveredCard(null);
+            hoverTimerRef.current = null;
+        }, 300);
+    }
+
+    // Limpiar hover al perder foco o cambiar de pestaña
+    useEffect(() => {
+        const clear = () => { clearHoverTimer(); setHoveredCard(null); };
+        window.addEventListener('blur', clear);
+        document.addEventListener('visibilitychange', clear);
+        return () => {
+            window.removeEventListener('blur', clear);
+            document.removeEventListener('visibilitychange', clear);
+            clearHoverTimer();
+            setHoveredCard(null);
+        };
+    }, []);
     const unitCount = Object.values(state.units).filter(u => u.owner === playerId).length;
     const actionPoints = state.players[playerId]?.actionPoints ?? 0;
     const deployedCount = state.players[playerId]?.deployedUnits?.length ?? 0;
@@ -409,8 +443,8 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                             {hand.map(cid => (
                                 <div
                                     key={cid}
-                                    onMouseEnter={() => isOwner && setHoveredCard(cid)}
-                                    onMouseLeave={() => setHoveredCard(null)}
+                                    onMouseEnter={() => isOwner && setHoverAndTimer(cid)}
+                                    onMouseLeave={() => { clearHoverTimer(); setHoveredCard(null); startLeaveTimer(); }}
                                     onClick={() => isOwner && onInfoSelect?.({ type: 'card', cardId: cid })}
                                             className={[
                                                 'flex items-center gap-2 rounded border px-2.5 py-2 transition min-h-[38px]',

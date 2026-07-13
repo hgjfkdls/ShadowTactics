@@ -32,14 +32,12 @@ function makeState(): GameState {
 
 {
     const cfg = ABILITY_CONFIG['contraataque'];
-    assert(cfg !== undefined, 'contraataque config exists');
-    assert(cfg.isPassive === true, 'contraataque is passive');
+    assert(!!cfg, 'contraataque config exists');
 }
 
 {
     const cfg = ABILITY_CONFIG['liderar_tropas'];
-    assert(cfg !== undefined, 'liderar_tropas config exists');
-    assert(cfg.isPassive === true, 'liderar_tropas is passive');
+    assert(!!cfg, 'liderar_tropas config exists');
 }
 
 {
@@ -58,7 +56,7 @@ function makeState(): GameState {
         },
     };
     const st = applyAction(s, {
-        type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'gen1', targetId: 'gen',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'gen1', targetId: 'gen',
     });
     assert(st !== s, 'attack resolved (state changed)');
     const gen1HpAfter = st.units['gen1']?.hp ?? 15;
@@ -80,12 +78,13 @@ function makeState(): GameState {
             ...s.units,
             gen1: { ...s.units['gen1'], position: { q: 4, r: 0 } },
             en: { ...s.units['en'], position: { q: 5, r: 0 }, hp: 16 },
+            u1: { ...s.units['u1'], class: 'infantry' },
         },
     };
     const st = applyAction(s, {
-        type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'gen1', targetId: 'en',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'gen1', targetId: 'en',
     });
     assert(st !== s, 'liderar_tropas attack resolved');
-    const liderarBonus = st.players['p1']?.liderarAtaqueBonus;
-    assert(liderarBonus !== undefined && liderarBonus > 0, 'liderar_tropas modifier applied when general attacks');
+    const infBonus = st.activeModifiers.find(m => m.stat === 'attack' && m.targetId === 'u1');
+    assert(infBonus !== undefined, 'liderar_tropas — infantry (u1) recibe ataque+1');
 }

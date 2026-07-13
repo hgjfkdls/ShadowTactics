@@ -158,6 +158,7 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
             { type: 'modifierPush', target: 'ally', stat: 'attack', value: 2, remainingTurns: 1 },
             { type: 'stateChange', target: 'ally', healType: 'shield', value: 3 },
             { type: 'modifierPush', target: 'ally', stat: 'shield', value: 3, remainingTurns: 1 },
+            { type: 'flagPush', target: 'ally', flags: ['attack_again'] },
             { type: 'flagPush', target: 'self', flags: ['en_nombre_del_rey'] },
             { type: 'flagPush', target: 'player', flags: ['en_nombre_del_rey'] },
             { type: 'indicator', target: 'self', indicatorIcon: 'crosshair', indicatorCategory: 'attack', indicatorTrigger: 'always', indicatorVisibleTo: 'all', modifierStat: 'attack', modifierSourceName: 'en_nombre_del_rey' },

@@ -5,7 +5,7 @@ import { hexDistance } from '@shared/hex';
 import type { HexCoord } from '@shared/hex';
 import { updateUnit, dealDamage, isHexOccupied, isWithinBounds } from '@shared/game/utils';
 import { roll2d6 } from '@shared/game/utils/rng';
-import { consumeAP } from '@shared/game/actions/helpers';
+import { consumeAP } from '@shared/game/helpers/ap';
 import { resolveAttack } from '@shared/game/combat';
 import type { AttackResult, CombatResult } from '@shared/game/combat';
 import { getDifficulty } from '@shared/game/combat/hit';
@@ -73,6 +73,12 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
 
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== action.playerId) return state;
+    if (action.playerId !== state.activePlayer) return state;
+    // Bloqueo (Confusión) o inmovil: unidad no puede actuar
+    if (state.activeModifiers.some(m =>
+        (m.stat === 'bloqueo' || m.stat === 'inmovil')
+        && m.targetId === unit.id && m.remainingTurns >= 0
+    )) return state;
     if (action.abilityId !== 'ataque_basico' && action.abilityId !== 'movimiento') {
         if (!unitHasAbility(unit, action.abilityId)) return state;
     }
@@ -128,9 +134,24 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     if ((hasRangeCfg || hasTargetCfg) && action.targetId) {
         if (!isValidTarget(state, unit.id, action.abilityId, action.targetId)) return state;
     }
+    // Para moves, validar destino antes de cualquier efecto o consumo de AP
+    if (cfg.type === 'move' && (hasRangeCfg || hasTargetCfg) && action.to) {
+        const highlights = getAbilityHighlights(state, unit.id, cfg.id);
+        const isValid = highlights.some(h => h.highlight !== 'range' && h.hex.q === action.to!.q && h.hex.r === action.to!.r);
+        if (!isValid) return state;
+    }
+    // Patada acrobática: validar destino antes de efectos (evita flag fantasma)
+    if (action.abilityId === 'patada_acrobatica' && action.to && action.targetId) {
+        const targetUnit = state.units[action.targetId];
+        if (targetUnit) {
+            const destToEnemy = hexDistance(action.to, targetUnit.position);
+            if (destToEnemy === 0 || destToEnemy === 1) return state;
+        }
+    }
 
     // Apply pre-combat effects (onUse: flagPush, flagPop, modifierPush)
     let s: GameState = state;
+    const sBeforeSwitch = s;
     if (cfg.effects) {
         // New format: processEffects handles flagPush, flagPop, modifierPush
         const effCtx: EffectContext = {
@@ -147,18 +168,23 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
 
     // Consume AP (base cost + cost modifiers + movementCost MUL)
     const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods);
-    s = consumeAP(s, unit.owner, moveFinalCost);
 
 
     switch (cfg.type) {
         case 'attack':
             s = handleAttack(s, action, unit, cfg, baseCost, costMods);
+            if (s === sBeforeSwitch) return state;
+            s = consumeAP(s, unit.owner, moveFinalCost);
             break;
         case 'support':
             s = handleSupport(s, action, unit, cfg, baseCost, costMods);
+            if (s === sBeforeSwitch) return state;
+            s = consumeAP(s, unit.owner, moveFinalCost);
             break;
         case 'move':
             s = handleMove(s, action, unit, cfg, baseCost, costMods, totalCost);
+            if (s === state) return state;
+            s = consumeAP(s, unit.owner, moveFinalCost);
             // Consumir modifiers de movementCost después del movimiento (cualquier operador)
             if (cfg.allowedModifiers?.includes('movementCost')) {
                 s = consumeModifier(s, action.playerId, 'movementCost', 1);
@@ -518,6 +544,11 @@ let s = state;
 
     // Store game history first (reusing legacy helper)
     s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
+
+    // Avance: ocupar posición del enemigo eliminado si la unidad tiene la pasiva
+    if (s.graveyard[target.id] && target.class !== 'general' && (unit.abilities ?? []).includes('avance')) {
+        s = { ...s, pendingOccupation: { unitId: unit.id, position: target.position } };
+    }
 
     // Liderar a las tropas (Capitán de la Guardia): cuando el General ataca
     const capIdentity = state.players[unit.owner]?.selectedIdentity ?? '';

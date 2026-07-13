@@ -3,8 +3,6 @@ import type { GameAction } from './action-types';
 import { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
 import { handleCard, handlePassCounter, handleDiscard, handleIdentityAbility } from './actions/index';
 import { handleAbility } from './data/ability-config/handler';
-import { handleAttack as handleLegacyAttack } from './actions/attack';
-import { handleMove as handleLegacyMove } from './actions/move';
 import { simulatePreparation } from './phases/simulate';
 import { updateUnit } from './utils';
 import { applyFormationModifiers, applyMuroEspartanoModifiers } from './formations';
@@ -137,8 +135,6 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
 
     switch (action.type) {
         case 'END_TURN':     return handleEndTurn(state, action);
-        case 'ATTACK_UNIT':  return handleLegacyAttack(state, action);
-        case 'MOVE_UNIT':    return handleLegacyMove(state, action);
         case 'USE_CARD':     return handleCard(state, action);
         case 'USE_ABILITY':  return handleAbility(state, action);
         case 'PASS_COUNTER': return handlePassCounter(state, action);

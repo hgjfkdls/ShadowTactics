@@ -3,7 +3,7 @@ import { createInitialGameState } from '../../shared/game/init';
 import { applyAction } from '../../shared/game/reducer';
 import type { GameState } from '../../shared/game/state';
 
-console.log('\n--- Action: MOVE ---\n');
+console.log('\n--- Action: Movement ---\n');
 
 export function makeGameState(): GameState {
     let state = createInitialGameState();
@@ -63,51 +63,54 @@ export function makeGameState(): GameState {
     return state;
 }
 
-// ── MOVE_UNIT ──
+// ── Movement ──
 
 {
     const state = makeGameState();
 
     const result = applyAction(state, {
-        type: 'MOVE_UNIT',
+        type: 'USE_ABILITY',
         playerId: 'p1',
         unitId: 'u1',
+        abilityId: 'movimiento',
         to: { q: 1, r: 0 }
     });
 
-    assert(result !== state, 'MOVE_UNIT — estado mutado');
+    assert(result !== state, 'Movement — estado mutado');
     assertEqual(result.units['u1'].position.q, 1,
-        'MOVE_UNIT — u1 se movió a Q=1');
+        'Movement — u1 se movió a Q=1');
     assertEqual(result.units['u1'].position.r, 0,
-        'MOVE_UNIT — u1 se movió a R=0');
+        'Movement — u1 se movió a R=0');
     assertEqual(result.players['p1'].actionPoints, 8,
-        'MOVE_UNIT — costó 2 PA (movementCost=2)');
+        'Movement — costó 2 PA (movementCost=2)');
 }
 
 {
     const state = makeGameState();
 
     const result = applyAction(state, {
-        type: 'MOVE_UNIT',
+        type: 'USE_ABILITY',
         playerId: 'p1',
         unitId: 'u1',
+        abilityId: 'movimiento',
         to: { q: 2, r: 0 }
     });
     assert(result === state,
-        'MOVE_UNIT — hex ocupado es rechazado');
+        'Movement — hex ocupado es rechazado');
 }
 
 {
     const state = makeGameState();
 
     const result = applyAction(state, {
-        type: 'MOVE_UNIT',
+        type: 'USE_ABILITY',
         playerId: 'p1',
         unitId: 'u1',
+        abilityId: 'movimiento',
         to: { q: 0, r: 2 }
     });
     assert(result === state,
-        'MOVE_UNIT — distancia > 1 es rechazada');
+        'Movement — distancia > 1 es rechazada');
 }
 
 {
@@ -121,45 +124,48 @@ export function makeGameState(): GameState {
         }
     };
     const result = applyAction(broke, {
-        type: 'MOVE_UNIT',
+        type: 'USE_ABILITY',
         playerId: 'p1',
         unitId: 'u1',
+        abilityId: 'movimiento',
         to: { q: 1, r: 0 }
     });
     assert(result === broke,
-        'MOVE_UNIT — PA insuficiente es rechazado');
+        'Movement — PA insuficiente es rechazado');
 }
 
 {
     const state = makeGameState();
 
+    // handleAbility valida activePlayer
     const result = applyAction(state, {
-        type: 'MOVE_UNIT',
+        type: 'USE_ABILITY',
         playerId: 'p2',
         unitId: 'u3',
+        abilityId: 'movimiento',
         to: { q: 3, r: 0 }
     });
     assert(result === state,
-        'MOVE_UNIT — no es turno de p2');
+        'Movement — no es turno de p2');
 }
 
 {
     const state = makeGameState();
     const myUnit = state.players[state.activePlayer].deployedUnits[0];
     const result = applyAction(state, {
-        type: 'MOVE_UNIT', playerId: state.activePlayer,
-        unitId: myUnit, to: { q: 10, r: 0 }
+        type: 'USE_ABILITY', playerId: state.activePlayer,
+        unitId: myUnit, abilityId: 'movimiento', to: { q: 10, r: 0 }
     });
     assert(result === state,
-        'MOVE_UNIT — fuera del mapa rechazado');
+        'Movement — fuera del mapa rechazado');
 }
 
 {
     const state = makeGameState();
     const result = applyAction(state, {
-        type: 'MOVE_UNIT', playerId: state.activePlayer,
-        unitId: 'nonexistent', to: { q: 1, r: 0 }
+        type: 'USE_ABILITY', playerId: state.activePlayer,
+        unitId: 'nonexistent', abilityId: 'movimiento', to: { q: 1, r: 0 }
     });
     assert(result === state,
-        'MOVE_UNIT — atacante inexistente rechazado');
+        'Movement — unidad inexistente rechazado');
 }

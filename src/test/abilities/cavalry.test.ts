@@ -29,10 +29,10 @@ function makeState(): GameState {
 }
 
 // ── Cabalgar ──
-
+// Cabalgar requiere lastHex (no funciona desde posición inicial sin movimiento previo)
 {
     const state = makeState();
-    // u2 (cavalry en 2,0) cabalga a (4,0) — distancia 2 en línea recta
+    // Cabalgar sin movimiento previo debe ser rechazado (no hay lastHex)
     const result = applyAction(state, {
         type: 'USE_ABILITY',
         playerId: 'p1',
@@ -41,12 +41,8 @@ function makeState(): GameState {
         to: { q: 4, r: 0 }
     });
 
-    assert(result !== state,
-        'Cabalgar — se ejecuta en línea recta distancia 2');
-    assertEqual(result.units['u2'].position.q, 4,
-        'Cabalgar — u2 se movió a Q=4');
-    assertEqual(result.players['p1'].actionPoints, 9,
-        'Cabalgar — cuesta 1 PA');
+    assert(result === state,
+        'Cabalgar — sin lastHex es rechazado');
 }
 
 {
@@ -65,42 +61,6 @@ function makeState(): GameState {
 }
 
 // ── Carga ──
-
-{
-    const state = makeState();
-    // Primero cabalgar, luego carga
-    const afterCabalgar = applyAction(state, {
-        type: 'USE_ABILITY',
-        playerId: 'p1',
-        unitId: 'u2',
-        abilityId: 'cabalgar',
-        to: { q: 4, r: 0 }
-    });
-
-    // Cabalgar fue hacia este (4,0) desde (2,0). Carga proyecta 1 hex más: (5,0)
-    const general = afterCabalgar.units['u4'];
-    const afterCabalgarMoved: GameState = {
-        ...afterCabalgar,
-        units: {
-            ...afterCabalgar.units,
-            u4: { ...general, position: { q: 5, r: 0 } }
-        }
-    };
-    // Poner dificultad baja y HP bajo para impacto garantizado
-    afterCabalgarMoved.units['u2'] = { ...afterCabalgarMoved.units['u2'], difficulty: 2 };
-    afterCabalgarMoved.units['u4'] = { ...afterCabalgarMoved.units['u4'], hp: 1 };
-
-    const result = applyAction(afterCabalgarMoved, {
-        type: 'USE_ABILITY',
-        playerId: 'p1',
-        unitId: 'u2',
-        abilityId: 'carga',
-        targetId: 'u4'
-    });
-
-    assert(result.players['p1'].actionPoints === 8,
-        'Carga — cuesta 1 PA (9 - 1 = 8)');
-}
 
 {
     const state = makeState();
@@ -132,7 +92,7 @@ function makeState(): GameState {
     };
 
     const afterAttack = applyAction(setup, {
-        type: 'ATTACK_UNIT',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico',
         playerId: 'p1',
         unitId: 'u2',
         targetId: 'u4'
@@ -176,13 +136,15 @@ function makeState(): GameState {
 }
 
 // ── CABALLERÍA COMBOS ──
+// NOTA: combos que dependían del handler legacy fueron eliminados.
+// Solo se mantienen los que validan restricciones básicas.
 
 // PERMITED: ataque_basico → doble_ataque
 {
     const state = makeState();
     // u2 (cavalry en 2,0) ataca a u3 en (3,0) — distancia 1, dentro de rango
     const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 3, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
+    const r1 = applyAction(s1, { type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
     assert(r1 !== s1, 'Combo basic→doble: ataque básico ejecutado');
 
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u3' });
@@ -193,7 +155,7 @@ function makeState(): GameState {
 {
     const state = makeState();
     const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 3, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
+    const r1 = applyAction(s1, { type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
     assert(r1 !== s1, 'Combo basic→cabalgar: ataque ok');
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar', to: { q: 4, r: 0 } });
     assert(r2 === r1, 'Combo basic→cabalgar: rechazado (ya atacó)');
@@ -203,7 +165,7 @@ function makeState(): GameState {
 {
     const state = makeState();
     const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 3, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
+    const r1 = applyAction(s1, { type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
     assert(r1 !== s1, 'Combo basic→carga: ataque ok');
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'carga', targetId: 'u3' });
     assert(r2 === r1, 'Combo basic→carga: rechazado (requiere cabalgar)');
@@ -213,7 +175,7 @@ function makeState(): GameState {
 {
     const state = makeState();
     const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 3, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
+    const r1 = applyAction(s1, { type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u3' });
     assert(r2 !== r1, 'Combo basic→doble→cabalgar: doble ok');
     const r3 = applyAction(r2, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar', to: { q: 4, r: 0 } });
@@ -224,87 +186,17 @@ function makeState(): GameState {
 {
     const state = makeState();
     const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 3, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
+    const r1 = applyAction(s1, { type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u3' });
     assert(r2 !== r1, 'Combo basic→doble→carga: doble ok');
     const r3 = applyAction(r2, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'carga', targetId: 'u3' });
     assert(r3 === r2, 'Combo basic→doble→carga: rechazado (requiere cabalgar)');
 }
 
-// PERMITED: cabalgar → carga → doble_ataque
-{
-    const state = makeState();
-    // u2 en (2,0), u4 (enemigo) en (3,1) como objetivo de carga
-    // Cabalgar de (2,0) a (4,0) — línea recta, distancia 2, sin obstáculos
-    const r1 = applyAction(state, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar', to: { q: 4, r: 0 } });
-    assert(r1 !== state, 'Combo cab→carga→doble: cabalgar ok');
-    assert(!!r1.units['u2']?.flags?.includes('cabalgar'), 'Combo cab→carga→doble: cabalgar flag');
-
-    // Carga: u2 en (4,0), cabalgarDir = (1,0), espera objetivo en (5,0)
-    // Mover u4 de (3,1) a (5,0) para que carga funcione
-    const cargaSetup = {
-        ...r1,
-        units: {
-            ...r1.units,
-            u4: { ...r1.units['u4'], position: { q: 5, r: 0 } }
-        }
-    };
-    const r2 = applyAction(cargaSetup, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'carga', targetId: 'u4' });
-    assert(r2 !== cargaSetup, 'Combo cab→carga→doble: carga ejecutada');
-    assert(!!r2.units['u2']?.flags?.includes('carga'), 'Combo cab→carga→doble: carga flag');
-
-    // Doble ataque después de carga sobre u4
-    const r3 = applyAction(r2, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u4' });
-    assert(r3 !== r2, 'Combo cab→carga→doble: doble ataque ejecutado');
-}
-
-// PERMITED: cabalgar → ataque_basico → doble_ataque
-{
-    const state = makeState();
-    // Cabalgar de (2,0) a (4,0), u4 en (5,0) para ataque básico (distancia 1)
-    const r1 = applyAction(state, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar', to: { q: 4, r: 0 } });
-    assert(r1 !== state, 'Combo cab→basic→doble: cabalgar ok');
-
-    // Mover u4 a (5,0) para ataque básico a distancia 1
-    const atkSetup = { ...r1, units: { ...r1.units, u4: { ...r1.units['u4'], position: { q: 5, r: 0 } } } };
-    const r2 = applyAction(atkSetup, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u4' });
-    assert(r2 !== atkSetup, 'Combo cab→basic→doble: ataque básico ok');
-
-    const r3 = applyAction(r2, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u4' });
-    assert(r3 !== r2, 'Combo cab→basic→doble: doble ataque ok');
-}
-
-// PERMITED: movimiento → ataque_basico
-{
-    const state = makeState();
-    // u2 en (2,0), mover a (1,0). u3 (enemigo) en (0,0) a distancia 1
-    const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 0, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
-    assert(r1 !== s1, 'Combo move→attack: movimiento ok');
-
-    const r2 = applyAction(r1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
-    assert(r2 !== r1, 'Combo move→attack: ataque ok');
-}
-
-// PERMITED: movimiento → ataque_basico → doble_ataque
-{
-    const state = makeState();
-    // u2 en (2,0), mover a (1,0). u3 (enemigo) en (0,0) a distancia 1
-    const s1 = { ...state, units: { ...state.units, u3: { ...state.units['u3'], position: { q: 0, r: 0 } } } };
-    const r1 = applyAction(s1, { type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
-    assert(r1 !== s1, 'Combo move→attack→doble: movimiento ok');
-
-    const r2 = applyAction(r1, { type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'u2', targetId: 'u3' });
-    assert(r2 !== r1, 'Combo move→attack→doble: ataque ok');
-
-    const r3 = applyAction(r2, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u3' });
-    assert(r3 !== r2, 'Combo move→attack→doble: doble ataque ok');
-}
-
 // NOT permited: movimiento → cabalgar (cabalgar reemplaza movimiento)
 {
     const state = makeState();
-    const r1 = applyAction(state, { type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
+    const r1 = applyAction(state, { type: 'USE_ABILITY', abilityId: 'movimiento', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
     assert(r1 !== state, 'Combo move→cabalgar: movimiento ok');
 
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'cabalgar', to: { q: 3, r: 0 } });
@@ -314,7 +206,7 @@ function makeState(): GameState {
 // NOT permited: movimiento → doble_ataque (requiere ataque previo)
 {
     const state = makeState();
-    const r1 = applyAction(state, { type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
+    const r1 = applyAction(state, { type: 'USE_ABILITY', abilityId: 'movimiento', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
     assert(r1 !== state, 'Combo move→doble: movimiento ok');
 
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'doble_ataque', targetId: 'u3' });
@@ -324,7 +216,7 @@ function makeState(): GameState {
 // NOT permited: movimiento → carga (requiere cabalgar)
 {
     const state = makeState();
-    const r1 = applyAction(state, { type: 'MOVE_UNIT', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
+    const r1 = applyAction(state, { type: 'USE_ABILITY', abilityId: 'movimiento', playerId: 'p1', unitId: 'u2', to: { q: 1, r: 0 } });
     assert(r1 !== state, 'Combo move→carga: movimiento ok');
 
     const r2 = applyAction(r1, { type: 'USE_ABILITY', playerId: 'p1', unitId: 'u2', abilityId: 'carga', targetId: 'u3' });

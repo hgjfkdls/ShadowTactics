@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { hexDistance, getDifficulty } from '@shared';
 import type { GameState, GameAction, UnitId, ModifierInstance, HexCoord } from '@shared';
 import type { Unit } from '@shared/game/state';
@@ -53,7 +53,87 @@ const TOKEN_H = 46;
 const TOKEN_RX = 7;
 
 export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbilityId, pendingAbilityUnitId, playerId, canAct, identityTargetMode, onIdentityTargetSelect, cardTargetMode, isCardTargetAlly, isCardTargetEnemy, cardTargetCardId, onCardTargetSelect, pendingCounterEspejoCard, setPendingCounterEspejoCard, onPatadaTargetSelect, animPositions, movingUnitId, onSelectUnit, onRequestMove, onRequestAttack, onAttackUnit, onRequestAbilityTarget, onUseAbilityOnUnit, onHexClick, onInfoSelect, sendAction }: Props) {
+    // ─── Frame-based hover detection ───
     const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
+    const hoveredUnitIdRef = useRef<string | null>(null);
+    const lastPointerPos = useRef({ x: 0, y: 0 });
+    const lastPointerTime = useRef(0);
+    const hoverMoveRaf = useRef<number | null>(null);
+    const hoverDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    function clearHoverDelay() {
+        if (hoverDelayTimer.current !== null) {
+            clearTimeout(hoverDelayTimer.current);
+            hoverDelayTimer.current = null;
+        }
+    }
+
+    function setHoverImmediate(unitId: string | null) {
+        clearHoverDelay();
+        if (unitId !== null) {
+            hoverDelayTimer.current = setTimeout(() => {
+                if (hoveredUnitIdRef.current === unitId) {
+                    setHoveredUnitId(unitId);
+                }
+                hoverDelayTimer.current = null;
+            }, 200);
+        } else {
+            if (hoveredUnitIdRef.current !== null) {
+                setHoveredUnitId(null);
+            }
+        }
+        hoveredUnitIdRef.current = unitId;
+    }
+
+    function detectHover() {
+        hoverMoveRaf.current = null;
+        // Si el último pointermove fue hace más de 200ms, el cursor ya no está sobre el SVG
+        if (Date.now() - lastPointerTime.current > 200) {
+            if (hoveredUnitIdRef.current !== null) {
+                setHoverImmediate(null);
+            }
+            return;
+        }
+        const pos = lastPointerPos.current;
+        const els = document.elementsFromPoint(pos.x, pos.y);
+        const unitEl = els.find(el => el.closest?.('[data-unit-id]'));
+        const unitId = unitEl ? (unitEl.closest('[data-unit-id]')?.getAttribute('data-unit-id') ?? null) : null;
+        if (unitId !== hoveredUnitIdRef.current) {
+            setHoverImmediate(unitId);
+        }
+    }
+
+    // Cleanup global + background hover checker
+    useEffect(() => {
+        const clear = () => { clearHoverDelay(); hoveredUnitIdRef.current = null; setHoveredUnitId(null); };
+        window.addEventListener('blur', clear);
+        document.addEventListener('visibilitychange', clear);
+        // Document-level pointermove: actualiza posición incluso cuando el cursor sale del SVG
+        const onDocMove = (e: PointerEvent) => {
+            lastPointerPos.current = { x: e.clientX, y: e.clientY };
+            lastPointerTime.current = Date.now();
+        };
+        document.addEventListener('pointermove', onDocMove);
+        // Background checker: si hay hover activo pero el cursor ya no está sobre la unidad, limpiar
+        const interval = setInterval(() => {
+            if (hoveredUnitIdRef.current === null) return;
+            const pos = lastPointerPos.current;
+            const els = document.elementsFromPoint(pos.x, pos.y);
+            const unitEl = els.find(el => el.closest?.('[data-unit-id]'));
+            const unitId = unitEl ? (unitEl.closest('[data-unit-id]')?.getAttribute('data-unit-id') ?? null) : null;
+            if (unitId !== hoveredUnitIdRef.current) {
+                setHoverImmediate(null);
+            }
+        }, 300);
+        return () => {
+            window.removeEventListener('blur', clear);
+            document.removeEventListener('visibilitychange', clear);
+            document.removeEventListener('pointermove', onDocMove);
+            clearInterval(interval);
+            clearHoverDelay();
+            setHoveredUnitId(null);
+        };
+    }, []);
 
     const pendingAbilityTargetHexes = pendingAbilityId && pendingAbilityUnitId
         ? getAbilityHighlights(state, pendingAbilityUnitId, pendingAbilityId)
@@ -74,7 +154,16 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
     });
 
     return (
-        <>
+        <g
+            onPointerMove={e => {
+                lastPointerPos.current = { x: e.clientX, y: e.clientY };
+                lastPointerTime.current = Date.now();
+                if (hoverMoveRaf.current === null) {
+                    hoverMoveRaf.current = requestAnimationFrame(detectHover);
+                }
+            }}
+            onPointerLeave={() => { clearHoverDelay(); hoveredUnitIdRef.current = null; setHoveredUnitId(null); }}
+        >
             {sortedUnits.map(unit => {
                 const animPos = animPositions?.[unit.id];
                 const renderPos = animPos ?? unit.position;
@@ -236,7 +325,10 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 return (
                     <g
                         key={unit.id}
+                        data-unit-id={unit.id}
                         transform={`translate(${x}, ${y})`}
+                        onPointerEnter={() => setHoveredUnitId(unit.id)}
+                        onPointerLeave={() => setHoveredUnitId(null)}
                         onClick={e => {
                             const cfg = pendingAbilityId ? ABILITY_CONFIG[pendingAbilityId] : undefined;
                             const isMultiStep = cfg && Array.isArray(cfg.target);
@@ -256,22 +348,19 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             } else if (pendingAbilityId && pendingAbilityUnitId && unit.owner === playerId && isPendingAbilityTarget) {
                                 onUseAbilityOnUnit?.(pendingAbilityId, pendingAbilityUnitId, unit.id);
                             } else if (pendingCounterEspejoCard && unit.owner !== playerId) {
-                                sendAction?.({ type: 'USE_CARD', playerId: playerId as any, cardId: pendingCounterEspejoCard, targetId: unit.id });
-                                setPendingCounterEspejoCard?.(null);
-                            } else if (cardTargetMode && isCardTargetEnemy && unit.owner !== playerId) {
-                                onCardTargetSelect?.(cardTargetCardId ?? '', unit.id);
+                                if (onHexClick) onHexClick(unit.position);
+                            } else if (cardTargetMode) {
+                                if (onHexClick) onHexClick(unit.position);
                             } else {
                                 onInfoSelect?.({ type: 'unit', unitId: unit.id });
                                 onSelectUnit(unit.id);
                             }
                         }}
-                        onMouseEnter={() => setHoveredUnitId(unit.id)}
-                        onMouseLeave={() => setHoveredUnitId(null)}
                         className="cursor-pointer"
                         style={{ outline: 'none' }}
                     >
                         {/* Owner color ring behind the icon */}
-                        <circle cx={0} cy={3} r={15} fill="none" stroke={ownerColor} strokeWidth={1.5} opacity={0.8} pointerEvents="none" />
+                        <circle cx={0} cy={3} r={15} fill={ownerColor} fillOpacity={0.15} stroke={ownerColor} strokeWidth={1.5} opacity={0.8} />
 
                         {/* Class icon SVG */}
                         <g transform="translate(-10, -6)">
@@ -279,7 +368,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         </g>
 
                         {/* HP bar with shield overlay (square) */}
-                        <rect x={-14} y={17} width={28} height={5} rx={0} fill="#374151" pointerEvents="none" />
+                        <rect x={-14} y={17} width={28} height={5} rx={0} fill="#374151" />
                         {(() => {
                             const royalShield = unit.royalShieldSavedHp !== undefined ? unit.hp - unit.royalShieldSavedHp : 0;
                             const baseHp = unit.royalShieldSavedHp ?? unit.hp;
@@ -290,9 +379,9 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             const auraShieldW = auraShieldVal > 0 ? Math.max(1, Math.round(28 * (auraShieldVal / effectiveTotal))) : 0;
                             const baseHpPct = baseHp / maxHp;
                             return <>
-                                <rect x={-14} y={17} width={hpW} height={5} rx={0} fill={baseHpPct > 0.5 ? '#22c55e' : baseHpPct > 0.25 ? '#eab308' : '#ef4444'} pointerEvents="none" />
-                                {royalShieldW > 0 && <rect x={-14 + hpW} y={17} width={royalShieldW} height={5} rx={0} fill="#f0f0f0" pointerEvents="none" />}
-                                {auraShieldW > 0 && <rect x={-14 + hpW + royalShieldW} y={17} width={auraShieldW} height={5} rx={0} fill="#e2e8f0" pointerEvents="none" />}
+                                <rect x={-14} y={17} width={hpW} height={5} rx={0} fill={baseHpPct > 0.5 ? '#22c55e' : baseHpPct > 0.25 ? '#eab308' : '#ef4444'} />
+                                {royalShieldW > 0 && <rect x={-14 + hpW} y={17} width={royalShieldW} height={5} rx={0} fill="#f0f0f0" />}
+                                {auraShieldW > 0 && <rect x={-14 + hpW + royalShieldW} y={17} width={auraShieldW} height={5} rx={0} fill="#e2e8f0" />}
                             </>;
                         })()}
 
@@ -307,7 +396,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             const pw = 44; // fixed width for 4 circles
                             let xOff = -pw / 2 + 6; // start from left with padding
                             return (
-                                <g transform="translate(0, -16)" pointerEvents="none">
+                                <g transform="translate(0, -16)">
                                     <rect x={-pw / 2} y={-6} width={pw} height={12} rx={3} fill="#374151" fillOpacity={0.95} stroke="#4b5563" strokeWidth={0.5} />
                                     {items.map((item) => {
                                         if (!item.show) return null;
@@ -325,7 +414,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                     </g>
                 );
             })}
-        </>
+        </g>
     );
 }
 

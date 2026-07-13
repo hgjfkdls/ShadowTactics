@@ -220,6 +220,18 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         }
     }, [state.players[myPlayerId]?.pendingCardNeedsTarget, state.lastCardAction?.cardId]);
 
+    // Limpiar hover al perder foco o cambiar de pestaña
+    useEffect(() => {
+        const clear = () => setHoveredHex(null);
+        window.addEventListener('blur', clear);
+        document.addEventListener('visibilitychange', clear);
+        return () => {
+            window.removeEventListener('blur', clear);
+            document.removeEventListener('visibilitychange', clear);
+            setHoveredHex(null);
+        };
+    }, [setHoveredHex]);
+
     const noAtaqueTargetAlerted = useRef(false);
     const pendingCardTarget = state.players[myPlayerId]?.pendingCardNeedsTarget && state.lastCardAction;
     const cardTargetInfo = (() => {
@@ -468,6 +480,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 viewBox="-400 -400 800 800"
                 onWheel={e => zoom(-e.deltaY * 0.001)}
                 onMouseMove={e => e.buttons === 1 && pan(e.movementX, e.movementY)}
+                onPointerLeave={() => setHoveredHex(null)}
             >
                 <g transform={`translate(${x} ${y}) scale(${scale})`}>
                     {hexes.map(hex => (
@@ -524,11 +537,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         cardTargetCardId={selectedInfo?.cardId ?? ''}
                         onCardTargetSelect={(cardId, targetId) => {
                             sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId, targetId });
-                            onInfoSelect?.(null);
-                            setPendingAbility(null);
-                            setMovingUnitId(null);
-                            setAttackingUnitId(null);
-                            clearAllSelections();
+                            onInfoSelect?.({ type: 'unit', unitId: targetId });
+                            dispatch({ type: 'SELECT_UNIT', unitId: targetId });
                         }}
                         pendingCounterEspejoCard={pendingCounterEspejoCard}
                         setPendingCounterEspejoCard={setPendingCounterEspejoCard}

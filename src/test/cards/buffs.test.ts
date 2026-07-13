@@ -14,7 +14,7 @@ function makeState(): GameState {
         turnPhase: 'MAIN',
         activePlayer: 'p1',
         players: {
-            p1: { ...s.players['p1'], actionPoints: 10, cardsInHand: [] },
+            p1: { ...s.players['p1'], actionPoints: 7, cardsInHand: [] },
             p2: { ...s.players['p2'], actionPoints: 5, cardsInHand: [] },
         },
         units: {
@@ -74,19 +74,29 @@ function getMod(state: GameState, stat: string) {
     const result = playCard(withCard, 'ataque_extra_1', 'u1');
 
     const u = result.units['u1'];
-    assert(u.ataqueExtraCharges === 1, 'Ataque extra — 1 carga en u1');
+    const atkMod = result.activeModifiers.find(m => m.stat === 'attack' && m.targetId === 'u1');
+    const diffMod = result.activeModifiers.find(m => m.stat === 'difficulty' && m.targetId === 'u1');
+    const costMod = result.activeModifiers.find(m => m.stat === 'attackCost' && m.targetId === 'u1');
+    assert(atkMod?.value === 1, 'Ataque extra — attack +1');
+    assert(atkMod?.remainingUses === 1, 'Ataque extra — attack 1 uso');
+    assert(diffMod?.value === 2, 'Ataque extra — difficulty +2');
+    assert(diffMod?.remainingUses === 1, 'Ataque extra — difficulty 1 uso');
+    assert(costMod?.value === 0, 'Ataque extra — attackCost 0');
+    assert(costMod?.operator === 'SET', 'Ataque extra — attackCost SET');
+    assert(costMod?.remainingUses === 1, 'Ataque extra — attackCost 1 uso');
     assert(!(u.flags ?? []).includes('basic_attack'), 'Ataque extra — flag basic_attack reseteado');
     assert(result.effectDiscard.includes('ataque_extra_1'), 'Ataque extra — descartada');
 }
 
-// ── 3. Precisión (acumula cargas en la unidad objetivo) ──
+// ── 3. Precisión (modifier difficulty -2) ──
 {
     const state = makeState();
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['precision_1'] } } };
     const result = playCard(withCard, 'precision_1', 'u1');
 
-    const u = result.units['u1'];
-    assert(u.precisionCharges === 1, 'Precisión — 1 carga en u1');
+    const mod = result.activeModifiers.find(m => m.stat === 'difficulty');
+    assert(mod?.value === -2, 'Precisión — difficulty -2');
+    assert(mod?.remainingUses === 1, 'Precisión — 1 uso');
     assert(result.effectDiscard.includes('precision_1'), 'Precisión — descartada');
 }
 
@@ -94,16 +104,18 @@ function getMod(state: GameState, stat: string) {
 {
     const state = makeState();
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['flechas_fuego_1'] } } };
-    const result = playCard(withCard, 'flechas_fuego_1');
+    const result = playCard(withCard, 'flechas_fuego_1', 'u1');
 
-    const dmg = getMod(result, 'damage');
-    assert(dmg?.value === 1, 'Flechas fuego — damage +1');
+    const dmg = getMod(result, 'attack');
+    assert(dmg?.value === 1, 'Flechas fuego — attack +1');
     assert(dmg?.remainingTurns === 0, 'Flechas fuego — sin duración por turnos');
     assert(dmg?.remainingUses === 1, 'Flechas fuego — 1 uso (próximo ataque)');
+    assert(dmg?.targetId === 'u1', 'Flechas fuego — attack en u1');
 
     const dot = getMod(result, 'dotOnHit');
     assert(dot?.value === 1, 'Flechas fuego — dotOnHit +1');
     assert(dot?.remainingUses === 1, 'Flechas fuego — dotOnHit 1 uso');
+    assert(dot?.targetId === 'u1', 'Flechas fuego — dotOnHit en u1');
 
     assert(result.effectDiscard.includes('flechas_fuego_1'), 'Flechas fuego — descartada');
 }
@@ -114,12 +126,12 @@ function getMod(state: GameState, stat: string) {
     const withCard: GameState = { ...state, players: { ...state.players, p1: { ...state.players['p1'], cardsInHand: ['inspiracion_tropa_1'] } } };
     const result = playCard(withCard, 'inspiracion_tropa_1');
 
-    assert(result.players['p1'].actionPoints === 11, 'Inspiración — ap 10+1 = 11');
+    assert(result.players['p1'].actionPoints === 8, 'Inspiración — ap 7+1 = 8');
     assert(result.effectDiscard.includes('inspiracion_tropa_1'), 'Inspiración — descartada');
 
-    // Rechazada si el general fue atacado el turno anterior
-    const attacked: GameState = { ...withCard, players: { ...withCard.players, p1: { ...withCard.players['p1'], generalWasAttackedLastTurn: true, cardsInHand: ['inspiracion_tropa_1'] } } } as GameState;
-    const rejected = applyAction(attacked, { type: 'USE_CARD', playerId: 'p1', cardId: 'inspiracion_tropa_1' });
-    assert(rejected.lastCardRejectionReason !== undefined, 'Inspiración — rechazada si general atacado');
+    // Rechazada si el jugador ya tiene ≥8 PA (maxPa: 8)
+    const fullPa: GameState = { ...withCard, players: { ...withCard.players, p1: { ...withCard.players['p1'], actionPoints: 8, cardsInHand: ['inspiracion_tropa_1'] } } } as GameState;
+    const rejected = applyAction(fullPa, { type: 'USE_CARD', playerId: 'p1', cardId: 'inspiracion_tropa_1' });
+    assert(rejected.lastCardRejectionReason !== undefined, 'Inspiración — rechazada si PA ≥ 8');
     assert(rejected.players['p1'].cardsInHand?.includes('inspiracion_tropa_1'), 'Inspiración — carta no se consume');
 }

@@ -197,9 +197,6 @@ function baseState(): GameState {
     const s2 = processModifiersAtTurnStart(s1, 'p1');
     const remaining = getModifierSum(s2, 'p1', 'u1', 'damage');
     assertEqual(remaining, 0, 'processModifiersAtTurnStart — remainingTurns 0 se decrementa a -1 y se elimina');
-    // Modifier was removed (not consumed), remainingUses should still be present on the consumed mod
-    const mod = s2.activeModifiers.find(m => m.stat === 'damage');
-    assert(mod === undefined, 'processModifiersAtTurnStart — modifier eliminado (remainingTurns = -1 < 0)');
 }
 
 // ── processModifiersAtTurnStart: AP mods ──

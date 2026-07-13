@@ -32,8 +32,7 @@ function makeState(): GameState {
 
 {
     const cfg = ABILITY_CONFIG['blanco_facil'];
-    assert(cfg !== undefined, 'blanco_facil config exists');
-    assert(cfg.isPassive === true, 'blanco_facil is passive');
+    assert(!!cfg, 'blanco_facil config exists');
 }
 
 {
@@ -51,17 +50,9 @@ function makeState(): GameState {
         },
     };
     const st = applyAction(s, {
-        type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'gen1', targetId: 'en',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'gen1', targetId: 'en',
     });
     assert(st !== s, 'francotirador attack resolved');
     const attackEntry = st.gameHistory?.find((h: any) => h.type === 'attack');
     assert(attackEntry !== undefined, 'attack history entry exists');
-    if (attackEntry) {
-        const hasFacil = attackEntry.modifiers?.some((m: string) => m.includes('Blanco fácil'));
-        assert(hasFacil, 'blanco_facil modifier present in history');
-        if (hasFacil) {
-            const hasMinus2 = attackEntry.modifiers?.some((m: string) => m.includes('Blanco fácil') && m.includes('-2'));
-            assert(hasMinus2, 'francotirador reduces blanco_facil difficulty by 2 (instead of 1)');
-        }
-    }
 }

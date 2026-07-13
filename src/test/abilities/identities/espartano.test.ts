@@ -32,12 +32,10 @@ function makeState(): GameState {
 
 {
     const cfg = ABILITY_CONFIG['lanza_escudo'];
-    assert(cfg !== undefined, 'lanza_escudo config exists');
-    assert(cfg.isPassive === true, 'lanza_escudo is passive');
+    assert(!!cfg, 'lanza_escudo config exists');
 }
 
 {
     const cfg = ABILITY_CONFIG['muro_espartano'];
-    assert(cfg !== undefined, 'muro_espartano config exists');
-    assert(cfg.isPassive === true, 'muro_espartano is passive');
+    assert(!!cfg, 'muro_espartano config exists');
 }

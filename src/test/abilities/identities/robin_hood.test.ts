@@ -49,7 +49,7 @@ function makeState(): GameState {
         },
     };
     const st = applyAction(s, {
-        type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'gen1', targetId: 'en',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'gen1', targetId: 'en',
     });
     assert(st !== s, 'robin_hood general can attack as archer');
 }
@@ -65,16 +65,17 @@ function makeState(): GameState {
         },
         units: {
             ...s.units,
-            gen1: { ...s.units['gen1'], class: 'general', range: 1, position: { q: 3, r: 0 }, abilities: [], hp: 10, difficulty: 1 },
+            gen1: { ...s.units['gen1'], class: 'general', range: 1, position: { q: 3, r: 0 }, abilities: ['robar_ricos'], hp: 10, difficulty: 1 },
             en: { ...s.units['en'], position: { q: 4, r: 0 }, hp: 16 },
         },
-    };
+        // Robar_ricos: el modifier se aplica al iniciar el turno vía passiva. Agregarlo manualmente.
+        activeModifiers: [{ id: 'rr', stat: 'robar_ricos', value: 1, operator: 'ADD', remainingUses: 1, sourcePlayerId: 'p1', source: 'ability', sourceName: 'robar_ricos', targetId: 'gen1' }],
+    } as GameState;
     const st = applyAction(s, {
-        type: 'ATTACK_UNIT', playerId: 'p1', unitId: 'gen1', targetId: 'en',
+        type: 'USE_ABILITY', abilityId: 'ataque_basico', playerId: 'p1', unitId: 'gen1', targetId: 'en',
     });
     assert(st !== s, 'robin_hood attack resolved');
     const hit = st.gameHistory?.some((h: any) => h.type === 'attack' && h.hit);
     assert(hit === true, 'robin_hood attack hits (difficulty 1 guarantees hit)');
-    const healed = st.players['p1']?.identityHealedThisTurn === true;
-    assert(healed, 'robin_hood robar_ricos heals 1 HP on hit (identityHealedThisTurn flag set)');
+    assert(st.units['gen1']?.hp === 11, 'robin_hood robar_ricos heals 1 HP on hit (gen1 hp 10 → 11)');
 }
