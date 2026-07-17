@@ -108,6 +108,9 @@ export function useGameState() {
         socket.on('STATE', onState);
         socket.on('LEFT_GAME', onLeftGame);
         socket.on('BOTH_PLAYERS_READY', onBothPlayersReady);
+        socket.on('AI_GAME_CREATED', (payload: { gameId: string }) => {
+            setGameId(payload.gameId);
+        });
         socket.on('OPPONENT_DISCONNECTED', onOpponentDisconnected);
         socket.on('OPPONENT_RECONNECTED', onOpponentReconnected);
         socket.on('TIMER', onTimer);
