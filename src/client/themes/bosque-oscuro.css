@@ -1,0 +1,55 @@
+/* Bosque Oscuro — tonos tierra, verdes profundos, madera */
+html.theme-bosque-oscuro {
+    --color-player1: #5a8a4a;
+    --color-player2: #8a6a3a;
+
+    --color-class-archer: #7a9e4a;
+    --color-class-infantry: #6f1b4f;
+    --color-class-cavalry: #3a7a3a;
+    --color-class-lancer: #8a4a3a;
+    --color-class-general: #c4a040;
+
+    --color-effect-atk: #c45a3a;
+    --color-effect-def: #5a7a4a;
+    --color-effect-diff: #d4a030;
+    --color-effect-pa: #b08820;
+    --color-effect-range: #4a9a7a;
+    --color-effect-dmg: #e8d8c0;
+    --color-effect-heal: #5aaa4a;
+    --color-effect-other: #8a7a6a;
+
+    --color-hit-bg: #2a5a1a20;
+    --color-hit-border: #3a7a2a50;
+    --color-hit-text: #5aaa4a;
+    --color-miss-bg: #5a1a1a20;
+    --color-miss-border: #8a2a2a50;
+    --color-miss-text: #c45a3a;
+
+    --color-panel-bg: #0d0a05;
+    --color-panel-border: #2a2218;
+    --color-panel-sub-bg: #1a150e60;
+    --color-panel-sub-border: #2a2218;
+    --color-panel-title: #8a7a5a;
+
+    --color-gold: #d4a030;
+    --color-range: #4a8a3a;
+    --color-range-overlay: rgba(74, 138, 58, 0.12);
+    --color-available: #3a8a2a;
+    --color-available-overlay: rgba(58, 138, 42, 0.35);
+    --color-move-bg: #2a5a1a;
+    --color-attack: #c44a2a;
+    --color-attack-overlay: rgba(196, 74, 42, 0.3);
+    --color-attack-bg: #5a1a0a;
+    --color-buff: #3a8a2a;
+    --color-buff-overlay: rgba(58, 138, 42, 0.35);
+    --color-buff-bg: #1a4a0a;
+    --color-history: #c4a030;
+    --color-history-overlay: rgba(196, 160, 48, 0.2);
+    --color-selected: #4a7a2a;
+    --color-identity-target: #7a4a3a;
+    --color-identity-target-overlay: rgba(122, 74, 58, 0.25);
+    --color-identity-target-bg: #3a1a0a;
+    --color-hover-bg: #2a2218;
+    --color-default-bg: #1a150e;
+    --color-default-stroke: #3a2a1a;
+}

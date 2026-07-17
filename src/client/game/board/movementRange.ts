@@ -1,5 +1,6 @@
 import type { GameState, HexCoord } from '@shared';
-import { hexRange, isInsideMap } from '@shared';
+import { hexNeighbors, isInsideMap } from '@shared';
+import { isHexOccupied } from '@shared/game/utils';
 
 export function getMoveRange(
     state: GameState,
@@ -8,7 +9,7 @@ export function getMoveRange(
     const unit = state.units[unitId];
     if (!unit) return [];
 
-    return hexRange(unit.position, 1).filter(hex =>
-        isInsideMap(hex, state.map)
+    return hexNeighbors(unit.position).filter(hex =>
+        isInsideMap(hex, state.map) && !isHexOccupied(state, hex, unit.id)
     );
 }

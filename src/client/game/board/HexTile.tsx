@@ -6,6 +6,12 @@ type Props = {
     hovered: boolean;
     selected: boolean;
     reachable: boolean;
+    attackable: boolean;
+    identityTarget: boolean;
+    allyTarget: boolean;
+    inRange: boolean;
+    enemyDeployable: boolean;
+    highlighted: boolean;
     onHover: (hex: HexCoord | null) => void;
     onClick: (hex: HexCoord) => void;
 };
@@ -15,6 +21,12 @@ export function HexTile({
     hovered,
     selected,
     reachable,
+    attackable,
+    identityTarget,
+    allyTarget,
+    inRange,
+    enemyDeployable,
+    highlighted,
     onHover,
     onClick,
 }: Props) {
@@ -23,12 +35,21 @@ export function HexTile({
 
 
     const fill = selected
-        ? '#2563eb'
-        : reachable
-            ? '#065f46'
-            : hovered
-                ? '#374151'
-                : '#1f2937';
+        ? 'var(--color-default-bg)'
+        : attackable
+            ? 'var(--color-attack-bg)'
+            : identityTarget
+                ? 'var(--color-identity-target-bg)'
+                : allyTarget
+                    ? 'var(--color-move-bg)'
+                    : reachable
+                        ? 'var(--color-move-bg)'
+                        : hovered
+                            ? 'var(--color-hover-bg)'
+                            : 'var(--color-default-bg)';
+
+    const stroke = identityTarget ? 'var(--color-identity-target)' : allyTarget ? 'var(--color-available)' : attackable ? 'var(--color-attack)' : 'var(--color-default-stroke)';
+    const strokeW = identityTarget || allyTarget || attackable ? 2.5 : 2;
 
 
     return (
@@ -36,32 +57,76 @@ export function HexTile({
             <polygon
                 points={points}
                 fill={fill}
-                stroke="#4b5563"
-                strokeWidth={2}
+                stroke={stroke}
+                strokeWidth={strokeW}
                 onMouseEnter={() => onHover(hex)}
                 onMouseLeave={() => onHover(null)}
                 onClick={() => onClick(hex)}
             />
 
-            {reachable && !selected && (
+            {selected && (
                 <polygon
-                    points={points}
-                    fill="rgba(16, 185, 129, 0.35)"
+                    points={hexPolygonPoints(x, y, 37)}
+                    fill="none"
+                    stroke="#fde047"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
                     pointerEvents="none"
                 />
             )}
 
-            <text
-                x={x}
-                y={y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={9}
-                fill="#9ca3af"
-                pointerEvents="none"
-            >
-                {hex.q},{hex.r}
-            </text>
+            {reachable && !selected && (
+                <polygon
+                    points={points}
+                    fill="var(--color-available-overlay)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {enemyDeployable && (
+                <polygon
+                    points={points}
+                    fill="var(--color-range-overlay)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {inRange && !reachable && (
+                <polygon
+                    points={points}
+                    fill="var(--color-range-overlay)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {attackable && (
+                <polygon
+                    points={points}
+                    fill="var(--color-attack-overlay)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {identityTarget && (
+                <polygon
+                    points={points}
+                    fill="var(--color-identity-target-overlay)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {allyTarget && (
+                <polygon
+                    points={points}
+                    fill="var(--color-available-overlay)"
+                    pointerEvents="none"
+                />
+            )}
+
+            {highlighted && (
+                <polygon points={points} fill="var(--color-history-overlay)" pointerEvents="none" />
+            )}
+
         </>
     );
 }

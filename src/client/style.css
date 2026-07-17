@@ -1,5 +1,69 @@
 @import "tailwindcss";
 
+@theme {
+    /* ── Facción (jugadores) ── */
+    --color-player1: #a78bfa;
+    --color-player2: #22d3ee;
+
+    /* ── Clases de unidad ── */
+    --color-class-archer: #34d399;
+    --color-class-infantry: #60a5fa;
+    --color-class-cavalry: #c084fc;
+    --color-class-lancer: #fb7185;
+    --color-class-general: #fbbf24;
+
+    /* ── Efectos semánticos ── */
+    --color-effect-atk: #f87171;
+    --color-effect-def: #60a5fa;
+    --color-effect-diff: #fbbf24;
+    --color-effect-pa: #facc15;
+    --color-effect-range: #22d3ee;
+    --color-effect-dmg: #ffffff;
+    --color-effect-heal: #34d399;
+    --color-effect-other: #a1a1aa;
+
+    /* ── Resultado de ataque ── */
+    --color-hit-bg: #065f4620;
+    --color-hit-border: #04785750;
+    --color-hit-text: #34d399;
+    --color-miss-bg: #7f1d1d20;
+    --color-miss-border: #b91c1c50;
+    --color-miss-text: #f87171;
+
+    /* ── Paneles ── */
+    --color-panel-bg: #12122a;
+    --color-panel-border: #3f3f46;
+    --color-panel-sub-bg: #27272a60;
+    --color-panel-sub-border: #3f3f46;
+    --color-panel-title: #71717a;
+
+    /* ── Hex board ── */
+    --color-gold: #fbbf24;
+    --color-range: #3b82f6;
+    --color-range-overlay: rgba(59, 130, 246, 0.12);
+    --color-available: #10b981;
+    --color-available-overlay: rgba(16, 185, 129, 0.35);
+    --color-move-bg: #065f46;
+    --color-attack: #ef4444;
+    --color-attack-overlay: rgba(239, 68, 68, 0.3);
+    --color-attack-bg: #7f1d1d;
+    --color-buff: #10b981;
+    --color-buff-overlay: rgba(16, 185, 129, 0.35);
+    --color-buff-bg: #065f46;
+    --color-history: #facc15;
+    --color-history-overlay: rgba(250, 204, 21, 0.2);
+    --color-selected: #2563eb;
+    --color-identity-target: #a855f7;
+    --color-identity-target-overlay: rgba(168, 85, 247, 0.25);
+    --color-identity-target-bg: #5b1280;
+    --color-hover-bg: #374151;
+    --color-default-bg: #1f2937;
+    --color-default-stroke: #4b5563;
+}
+
+@import "./themes/bosque-oscuro.css";
+@import "./themes/dark-water.css";
+
 @layer base {
 
     /* width */
@@ -45,10 +109,4 @@
         background: var(--color-gray-600);
     }
 
-}
-
-@layer base {
-    * {
-        @apply border-zinc-700;
-    }
 }
