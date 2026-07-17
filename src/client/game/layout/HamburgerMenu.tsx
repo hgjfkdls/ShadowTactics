@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { KeyBindingsModal } from './KeyBindingsModal';
+import { SoundSettingsModal } from './SoundSettingsModal';
+import { ThemeSettingsModal } from './ThemeSettingsModal';
 import { l, setLocale, getLocale } from '@shared/i18n';
 
 type Props = {
@@ -10,6 +12,8 @@ type Props = {
 export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
     const [open, setOpen] = useState(false);
     const [showKeyConfig, setShowKeyConfig] = useState(false);
+    const [showSoundSettings, setShowSoundSettings] = useState(false);
+    const [showThemeSettings, setShowThemeSettings] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -44,6 +48,18 @@ export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
                         </button>
                         <button
                             className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-700 transition cursor-pointer"
+                            onClick={() => { setOpen(false); setShowSoundSettings(true); }}
+                        >
+                            {l('hamburger.soundSettings')}
+                        </button>
+                        <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-700 transition cursor-pointer"
+                            onClick={() => { setOpen(false); setShowThemeSettings(true); }}
+                        >
+                            {l('hamburger.theme')}
+                        </button>
+                        <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-700 transition cursor-pointer"
                             onClick={() => {
                                 setOpen(false);
                                 const next = getLocale() === 'es' ? 'en' : 'es';
@@ -70,6 +86,8 @@ export function HamburgerMenu({ onLeaveGame, onSurrender }: Props) {
                 )}
             </div>
             <KeyBindingsModal open={showKeyConfig} onClose={() => setShowKeyConfig(false)} />
+            <SoundSettingsModal open={showSoundSettings} onClose={() => setShowSoundSettings(false)} />
+            <ThemeSettingsModal open={showThemeSettings} onClose={() => setShowThemeSettings(false)} />
         </>
     );
 }

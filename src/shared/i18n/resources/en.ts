@@ -103,6 +103,14 @@ export const en = {
     espejo: { name: 'Mirror', desc: 'Use it when the opponent plays a debuff. The debuff is reflected and applies to the opponent.', effectLabel: 'debuff reflected' },
   },
 
+  sound: {
+    move_1: 'Cover that position!',
+    move_2: 'Move to that position!',
+    attack: 'Attack!',
+    attack_archer: 'Ready, aim... FIRE!',
+    attack_cavalry: 'Charge!',
+  },
+
   identity: {
     robin_hood: { name: 'Robin Hood', className: 'Archer', desc: 'Special: Free damage per turn. Global: Mobile archers + sustain.', descVerbose: 'Outlaw of Sherwood, steals from the rich to give to the poor. A sharp-eyed archer and defender of the people.\n\nSpecial — In the Sights (Passive)\nYour General is considered an archer. At the start of each turn, choose an enemy unit and deal 1 damage at no cost. You cannot target the enemy general.\n\nGlobal — Steal from the Rich (Passive)\nYour archers have movement cost 1 and lose Evasive Action. The first archer to land a hit each turn recovers 1 HP.' },
     francotirador: { name: 'Forest Sniper', className: 'Archer', desc: 'Special: +1 range archer abilities. Global: Range and precision for archers.', descVerbose: 'Lone hunter. One arrow, one kill. No one sees where the shot came from.\n\nSpecial — Sniper (Passive)\nYour General is considered an archer. Your General has +1 range on archer abilities.\n\nGlobal — Long Range (Passive)\nYour archers gain +1 range for basic attacks. Improves Easy Target: -2 difficulty if the target did not move last turn (instead of -1).' },
@@ -355,6 +363,8 @@ export const en = {
     attacked: '· Attacked',
     activeEffects: 'Active effects',
     abilities: 'Abilities',
+    identityAbilities: 'Identity',
+    classAbilities: 'Class',
     noAbilities: 'No abilities',
     typeActive: 'Active',
     typePassive: 'Passive',
@@ -432,9 +442,22 @@ export const en = {
   hamburger: {
     menu: 'Menu',
     configKeys: '⌨ Configure Keys',
+    soundSettings: '🔊 Sound',
     leaveGame: 'Leave Game',
     surrender: '🏳 Surrender',
     language: '🌐 Language',
+    theme: '🎨 Theme',
+  },
+
+  themeSettings: {
+    title: 'Visual Theme',
+    moreSoon: 'More themes coming soon',
+  },
+
+  theme: {
+    default: 'Default',
+    bosqueOscuro: 'Dark Forest',
+    darkWater: 'Dark Water',
   },
 
   keyBindings: {
@@ -609,8 +632,18 @@ export const en = {
             ignoreResistencia: 'ignores Resist',
         },
         formacionDefensiva: {
-            anulaCarga: 'nullifies Charge',
+            anulaCarga: 'cancels Charge',
         },
     },
+  },
+
+  soundSettings: {
+    title: 'Sound Settings',
+    mute: 'Mute',
+    muted: 'Yes',
+    unmuted: 'No',
+    voiceVol: 'Voice Volume',
+    sfxVol: 'SFX Volume',
+    musicSoon: 'Music coming soon',
   },
 };

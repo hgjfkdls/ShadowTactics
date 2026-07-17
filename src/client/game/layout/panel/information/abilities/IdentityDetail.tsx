@@ -3,7 +3,6 @@ import { l } from '@shared/i18n';
 import { IDENTITY_INFO, getIdentityKey } from '../../../../../prep/identityData';
 import { ABILITIES, CLASS_ABILITIES } from '@shared/game/data/abilities';
 import { IDENTITY_EFFECTS } from '@shared/game/data/identities';
-import { AbilityList } from '../units/AbilityList';
 
 const cls = (c: string) => l(`unit.class.${c}`) || c;
 

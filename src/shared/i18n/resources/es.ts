@@ -101,6 +101,14 @@ export const es = {
     espejo: { name: 'Espejo', desc: 'Úsala cuando el rival juegue un debuff. El debuff se refleja y aplica al rival.', effectLabel: 'debuff reflejado' },
   },
 
+  sound: {
+    move_1: 'Cubre esa posición!',
+    move_2: 'Muévete a esa posición!',
+    attack: '¡Al ataque!',
+    attack_archer: 'Preparen, apunten... ¡FUEGO!',
+    attack_cavalry: '¡A la carga!',
+  },
+
   identity: {
     robin_hood: { name: 'Robin Hood', className: 'Arquero', desc: 'Especial: Daño gratis por turno. Global: Arqueros móviles + sustain.', descVerbose: 'Forajido de Sherwood, roba a los ricos para dar a los pobres. Arquero certero y defensor del pueblo.\n\nEspecial — En la mira (Pasiva)\nTu General se considera arquero. Al comienzo de cada turno, elige una unidad enemiga e inflige 1 de daño sin coste. No puedes elegir al general enemigo.\n\nGlobal — Robar a los ricos (Pasiva)\nTus arqueros tienen coste movimiento 1. El primer arquero que acierta un ataque cada turno recupera 1 HP.' },
     francotirador: { name: 'Francotirador del Bosque', className: 'Arquero', desc: 'Especial: +1 rango habilidades de arquero. Global: Rango y precisión para arqueros.', descVerbose: 'Cazador solitario. Una flecha, un muerto. Nadie ve de dónde vino el disparo.\n\nEspecial — Francotirador (Pasiva)\nTu General se considera arquero. Tu General tiene +1 rango de habilidades de arquero.\n\nGlobal — Tiro a distancia (Pasiva)\nTus arqueros obtienen +1 de rango para ataques básicos. Mejora Blanco fácil: -2 dificultad si el objetivo no se movió el turno anterior (en lugar de -1).' },
@@ -353,6 +361,8 @@ export const es = {
     attacked: '· Atacó',
     activeEffects: 'Efectos activos',
     abilities: 'Habilidades',
+    identityAbilities: 'Identidad',
+    classAbilities: 'Clase',
     noAbilities: 'Sin habilidades',
     typeActive: 'Activa',
     typePassive: 'Pasiva',
@@ -430,9 +440,22 @@ export const es = {
   hamburger: {
     menu: 'Menú',
     configKeys: 'Configurar teclas',
+    soundSettings: '🔊 Sonido',
     leaveGame: 'Abandonar partida',
     surrender: '🏳 Rendirse',
     language: '🌐 Idioma',
+    theme: '🎨 Tema',
+  },
+
+  themeSettings: {
+    title: 'Tema visual',
+    moreSoon: 'Pronto: más temas',
+  },
+
+  theme: {
+    default: 'Por defecto',
+    bosqueOscuro: 'Bosque Oscuro',
+    darkWater: 'Dark Water',
   },
 
   keyBindings: {
@@ -610,5 +633,15 @@ export const es = {
             anulaCarga: 'anula Carga',
         },
     },
+  },
+
+  soundSettings: {
+    title: 'Configuración de sonido',
+    mute: 'Silenciar',
+    muted: 'Sí',
+    unmuted: 'No',
+    voiceVol: 'Volumen voces',
+    sfxVol: 'Volumen efectos',
+    musicSoon: 'Pronto: música',
   },
 };

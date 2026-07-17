@@ -14,8 +14,11 @@ import PanelMovement from './PanelMovement';
 import PanelUnitsAffected from './PanelUnitsAffected';
 import PanelCounterCard from './PanelCounterCard';
 import { cls, nameForHistoryCard, descForHistoryCard } from '../helpers';
+import { cardImgUrl } from '../../../../helpers/cards';
+import { useLightbox } from '../../../../helpers/Lightbox';
 
 function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) {
+  const { setLightbox, lightboxEl } = useLightbox();
     const configId = entry.configId ?? entry.cardId;
     const panelCfg = (configId ? ABILITY_CONFIG[configId]?.panel : undefined) ?? {};
     const pTitle = panelCfg.title ?? true;
@@ -266,7 +269,7 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                 <>
                     {/* Línea 1: Icono + Título */}
                     <div className="flex items-start gap-3">
-                        <div className="text-3xl">🃏</div>
+                        <img src="/cards/es/reverso.png" alt="" className="w-10 h-14 rounded object-cover" />
                         <div>
                             <div className="text-lg font-bold">{entry.cardName?.startsWith('card.') ? l(entry.cardName) : (entry.cardName ?? l('button.basicAttack'))}</div>
                             <div className={[
@@ -285,38 +288,74 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                     {entry.counterCardId ? (
                         <div className="space-y-3">
                             <div>
-                                <div className="text-xs text-zinc-400">
+                                <div className="text-xs text-zinc-400 mb-1">
                                     <span className="font-semibold">{l('cardDetail.playerPlays', { n: entry.playerId === 'p1' ? '2' : '1' })}: </span>
                                     <span className="font-semibold text-red-400">{entry.counterCardName?.startsWith('card.') ? l(entry.counterCardName) : (entry.counterCardName ?? '?')}</span>
                                 </div>
-                                <div className="rounded-lg border-2 border-red-800/50 bg-red-900/20 p-3 text-xs text-red-300 mt-1">
-                                    {entry.counterCardName?.startsWith('card.') ? l(entry.counterCardName.replace('.name', '.desc')) : ''}
+                                <div className="rounded-lg border-2 border-red-800/50 bg-red-900/20 p-1">
+                                    <img
+                                        src={cardImgUrl(entry.counterCardId)}
+                                        alt=""
+                                        className="w-full h-auto rounded cursor-pointer"
+                                        onClick={(e) => setLightbox((e.currentTarget as HTMLImageElement).src)}
+                                        onError={(e) => {
+                                            const t = e.currentTarget;
+                                            if (!t.dataset.fallback) {
+                                                t.dataset.fallback = '1';
+                                                t.src = cardImgUrl(entry.counterCardId, 'es');
+                                            } else {
+                                                t.style.display = 'none';
+                                            }
+                                        }}
+                                    />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-xs text-zinc-400">
+                                <div className="text-xs text-zinc-400 mb-1">
                                     <span className="font-semibold">{l('cardDetail.butOpponentCounters', { n: entry.playerId === 'p1' ? '1' : '2' })}: </span>
                                     <span className="font-semibold text-violet-400">{entry.cardName?.startsWith('card.') ? l(entry.cardName) : (entry.cardName ?? '?')}</span>
                                 </div>
-                                <div className="rounded-lg border-2 border-violet-800/50 bg-violet-900/20 p-3 text-xs text-violet-300 mt-1">
-                                    {entry.cardName?.startsWith('card.') ? l(entry.cardName.replace('.name', '.desc')) : ''}
+                                <div className="rounded-lg border-2 border-violet-800/50 bg-violet-900/20 p-1">
+                                    <img
+                                        src={cardImgUrl(entry.cardId)}
+                                        alt=""
+                                        className="w-full h-auto rounded cursor-pointer"
+                                        onClick={(e) => setLightbox((e.currentTarget as HTMLImageElement).src)}
+                                        onError={(e) => {
+                                            const t = e.currentTarget;
+                                            if (!t.dataset.fallback) {
+                                                t.dataset.fallback = '1';
+                                                t.src = cardImgUrl(entry.cardId, 'es');
+                                            } else {
+                                                t.style.display = 'none';
+                                            }
+                                        }}
+                                    />
                                 </div>
                             </div>
                         </div>
                     ) : (
                         <div className={[
-                            'rounded-lg border-2 p-3 text-xs min-h-[60px]',
-                            entry.cardType === 'BUFF' ? 'border-emerald-800/50 bg-emerald-900/20 text-emerald-300'
-                                : entry.cardType === 'DEBUFF' ? 'border-red-800/50 bg-red-900/20 text-red-300'
-                                : 'border-violet-800/50 bg-violet-900/20 text-violet-300',
+                            'rounded-lg border-2 p-1 text-xs',
+                            entry.cardType === 'BUFF' ? 'border-emerald-800/50 bg-emerald-900/20'
+                                : entry.cardType === 'DEBUFF' ? 'border-red-800/50 bg-red-900/20'
+                                : 'border-violet-800/50 bg-violet-900/20',
                         ].join(' ')}>
-                            {configId && ABILITY_CONFIG[configId] && (ABILITY_CONFIG[configId] as any).cardImg ? (
-                                <img src={(ABILITY_CONFIG[configId] as any).cardImg} alt={entry.cardName} className="w-full h-auto rounded" />
-                            ) : entry.details ? (
-                                <span>{entry.details}</span>
-                            ) : configId ? (
-                                <PanelDescription configId={configId} />
-                            ) : null}
+                            <img
+                                src={cardImgUrl(entry.cardId)}
+                                alt={entry.cardName ?? ''}
+                                className="w-full h-auto rounded cursor-pointer"
+                                onClick={(e) => setLightbox((e.currentTarget as HTMLImageElement).src)}
+                                onError={(e) => {
+                                    const target = e.currentTarget;
+                                    if (!target.dataset.fallback) {
+                                        target.dataset.fallback = '1';
+                                        target.src = cardImgUrl(entry.cardId, 'es');
+                                    } else {
+                                        target.style.display = 'none';
+                                    }
+                                }}
+                            />
                         </div>
                     )}
                     {/* Línea 4: Efecto snapshot (mismo estilo que PanelUnitsAffected) */}
@@ -347,6 +386,8 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                     {pShowMovement && (isMoveEntry || entry.from != null) && <PanelMovement entry={entry} cls={cls} />}
                 </>
             )}
+
+            {lightboxEl}
         </div>
     );
 }

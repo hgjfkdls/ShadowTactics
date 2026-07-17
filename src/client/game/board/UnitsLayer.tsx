@@ -313,7 +313,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const showCostInd = indicators.some(i => i.category === 'cost');
 
                 // Owner color ring
-                const ownerColor = unit.owner === 'p1' ? '#a78bfa' : '#22d3ee';
+                const ownerColor = unit.owner === 'p1' ? 'var(--color-player1)' : 'var(--color-player2)';
 
                 // Traffic light panel: right side, dark background
                 const showTraffic = hasAura || showAtkInd || showDefInd || showCostInd;
@@ -364,7 +364,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                         {/* Class icon SVG */}
                         <g transform="translate(-10, -6)">
-                            <BustSvg cls={unit.class} size={20} />
+                            <BustIcon cls={unit.class} size={20} />
                         </g>
 
                         {/* HP bar with shield overlay (square) */}
@@ -494,16 +494,4 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     return { buffs, debuffs };
 }
 
-function BustSvg({ cls, size }: { cls: string; size: number }) {
-    const CLASS_FILL: Record<string, string> = {
-        archer: 'var(--color-class-archer)', infantry: 'var(--color-class-infantry)',
-        cavalry: 'var(--color-class-cavalry)', lancer: 'var(--color-class-lancer)', general: 'var(--color-class-general)',
-    };
-    const fill = CLASS_FILL[cls] ?? 'var(--color-effect-other)';
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="5" r="4.5" fill={fill} stroke="black" strokeWidth="1.2" />
-            <path d="M4 22 C4 14 8 11 12 11 C16 11 20 14 20 22" fill={fill} stroke="black" strokeWidth="1" />
-        </svg>
-    );
-}
+import BustIcon from '../icons/BustIcon';

@@ -172,19 +172,17 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
             }
         }
     }
-
     // ── Fallback: display modifiers from activeModifiers (prompts, identity effects, cards) ──
     // These are not in any unit's abilities list (plan_batalla, lanza_escudo, liderar_tropas, etc.)
     // First check consumedModifiers snapshot (for buffs consumed by resolveAttack before display)
     const consumedSrc = snapshotModifiers ?? [];
+    const modAccum = new Map<string, { count: number; sumValue: number; m: any }>();
     for (const src of [s.activeModifiers, consumedSrc]) {
         for (const m of src) {
             if (m.remainingTurns !== undefined && m.remainingTurns < 0) continue;
             if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
             if (m.source !== 'ability' && m.source !== 'identity' && m.source !== 'card') continue;
-            if (processedDisplayIds.has(`${m.sourceName}-${m.stat}`)) continue;
             if (m.targetId !== undefined && m.targetId !== attackerId && m.targetId !== targetId) continue;
-            // Only show modifiers allowed by the current ability config (skip for cards/external)
             if (configId && m.source === 'ability') {
                 const cfg = ABILITY_CONFIG[configId];
                 const allowed = cfg?.allowedModifiers ?? [];
@@ -194,30 +192,41 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
                     if (allowedStat && !allowed.includes(allowedStat)) continue;
                 }
             }
-            const prefix = m.value > 0 ? '+' : '';
-            const nameKey = m.source === 'card' ? `card.${m.sourceName}.name` : `ability.${m.sourceName}.name`;
-            let name = l(nameKey);
-            if (name === nameKey && m.source === 'card') {
-                const cardName = l(`card.${m.sourceName}.name`);
-                if (cardName !== `card.${m.sourceName}.name`) name = cardName;
+            const key = `${m.sourceName}-${m.stat}`;
+            const existing = modAccum.get(key);
+            if (existing) {
+                existing.count++;
+                existing.sumValue += m.value;
+            } else {
+                modAccum.set(key, { count: 1, sumValue: m.value, m });
             }
-            const isAtkSource = m.sourcePlayerId === attacker.owner;
-            let displayed = false;
-            if (m.stat === 'attack') {
-                if ((m.targetId === undefined || m.targetId === attackerId) && isAtkSource) { combat.push(`[atk] [id:${m.sourceName}] ${name}: ${prefix}${m.value} [stat:attack]`); displayed = true; }
-            } else if (m.stat === 'defense') {
-                if (m.targetId === undefined || m.targetId === targetId) { combat.push(`[def] [id:${m.sourceName}] ${name}: ${prefix}${m.value} [stat:defense]`); displayed = true; }
-            } else if (m.stat === 'difficulty') {
-                if ((m.targetId === undefined || m.targetId === attackerId) && isAtkSource) { combat.push(`[diff] [id:${m.sourceName}] ${name}: ${prefix}${m.value} [stat:difficulty]`); displayed = true; }
-            } else if (m.stat === 'range') {
-                if ((m.targetId === undefined || m.targetId === attackerId) && isAtkSource) { combat.push(`[range] [id:${m.sourceName}] ${name}: ${prefix}${m.value} [stat:range]`); displayed = true; }
-            } else if ((m.stat === 'movementCost' || m.stat === 'attackCost' || m.stat === 'actionCost') && isAtkSource) {
-                combat.push(`[cost] [id:${m.sourceName}] ${name}: ${prefix}${m.value} [stat:pa]`); displayed = true;
-            } else if (m.stat === 'damage' && isAtkSource) {
-                combat.push(`[dmg] [id:${m.sourceName}] ${name}: ${prefix}${m.value} [stat:damage]`); displayed = true;
-            }
-            if (displayed) processedDisplayIds.add(`${m.sourceName}-${m.stat}`);
         }
+    }
+    for (const [, { count, sumValue, m }] of modAccum) {
+        if (processedDisplayIds.has(`${m.sourceName}-${m.stat}`)) continue;
+        const prefix = sumValue > 0 ? '+' : '';
+        const nameKey = m.source === 'card' ? `card.${m.sourceName}.name` : `ability.${m.sourceName}.name`;
+        let name = l(nameKey);
+        if (name === nameKey && m.source === 'card') {
+            const cardName = l(`card.${m.sourceName}.name`);
+            if (cardName !== `card.${m.sourceName}.name`) name = cardName;
+        }
+        const label = count > 1 ? `${name}: ${prefix}${sumValue} (x${count})` : `${name}: ${prefix}${sumValue}`;
+        const isAtkSource = m.sourcePlayerId === attacker.owner;
+        if (m.stat === 'attack') {
+            if ((m.targetId === undefined || m.targetId === attackerId) && isAtkSource) { combat.push(`[atk] [id:${m.sourceName}] ${label} [stat:attack]`); }
+        } else if (m.stat === 'defense') {
+            if (m.targetId === undefined || m.targetId === targetId) { combat.push(`[def] [id:${m.sourceName}] ${label} [stat:defense]`); }
+        } else if (m.stat === 'difficulty') {
+            if ((m.targetId === undefined || m.targetId === attackerId) && isAtkSource) { combat.push(`[diff] [id:${m.sourceName}] ${label} [stat:difficulty]`); }
+        } else if (m.stat === 'range') {
+            if ((m.targetId === undefined || m.targetId === attackerId) && isAtkSource) { combat.push(`[range] [id:${m.sourceName}] ${label} [stat:range]`); }
+        } else if ((m.stat === 'movementCost' || m.stat === 'attackCost' || m.stat === 'actionCost') && isAtkSource) {
+            combat.push(`[cost] [id:${m.sourceName}] ${label} [stat:pa]`);
+        } else if (m.stat === 'damage' && isAtkSource) {
+            combat.push(`[dmg] [id:${m.sourceName}] ${label} [stat:damage]`);
+        }
+        processedDisplayIds.add(`${m.sourceName}-${m.stat}`);
     }
 
     // ── Passive ability modifiers (legacy display) ──
@@ -273,7 +282,7 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
 
 // ── storeAttackResult ──
 
-export function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[], preTimesDamaged?: number): GameState {
+export function storeAttackResult(result: AttackResult, attackerId: string, targetId: string, attackerClass: string, targetClass: string, attackName?: string, paCost?: number, paModifiers?: string[], preTimesDamaged?: number, voiceKey?: string): GameState {
     let s = result.state;
     const { combat: modsFromBuild, paMods: costModsFromBuild } = buildAttackModifiers(s, attackerId, targetId, result.configId, preTimesDamaged, result.consumedModifiers);
     const mods = modsFromBuild;
@@ -353,6 +362,7 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
             noCritical: result.noCritical,
             configId: result.configId,
             modifiers: mods,
+            voiceKey,
             paCost,
             paModifiers: allPaMods,
             distance: dist,

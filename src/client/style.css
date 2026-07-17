@@ -61,6 +61,9 @@
     --color-default-stroke: #4b5563;
 }
 
+@import "./themes/bosque-oscuro.css";
+@import "./themes/dark-water.css";
+
 @layer base {
 
     /* width */

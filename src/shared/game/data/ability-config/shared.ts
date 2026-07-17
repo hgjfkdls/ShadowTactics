@@ -9,6 +9,7 @@ export const SHARED_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         targetType: 'enemy',
         base: { attack: 'unit.attack', difficulty: 'unit.difficulty', paCost: 1 },
         activation: { blockFlags: ['basic_attack'] },
+        sounds: ['attack_archer', 'attack_cavalry', 'attack'],
         effects: [
             { type: 'flagPush', target: 'self', flags: ['basic_attack'] },
             { type: 'flagPop', target: 'self', flags: ['cabalgar'] },
@@ -24,6 +25,7 @@ export const SHARED_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         targetType: 'position',
         base: { paCost: 'unit.movementCost' },
         activation: {},
+        sounds: ['move_1', 'move_2'],
         effects: [
             { type: 'flagPush', target: 'self', flags: ['move'] },
             { type: 'flagPop', target: 'self', flags: ['cabalgar'] },

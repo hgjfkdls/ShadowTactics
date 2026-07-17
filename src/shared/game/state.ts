@@ -144,6 +144,7 @@ export type GameState = {
         attackName?: string;
         distance?: number;
         modifiers: string[];
+        voiceKey?: string;
         paCost?: number;
         paModifiers?: string[];
         gameTime?: string;
@@ -161,6 +162,7 @@ export type GameState = {
         cost: number;
         baseCost: number;
         modifiers: string[];
+        voiceKey?: string;
         gameTime?: string;
     } | {
         id: string;
@@ -179,6 +181,26 @@ export type GameState = {
         paCost?: number;
         sourceClass?: string;
         sourceIdentity?: string;
+        healAmount?: number;
+        gameTime?: string;
+    } | {
+        id: string;
+        turn: number;
+        actionNumber: number;
+        playerId: string;
+        type: 'support';
+        cardId: string;
+        cardName: string;
+        configId?: string;
+        targetId?: string;
+        targetClass?: string;
+        details?: string;
+        paCost?: number;
+        sourceClass?: string;
+        sourceIdentity?: string;
+        sourceIdentityKey?: string;
+        alliesHit?: string[];
+        enemiesHit?: string[];
         healAmount?: number;
         gameTime?: string;
     }>;

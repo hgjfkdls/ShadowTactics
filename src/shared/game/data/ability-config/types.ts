@@ -184,6 +184,7 @@ export type AbilityConfig = {
     range?: AbilityRange | number | 'unit.range';
     target?: AbilityTarget | AbilityTarget[];
     rangeBonus?: number;
+    sounds?: string[];
     base: {
         attack?: number | 'unit.attack';
         difficulty?: number | 'unit.difficulty';

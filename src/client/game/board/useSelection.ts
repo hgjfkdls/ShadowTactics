@@ -1,4 +1,4 @@
-import { useReducer } from 'react';
+import { useReducer, useCallback } from 'react';
 import type { HexCoord, UnitId } from '@shared';
 
 export type PendingAbility = { abilityId: string; unitId: UnitId } | null;
@@ -152,22 +152,37 @@ const INITIAL_STATE: SelectionState = {
 export function useSelection() {
     const [state, dispatch] = useReducer(selectionReducer, INITIAL_STATE);
 
+    const setSelectedUnitId = useCallback((id: UnitId | null) => dispatch(id ? { type: 'SELECT_UNIT', unitId: id } : { type: 'CLEAR_MODE' }), []);
+    const setMovingUnitId = useCallback((id: UnitId | null) => dispatch(id ? { type: 'START_MOVE', unitId: id } : { type: 'CLEAR_MODE' }), []);
+    const setAttackingUnitId = useCallback((id: UnitId | null) => dispatch(id ? { type: 'START_ATTACK', unitId: id } : { type: 'CLEAR_MODE' }), []);
+    const setPendingAbility = useCallback((pa: PendingAbility) => dispatch(pa ? { type: 'ACTIVATE_ABILITY', abilityId: pa.abilityId, unitId: pa.unitId } : { type: 'CLEAR_MODE' }), []);
+    const setSelectedHex = useCallback((hex: HexCoord | null) => dispatch({ type: 'SET_SELECTED_HEX', hex }), []);
+    const setHoveredHex = useCallback((hex: HexCoord | null) => dispatch({ type: 'SET_HOVERED_HEX', hex }), []);
+    const setPendingPatadaTargetId = useCallback((id: UnitId | null) => dispatch({ type: 'SET_PATADA_TARGET', targetId: id }), []);
+    const setPendingIdentityTargetId = useCallback((id: UnitId | null) => dispatch({ type: 'SET_IDENTITY_TARGET', targetId: id }), []);
+    const setCabalgarPath = useCallback((path: HexCoord[]) => dispatch({ type: 'SET_CABALGAR_PATH', path }), []);
+    const setCabalgarIsLaCarga = useCallback((v: boolean) => dispatch({ type: 'SET_CABALGAR_PATH', path: state.cabalgarPath, isLaCarga: v }), [state.cabalgarPath]);
+    const setPendingTorbellino = useCallback((v: boolean) => dispatch({ type: 'SET_TORBELLINO', active: v }), []);
+    const setPendingAngelGuardian = useCallback((v: boolean) => dispatch({ type: 'SET_ANGEL_GUARDIAN', active: v }), []);
+    const setPendingCounterEspejoCard = useCallback((id: string | null) => dispatch({ type: 'SET_COUNTER_ESPEJO', cardId: id }), []);
+    const clearAll = useCallback(() => dispatch({ type: 'DESELECT_ALL' }), []);
+
     return {
         ...state,
-        setSelectedUnitId: (id: UnitId | null) => dispatch(id ? { type: 'SELECT_UNIT', unitId: id } : { type: 'CLEAR_MODE' }),
-        setMovingUnitId: (id: UnitId | null) => dispatch(id ? { type: 'START_MOVE', unitId: id } : { type: 'CLEAR_MODE' }),
-        setAttackingUnitId: (id: UnitId | null) => dispatch(id ? { type: 'START_ATTACK', unitId: id } : { type: 'CLEAR_MODE' }),
-        setPendingAbility: (pa: PendingAbility) => dispatch(pa ? { type: 'ACTIVATE_ABILITY', abilityId: pa.abilityId, unitId: pa.unitId } : { type: 'CLEAR_MODE' }),
-        setSelectedHex: (hex: HexCoord | null) => dispatch({ type: 'SET_SELECTED_HEX', hex }),
-        setHoveredHex: (hex: HexCoord | null) => dispatch({ type: 'SET_HOVERED_HEX', hex }),
-        setPendingPatadaTargetId: (id: UnitId | null) => dispatch({ type: 'SET_PATADA_TARGET', targetId: id }),
-        setPendingIdentityTargetId: (id: UnitId | null) => dispatch({ type: 'SET_IDENTITY_TARGET', targetId: id }),
-        setCabalgarPath: (path: HexCoord[]) => dispatch({ type: 'SET_CABALGAR_PATH', path }),
-        setCabalgarIsLaCarga: (v: boolean) => dispatch({ type: 'SET_CABALGAR_PATH', path: state.cabalgarPath, isLaCarga: v }),
-        setPendingTorbellino: (v: boolean) => dispatch({ type: 'SET_TORBELLINO', active: v }),
-        setPendingAngelGuardian: (v: boolean) => dispatch({ type: 'SET_ANGEL_GUARDIAN', active: v }),
-        setPendingCounterEspejoCard: (id: string | null) => dispatch({ type: 'SET_COUNTER_ESPEJO', cardId: id }),
-        clearAll: () => dispatch({ type: 'DESELECT_ALL' }),
+        setSelectedUnitId,
+        setMovingUnitId,
+        setAttackingUnitId,
+        setPendingAbility,
+        setSelectedHex,
+        setHoveredHex,
+        setPendingPatadaTargetId,
+        setPendingIdentityTargetId,
+        setCabalgarPath,
+        setCabalgarIsLaCarga,
+        setPendingTorbellino,
+        setPendingAngelGuardian,
+        setPendingCounterEspejoCard,
+        clearAll,
         dispatch,
     };
 }

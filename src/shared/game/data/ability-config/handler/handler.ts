@@ -13,6 +13,7 @@ import { applyDifficultyAbilities } from '@shared/game/combat/ability-effects';
 import { addModifier, consumeModifier, getModifierSum } from '@shared/game/modifiers/engine';
 import { BASE_STATS } from '@shared/game/units';
 import { buildAttackModifiers, storeAttackResult } from '@shared/game/actions/ability';
+import { pickVoiceKey } from '@shared/game/helpers/sounds';
 import { getAbilityHighlights, isValidTarget } from '@shared/game/board/selection';
 import { processEffects } from '@shared/game/effects';
 import type { EffectContext } from '@shared/game/effects';
@@ -74,9 +75,14 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     const unit = state.units[action.unitId];
     if (!unit || unit.owner !== action.playerId) return state;
     if (action.playerId !== state.activePlayer) return state;
-    // Bloqueo (Confusión) o inmovil: unidad no puede actuar
+    // Bloqueo (Confusión): unidad no puede actuar
     if (state.activeModifiers.some(m =>
-        (m.stat === 'bloqueo' || m.stat === 'inmovil')
+        m.stat === 'bloqueo'
+        && m.targetId === unit.id && m.remainingTurns >= 0
+    )) return state;
+    // Inmovil: solo bloquea movimiento
+    if (cfg.type === 'move' && state.activeModifiers.some(m =>
+        m.stat === 'inmovil'
         && m.targetId === unit.id && m.remainingTurns >= 0
     )) return state;
     if (action.abilityId !== 'ataque_basico' && action.abilityId !== 'movimiento') {
@@ -170,19 +176,22 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods);
 
 
+    // Resolver voiceKey desde config
+    const voiceKey = pickVoiceKey(cfg.type, cfg.sounds, unit.class);
+
     switch (cfg.type) {
         case 'attack':
-            s = handleAttack(s, action, unit, cfg, baseCost, costMods);
+            s = handleAttack(s, action, unit, cfg, baseCost, costMods, voiceKey);
             if (s === sBeforeSwitch) return state;
             s = consumeAP(s, unit.owner, moveFinalCost);
             break;
         case 'support':
-            s = handleSupport(s, action, unit, cfg, baseCost, costMods);
+            s = handleSupport(s, action, unit, cfg, baseCost, costMods, voiceKey);
             if (s === sBeforeSwitch) return state;
             s = consumeAP(s, unit.owner, moveFinalCost);
             break;
         case 'move':
-            s = handleMove(s, action, unit, cfg, baseCost, costMods, totalCost);
+            s = handleMove(s, action, unit, cfg, baseCost, costMods, undefined, voiceKey);
             if (s === state) return state;
             s = consumeAP(s, unit.owner, moveFinalCost);
             // Consumir modifiers de movementCost después del movimiento (cualquier operador)
@@ -225,7 +234,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: action.playerId,
-                type: 'card' as const,
+                type: 'support' as const,
                 cardId: phe.abilId,
                 cardName: `ability.${phe.abilId}.name`,
                 cardType: 'BUFF' as const,
@@ -293,6 +302,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
                         details: pathStr,
                         path: displayPath,
                         sourceClass: finalUnit.class,
+                        voiceKey,
                     }],
                     nextHistoryId: s.nextHistoryId + 1,
                 };
@@ -340,7 +350,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     return s;
 }
 
-function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, voiceKey?: string): GameState {
     // Torbellino: AoE attack — no necesita targetId
     if (action.abilityId === 'torbellino') {
         if ((unit.flags ?? []).includes('torbellino') || (unit.flags ?? []).includes('carga')) return state;
@@ -513,7 +523,7 @@ let s = state;
         });
 
         s = result.state;
-        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
+        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged, voiceKey);
 
         // Ocupar posición si murió
         if (s.graveyard[target.id]) {
@@ -543,7 +553,7 @@ let s = state;
     s = result.state;
 
     // Store game history first (reusing legacy helper)
-    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged, voiceKey);
 
     // Avance: ocupar posición del enemigo eliminado si la unidad tiene la pasiva
     if (s.graveyard[target.id] && target.class !== 'general' && (unit.abilities ?? []).includes('avance')) {
@@ -566,7 +576,7 @@ let s = state;
         s = { ...s, gameHistory: [...s.gameHistory, {
             id: `h${s.nextHistoryId}`, turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-            playerId: unit.owner, type: 'card' as const,
+            playerId: unit.owner, type: 'support' as const,
             cardId: 'liderar_tropas',
             cardName: 'ability.liderar_tropas.name',
             configId: 'liderar_tropas',
@@ -671,7 +681,7 @@ let s = state;
     return s;
 }
 
-function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number): GameState {
+function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, voiceKey?: string): GameState {
     let s = state;
     // AP already consumed by handleAbility
 
@@ -747,7 +757,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
-                type: 'card' as const,
+                type: 'support' as const,
                 cardId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
@@ -788,7 +798,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
-                type: 'card' as const,
+                type: 'support' as const,
                 cardId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
@@ -814,7 +824,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
-                type: 'card' as const,
+                type: 'support' as const,
                 cardId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
@@ -835,7 +845,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner, type: 'card' as const,
+                playerId: unit.owner, type: 'support' as const,
                 cardId: cfg.id, cardName: `ability.${cfg.id}.name`, cardType: 'BUFF' as const,
                 targetId: action.targetId, targetClass: buffTarget?.class,
                 details: '+2 ataque · Escudo +3 HP',
@@ -862,7 +872,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner, type: 'card' as const,
+                playerId: unit.owner, type: 'support' as const,
                 cardId: cfg.id, cardName: `ability.${cfg.id}.name`, cardType: 'BUFF' as const,
                 targetId: ally.id, targetClass: ally.class,
                 alliesHit: [ally.id, unit.id],
@@ -882,7 +892,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
-                type: 'card' as const,
+                type: 'support' as const,
                 cardId: cfg.id,
                 configId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
@@ -901,6 +911,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 return '';
             }).filter(Boolean).join(' · '),
             sourceClass: unit.class,
+            voiceKey,
         }], nextHistoryId: s.nextHistoryId + 1 };
     }
 
@@ -912,7 +923,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
     return s;
 }
 
-function handleMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, moveFinalCost?: number): GameState {
+function handleMove(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, moveFinalCost?: number, voiceKey?: string): GameState {
     if (!action.to && !action.path) return state;
 
     // Check move replacement flags

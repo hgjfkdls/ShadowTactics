@@ -73,29 +73,25 @@ export function consumeModifier(
     amount: number = 1,
     targetUnitId?: string
 ): GameState {
-    // Prefer modifiers with finite remainingUses over infinite ones
-    const matches = state.activeModifiers.map((m, i) => ({ m, i }))
+    const entries = state.activeModifiers.map((m, i) => ({ m, i }))
         .filter(({ m }) => m.stat === stat && !isExpired(m) && (m.remainingUses === undefined || m.remainingUses > 0)
             && (targetPlayerId === null || m.sourcePlayerId === targetPlayerId)
-            && (targetUnitId === undefined ? m.targetId === undefined : m.targetId === targetUnitId))
-        .sort((a, b) => {
-            // Finite uses first (descending so higher uses first, then infinite)
-            const aFinite = a.m.remainingUses !== undefined ? 1 : 0;
-            const bFinite = b.m.remainingUses !== undefined ? 1 : 0;
-            return bFinite - aFinite;
-        });
-    if (matches.length === 0) return state;
-    const { m: mod, i: idx } = matches[0];
-    const newUses = mod.remainingUses !== undefined ? mod.remainingUses - amount : undefined;
+            && (targetUnitId === undefined ? m.targetId === undefined : m.targetId === targetUnitId));
+    if (entries.length === 0) return state;
 
-    if (newUses !== undefined && newUses <= 0) {
-        const mods = [...state.activeModifiers];
-        mods.splice(idx, 1);
-        return { ...state, activeModifiers: mods };
+    let mods = [...state.activeModifiers];
+    // Process in reverse order so earlier indices remain valid after splice
+    for (let j = entries.length - 1; j >= 0; j--) {
+        const { m: mod, i: idx } = entries[j];
+        if (mod.remainingUses !== undefined) {
+            const newUses = mod.remainingUses - amount;
+            if (newUses <= 0) {
+                mods.splice(idx, 1);
+            } else {
+                mods[idx] = { ...mod, remainingUses: newUses };
+            }
+        }
     }
-
-    const mods = [...state.activeModifiers];
-    mods[idx] = { ...mod, remainingUses: newUses };
     return { ...state, activeModifiers: mods };
 }
 

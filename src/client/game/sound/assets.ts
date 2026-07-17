@@ -1,4 +1,5 @@
 import type { SoundEvent } from './types';
+import { getLocale } from '@shared/i18n';
 
 const SOUND_MAP: Partial<Record<SoundEvent, string>> = {
   ui_click: '/sounds/ui/click.mp3',
@@ -35,4 +36,15 @@ const SOUND_MAP: Partial<Record<SoundEvent, string>> = {
 
 export function getSoundUrl(event: SoundEvent): string | undefined {
   return SOUND_MAP[event];
+}
+
+/** Resuelve la URL de un archivo de voz según el idioma actual */
+export function getVoiceUrl(key: string): string {
+  const lang = getLocale() || 'es';
+  return `/sounds/${lang}/voice/${key}.mp3`;
+}
+
+/** Resuelve la URL de un SFX por clave genérica */
+export function getSfxUrl(key: string): string {
+  return `/sounds/game/sfx/${key}.mp3`;
 }

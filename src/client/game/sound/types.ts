@@ -6,7 +6,8 @@ export type SoundEvent =
   | 'ability_activate' | 'card_play' | 'counter_play'
   | 'turn_start' | 'turn_end' | 'victory' | 'defeat'
   | 'roll_dice' | 'deploy_unit'
-  | 'meditation' | 'whirlwind' | 'charge' | 'ride';
+  | 'meditation' | 'whirlwind' | 'charge' | 'ride'
+  | 'sword_slash';
 
 export type SoundLayer = 'music' | 'sfx' | 'voice';
 

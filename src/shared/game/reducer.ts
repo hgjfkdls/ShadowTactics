@@ -168,7 +168,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     turn: state.turn,
                     actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
                     playerId: action.playerId,
-                    type: 'card' as const,
+                    type: 'support' as const,
                     cardId: 'plan_batalla',
                     cardName: 'Plan de batalla',
                     cardType: 'BUFF' as const,
@@ -199,7 +199,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     turn: s.turn,
                     actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                     playerId: action.playerId,
-                    type: 'card' as const,
+                    type: 'support' as const,
                     cardId: 'lanza_escudo',
                     cardName: 'Lanza y escudo',
                     cardType: 'BUFF' as const,
@@ -223,7 +223,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             const occ = state.pendingOccupation;
             const unit = state.units[occ.unitId];
             const s = updateUnit(state, occ.unitId, (u) => ({
-                ...u, position: occ.position, flags: [], didMovePreviousTurn: false,
+                ...u, position: occ.position, didMovePreviousTurn: false,
             }));
             const pathStr = `(${unit.position.q},${unit.position.r}) → (${occ.position.q},${occ.position.r})`;
             return {

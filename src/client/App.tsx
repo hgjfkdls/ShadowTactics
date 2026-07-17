@@ -8,10 +8,15 @@ import { RightPanel } from './game/layout/RightPanel';
 import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
 import { KeyBindingsProvider, useKeyBindings } from './game/KeyBindingsContext';
 import { AnimationProvider } from './game/animation/AnimationContext';
+import { SoundProvider } from './game/sound/SoundContext';
+import { SoundEngine } from './game/sound/SoundEngine';
+import { WebAudioRenderer } from './game/sound/render/WebAudioRenderer';
+import type { SoundEvent } from './game/sound/types';
 import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
 import { DisconnectModal } from './game/layout/DisconnectModal';
+import { ThemeProvider } from './game/theme/ThemeProvider';
 import { l } from '@shared/i18n';
 
 type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
@@ -111,10 +116,54 @@ export function App() {
         }
     }, [state?.lastMeditacion]);
 
+    // Pre-cargar todos los sonidos al inicio
+    const engineRef = useRef<SoundEngine | null>(null);
+    if (!engineRef.current) {
+        engineRef.current = new SoundEngine(new WebAudioRenderer());
+    }
+
+    const allSoundEvents: SoundEvent[] = [
+        'ui_click', 'ui_confirm', 'ui_cancel', 'ui_error', 'ui_select_unit',
+        'move', 'attack', 'hit', 'miss', 'critical',
+        'counterattack', 'kill', 'general_kill',
+        'heal', 'shield', 'buff', 'debuff',
+        'ability_activate', 'card_play', 'counter_play',
+        'turn_start', 'turn_end', 'victory', 'defeat',
+        'roll_dice', 'deploy_unit',
+        'meditation', 'whirlwind', 'charge', 'ride',
+    ];
+    useEffect(() => {
+        engineRef.current?.preloadAll(allSoundEvents);
+        // Pre-cargar voces multi-idioma desde soundConfig
+        import('./game/sound/soundConfig').then(({ SOUND_CONFIG }) => {
+            engineRef.current?.preloadKeys(Object.keys(SOUND_CONFIG));
+        });
+        // Pre-cargar imágenes de cartas (front + back, ambos idiomas)
+        const CARD_KEYS = ['movilidad','precision','inspiracion_tropa','ataque_extra','flechas_fuego','bajar_moral','pantano','mantenimiento','confusion','miedo','panacea','ladron','espejo'];
+        const LOCALES = ['es', 'en'];
+        const urls: string[] = ['/cards/reverso.png'];
+        for (const locale of LOCALES) {
+            for (const key of CARD_KEYS) {
+                urls.push(`/cards/${locale}/${key}.png`);
+            }
+        }
+        // Almacenar referencias para evitar GC
+        const imgs: HTMLImageElement[] = [];
+        for (const src of urls) {
+            const img = new Image();
+            img.src = src;
+            imgs.push(img);
+        }
+        // Guardar referencia global hasta que carguen
+        (window as any).__CARD_IMAGES__ = imgs;
+    }, []);
+
     return (
+        <ThemeProvider>
         <KeyBindingsProvider>
+        <SoundProvider engine={engineRef.current}>
         <AnimationProvider>
-        <div key={localeKey} className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr] overflow-hidden">
+        <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr] overflow-hidden">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
                 {gameId && <>
@@ -255,7 +304,9 @@ export function App() {
             )}
         </div>
         </AnimationProvider>
+        </SoundProvider>
         </KeyBindingsProvider>
+        </ThemeProvider>
     );
 }
 

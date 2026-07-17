@@ -13,11 +13,11 @@ import { createInitialGameState } from '@shared/game/init';
 const DISCONNECT_TIMEOUT_MS = 60_000;
 
 const PHASE_TIMERS: Record<string, { isActive: boolean; value: number }> = {
-    IDENTITY_SELECTION: { isActive: true, value: 10 },
-    REVEAL: { isActive: true, value: 1 },
-    ROLL: { isActive: true, value: 1 },
-    ROLL_RESULT: { isActive: true, value: 1 },
-    DEPLOYMENT: { isActive: true, value: 1 },
+    IDENTITY_SELECTION: { isActive: true, value: 45 },
+    REVEAL: { isActive: true, value: 10 },
+    ROLL: { isActive: true, value: 10 },
+    ROLL_RESULT: { isActive: true, value: 10 },
+    DEPLOYMENT: { isActive: true, value: 15 },
     DISCARD: { isActive: true, value: 10 },
     COUNTER: { isActive: true, value: 10 },
     TURN: { isActive: false, value: 60 },

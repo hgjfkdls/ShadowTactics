@@ -113,11 +113,14 @@ export function UnitTooltip({ unit, maxHp, identityName, ownerColor, buffs, debu
             <text x={colX} y={y(1)} fontSize={9} fill="#e5e7eb" fontWeight="bold" pointerEvents="none">{classLabel(unit.class)}</text>
             {identityName && <text x={colX} y={y(2)} fontSize={7} fill={ownerColor ?? '#a78bfa'} pointerEvents="none">{identityName}</text>}
             {(() => {
-    const royalShield = unit.royalShieldSavedHp !== undefined ? unit.hp - unit.royalShieldSavedHp : 0;
-    const baseHp = unit.royalShieldSavedHp ?? unit.hp;
-    const displayHp = royalShield > 0 ? `${baseHp}+${royalShield}` : `${unit.hp}${unit.auraShield ? `+${unit.auraShield}` : ''}`;
-    const effectiveMax = (unit.hp + (unit.auraShield ?? 0)) > maxHp ? (unit.hp + (unit.auraShield ?? 0)) : maxHp;
-    return <text x={colX} y={y(hpRow)} fontSize={9} fill="#9ca3af" pointerEvents="none">HP: {displayHp}/{maxHp} ({Math.round((unit.hp / effectiveMax) * 100)}%)</text>;
+    const shield = unit.auraShield ?? 0;
+    const royalHp = unit.royalShieldSavedHp ?? unit.hp;
+    const royalExtra = unit.royalShieldSavedHp !== undefined ? unit.hp - unit.royalShieldSavedHp : 0;
+    const totalShield = royalExtra + shield;
+    const displayHp = totalShield > 0 ? `${royalHp}+${totalShield}/${maxHp}` : `${unit.hp}/${maxHp}`;
+    const effectiveMax = maxHp + totalShield;
+    const pct = Math.round((unit.hp / effectiveMax) * 100);
+    return <text x={colX} y={y(hpRow)} fontSize={9} fill="#9ca3af" pointerEvents="none">HP: {displayHp} ({pct}%)</text>;
 })()}
 
             {showAttackInfo && (

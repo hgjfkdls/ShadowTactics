@@ -13,6 +13,9 @@ import { useHexClick } from './handlers/useHexClick';
 import { useAnimation } from '../animation/AnimationContext';
 import { PendingOccupationPanel } from '../layout/PendingOccupationPanel';
 import { ActionPanel } from '../layout/panel/action/ActionPanel';
+import { useGameEvents } from './hooks/useGameEvents';
+import { SpeechBubble } from './SpeechBubble';
+import { FlipCardOverlay } from '../animation/FlipCardOverlay';
 import type { GameAction, GameState, HexCoord, UnitId } from '@shared';
 import { isHexOccupied, isWithinBounds, countPlayerClasses } from '@shared/game/utils';
 import { ABILITIES } from '@shared/game/data/abilities';
@@ -21,6 +24,7 @@ import { getPlayerAP } from '@shared/game/actions';
 import { getCardName, getCardType } from '@shared/game/actions/card';
 import { useKeyBindings } from '../KeyBindingsContext';
 import { l } from '@shared/i18n';
+import { axialToPixel } from './hexMath';
 
 type Props = {
     state: GameState;
@@ -37,7 +41,8 @@ type Props = {
 export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedDeployUnitId, selectedInfo, onInfoSelect, addAlert, disableInput }: Props) {
     const hexes = generateHexMap(state.map);
     const sel = useSelection();
-    const { animPositions, enqueue, enqueueMultiple } = useAnimation();
+    const { animPositions, enqueue, enqueueMultiple, bubble, activeEffect } = useAnimation();
+    useGameEvents(state);
     const {
         hoveredHex, selectedHex, selectedUnitId,
         movingUnitId, attackingUnitId, pendingAbility,
@@ -220,7 +225,6 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         }
     }, [state.players[myPlayerId]?.pendingCardNeedsTarget, state.lastCardAction?.cardId]);
 
-    // Limpiar hover al perder foco o cambiar de pestaña
     useEffect(() => {
         const clear = () => setHoveredHex(null);
         window.addEventListener('blur', clear);
@@ -228,7 +232,6 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         return () => {
             window.removeEventListener('blur', clear);
             document.removeEventListener('visibilitychange', clear);
-            setHoveredHex(null);
         };
     }, [setHoveredHex]);
 
@@ -605,8 +608,15 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             setPendingPatadaTargetId(null);
                         }}
                     />
+                    {activeEffect && <SlashLine from={activeEffect.from} to={activeEffect.to} />}
+                    <SpeechBubble
+                        message={bubble.message}
+                        visible={bubble.visible}
+                        generalPosition={bubble.generalPosition}
+                    />
                 </g>
             </svg>
+            <FlipCardOverlay />
             <HistoryPanel
                 gameHistory={state.gameHistory ?? []}
                 selectedInfo={selectedInfo}
@@ -616,7 +626,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                     setTimeout(() => {
                         if (entry.type === 'attack') onInfoSelect?.({ type: 'historyAttack', entry: entry as any });
                         else if (entry.type === 'move') onInfoSelect?.({ type: 'historyMove', entry: entry as any });
-                        else if (entry.type === 'card') onInfoSelect?.({ type: 'historyCard', entry: entry as any });
+                        else if (entry.type === 'card' || entry.type === 'support') onInfoSelect?.({ type: 'historyCard', entry: entry as any });
                     }, 0);
                 }}
             />
@@ -736,4 +746,27 @@ function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pending
     // Ability range from config-driven system
     const highlights = getAbilityHighlights(state, pendingAbility!.unitId, pendingAbility!.abilityId);
     return highlights.filter(h => h.highlight === 'range').map(h => h.hex);
+}
+
+function SlashLine({ from, to }: { from: HexCoord; to: HexCoord }) {
+  const p1 = axialToPixel(from);
+  const p2 = axialToPixel(to);
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+  return (
+    <g opacity={0.8} style={{ pointerEvents: 'none' }}>
+      <line
+        x1={p1.x} y1={p1.y} x2={midX} y2={midY}
+        stroke="#fbbf24"
+        strokeWidth={3}
+        strokeLinecap="round"
+      />
+      <line
+        x1={midX} y1={midY} x2={p2.x} y2={p2.y}
+        stroke="#f59e0b"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </g>
+  );
 }

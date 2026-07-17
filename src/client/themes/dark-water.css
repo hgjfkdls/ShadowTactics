@@ -1,0 +1,55 @@
+/* Dark Water — azules profundos, aguas oscuras, neón tenue */
+html.theme-dark-water {
+    --color-player1: #3a8aba;
+    --color-player2: #5aaa7a;
+
+    --color-class-archer: #4a9abe;
+    --color-class-infantry: #3a7aaa;
+    --color-class-cavalry: #6a6aba;
+    --color-class-lancer: #ba5a7a;
+    --color-class-general: #7aba5a;
+
+    --color-effect-atk: #da4a5a;
+    --color-effect-def: #4a7aba;
+    --color-effect-diff: #5aba7a;
+    --color-effect-pa: #4aaa9a;
+    --color-effect-range: #3aaaca;
+    --color-effect-dmg: #c0d8e8;
+    --color-effect-heal: #3ada8a;
+    --color-effect-other: #6a7a8a;
+
+    --color-hit-bg: #0a3a5a20;
+    --color-hit-border: #1a5a7a50;
+    --color-hit-text: #3ada8a;
+    --color-miss-bg: #3a0a1a20;
+    --color-miss-border: #6a1a3a50;
+    --color-miss-text: #da4a5a;
+
+    --color-panel-bg: #0a0e1a;
+    --color-panel-border: #1a2a3a;
+    --color-panel-sub-bg: #0e1a2a60;
+    --color-panel-sub-border: #1a2a3a;
+    --color-panel-title: #5a7a9a;
+
+    --color-gold: #5aba7a;
+    --color-range: #3a7aba;
+    --color-range-overlay: rgba(58, 122, 186, 0.12);
+    --color-available: #2a9a7a;
+    --color-available-overlay: rgba(42, 154, 122, 0.35);
+    --color-move-bg: #0a3a5a;
+    --color-attack: #da4a5a;
+    --color-attack-overlay: rgba(218, 74, 90, 0.3);
+    --color-attack-bg: #5a1a2a;
+    --color-buff: #2a9a7a;
+    --color-buff-overlay: rgba(42, 154, 122, 0.35);
+    --color-buff-bg: #0a4a3a;
+    --color-history: #4aaa9a;
+    --color-history-overlay: rgba(74, 170, 154, 0.2);
+    --color-selected: #3a7aba;
+    --color-identity-target: #7a3a7a;
+    --color-identity-target-overlay: rgba(122, 58, 122, 0.25);
+    --color-identity-target-bg: #2a0a3a;
+    --color-hover-bg: #1a2a3a;
+    --color-default-bg: #0e1a2a;
+    --color-default-stroke: #2a3a4a;
+}

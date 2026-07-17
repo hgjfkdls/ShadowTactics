@@ -292,7 +292,7 @@ export function handleCard(state: GameState, action: GameAction): GameState {
         if (key === 'espejo') {
             let s = { ...state, players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } } };
             // Aplicar el efecto desde la perspectiva del dueño original (A) con el target que eligió B (si aplica)
-            s = applyCardEffects(s, pendingConfig, pending.playerId, action.targetId);
+            s = applyCardEffects(s, pendingConfig, action.playerId, action.targetId);
             const reflectedEffect = `[i18n:card.${pendingKey}.effectLabel]`;
             s = { ...s, effectDiscard: [...s.effectDiscard, action.cardId, pending.cardId], lastCardAction: undefined, turnPhase: 'MAIN' };
             s = recordCardHistory(s, action.cardId, action.playerId, action.targetId, pending.cardId, `card.${pendingKey}.name`, [reflectedEffect]);

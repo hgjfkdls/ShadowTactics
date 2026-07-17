@@ -26,6 +26,9 @@ const MIME: Record<string, string> = {
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
     '.ico': 'image/x-icon',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
 };
 
 const httpServer = createServer((req, res) => {

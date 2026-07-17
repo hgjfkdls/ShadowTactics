@@ -1,13 +1,15 @@
 import type { SoundEvent, SoundOptions, SoundInstance, SoundLayer } from './types';
 import type { SoundRenderer } from './render/SoundRenderer';
-import { getSoundUrl } from './assets';
+import { getSoundUrl, getVoiceUrl, getSfxUrl } from './assets';
 
 export class SoundEngine {
-  private activeSounds: Map<string, SoundInstance> = new Map();
+  private activeSounds: Map<string, { instance: SoundInstance; stop: () => void }> = new Map();
   private cooldowns: Map<string, number> = new Map();
   private masterVolume: number = 1;
   private layerVolumes: Record<SoundLayer, number> = { music: 0.5, sfx: 1, voice: 1 };
   private muted: boolean = false;
+  private voiceGen = 0;
+  private voiceStop: (() => void) | null = null;
 
   constructor(private renderer: SoundRenderer) {}
 
@@ -32,38 +34,92 @@ export class SoundEngine {
 
   get isMuted(): boolean { return this.muted; }
 
+  /** Reproducir por SoundEvent (SFX) */
   async play(event: SoundEvent, options: SoundOptions = {}): Promise<void> {
+    const url = getSoundUrl(event);
+    if (!url) return;
+    await this.playUrl(url, event, options);
+  }
+
+  /** Reproducir por key de sonido (voces multi-idioma) */
+  async playKey(key: string, options: SoundOptions = {}): Promise<void> {
+    const url = getVoiceUrl(key);
+    await this.playUrl(url, key, options);
+  }
+
+  /** Reproducir SFX por clave genérica (no necesita SoundEvent) */
+  async playSfx(key: string, options: SoundOptions = {}): Promise<void> {
+    const url = getSfxUrl(key);
+    await this.playUrl(url, key, options);
+  }
+
+  private async playUrl(url: string, id: string, options: SoundOptions): Promise<void> {
     if (this.muted) return;
-    if (this.isOnCooldown(event, options)) return;
 
     const layer = options.layer ?? 'sfx';
 
-    if (!options.allowOverlap && this.activeSounds.has(event)) return;
-
-    // Voice: one at a time (interrupt previous)
+    // Voice layer: interrumpir y descartar voces previas (incluso durante carga)
     if (layer === 'voice') {
-      for (const [k, inst] of this.activeSounds) {
-        if (inst.layer === 'voice') this.activeSounds.delete(k);
+      this.voiceGen++;
+      const myGen = this.voiceGen;
+      if (this.voiceStop) { try { this.voiceStop(); } catch {} this.voiceStop = null; }
+
+      let stop: () => void;
+      try {
+        stop = await this.renderer.play(url, layer, {
+          ...options,
+          volume: (options.volume ?? 1) * this.layerVolumes[layer],
+        });
+      } catch (e) {
+        console.warn(`[SoundEngine] Failed to play ${id} from ${url}:`, e);
+        return;
       }
+
+      if (myGen !== this.voiceGen) return; // fue reemplazada durante carga
+
+      this.voiceStop = stop;
+      return;
     }
 
-    const url = getSoundUrl(event);
-    if (!url) return;
-
-    this.setCooldown(event, options);
-    const stop = await this.renderer.play(url, layer, {
-      ...options,
-      volume: (options.volume ?? 1) * this.layerVolumes[layer],
+    // SFX / Music
+    this.activeSounds.forEach((entry, k) => {
+      if (entry.instance.event === id && !options.allowOverlap) {
+        // mismo sonido ya activo, ignorar
+      }
     });
+    let stop: () => void;
+    try {
+      stop = await this.renderer.play(url, layer, {
+        ...options,
+        volume: (options.volume ?? 1) * this.layerVolumes[layer],
+      });
+    } catch (e) {
+      console.warn(`[SoundEngine] Failed to play ${id} from ${url}:`, e);
+      return;
+    }
     const instance: SoundInstance = {
-      id: `${event}_${Date.now()}`,
-      event,
-      layer,
-      startedAt: Date.now(),
-      options,
+      id: `${id}_${Date.now()}`,
+      event: id as any,
+      layer, startedAt: Date.now(), options,
     };
-    this.activeSounds.set(event, instance);
-    setTimeout(() => this.activeSounds.delete(event), 500);
+    this.activeSounds.set(instance.id, { instance, stop });
+    setTimeout(() => this.activeSounds.delete(instance.id), 1000);
+  }
+
+  stopAll(): void {
+    for (const [, entry] of this.activeSounds) {
+      try { entry.stop(); } catch {}
+    }
+    this.activeSounds.clear();
+  }
+
+  stopLayer(layer: SoundLayer): void {
+    for (const [k, entry] of this.activeSounds) {
+      if (entry.instance.layer === layer) {
+        try { entry.stop(); } catch {}
+        this.activeSounds.delete(k);
+      }
+    }
   }
 
   private isOnCooldown(event: SoundEvent, options: SoundOptions): boolean {
@@ -84,6 +140,11 @@ export class SoundEngine {
 
   async preloadAll(events: SoundEvent[]): Promise<void> {
     const urls = events.map(getSoundUrl).filter(Boolean) as string[];
+    await Promise.all(urls.map(url => this.renderer.load(url)));
+  }
+
+  async preloadKeys(keys: string[]): Promise<void> {
+    const urls = keys.map(k => getVoiceUrl(k));
     await Promise.all(urls.map(url => this.renderer.load(url)));
   }
 

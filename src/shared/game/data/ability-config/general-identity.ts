@@ -268,7 +268,6 @@ export const GENERAL_IDENTITY_CONFIG: Record<string, AbilityConfig> = {
             { type: 'indicator', target: 'self', indicatorIcon: 'shield', indicatorCategory: 'defense', indicatorTrigger: 'always', indicatorVisibleTo: 'all', modifierStat: 'defense', modifierSourceName: 'proteger' },
         ],
         allowedModifiers: ['actionCost'],
-        flags: { skipGenericHistoryEntry: true },
         panel: { showSource: true, showUnitsAffected: true, showDescription: true },
         log: { showTarget: true },
     },

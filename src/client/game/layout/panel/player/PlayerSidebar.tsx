@@ -359,7 +359,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                                             : 'border-white/20 bg-zinc-800 hover:border-white/40',
                                                 ].join(' ')}
                                             >
-                                                <BustSvg cls={entry.unitClass} size={18} />
+                                                <BustIcon cls={entry.unitClass} size={18} />
                                                 <span className="text-[8px] font-mono text-zinc-500">{entry.unitId}</span>
                                                 <span className="text-[8px] font-semibold leading-tight">{l(`unit.class.${entry.unitClass}`)}</span>
                                             </button>
@@ -483,19 +483,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
     );
 }
 
-function BustSvg({ cls, size }: { cls: string; size: number }) {
-    const CLASS_FILL: Record<string, string> = {
-        archer: 'var(--color-class-archer)', infantry: 'var(--color-class-infantry)',
-        cavalry: 'var(--color-class-cavalry)', lancer: 'var(--color-class-lancer)', general: 'var(--color-class-general)',
-    };
-    const fill = CLASS_FILL[cls] ?? 'var(--color-effect-other)';
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="5" r="4.5" fill={fill} stroke="black" strokeWidth="1.2" />
-            <path d="M4 22 C4 14 8 11 12 11 C16 11 20 14 20 22" fill={fill} stroke="black" strokeWidth="1" />
-        </svg>
-    );
-}
+import BustIcon from '../../../icons/BustIcon';
 
 function statusLabel(stat: string): string {
     const t = l(`unit.status.${stat}`);
