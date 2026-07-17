@@ -176,6 +176,43 @@ io.on('connection', socket => {
         room.handleRollResultDismiss(playerId);
     });
 
+    socket.on('CREATE_AI_GAME', ({ modelId }) => {
+        const gameId = `ai_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const room = getRoom(gameId);
+        socket.join(gameId);
+        socket.data.gameId = gameId;
+
+        room.isBotGame = true;
+        room.botModelId = modelId ?? 'cpu_medio';
+
+        room.onTimerTick = (info, pausedInfo) => {
+            io.to(gameId).emit('TIMER', { active: info, paused: pausedInfo ?? null });
+        };
+        room.onStateChanged = (state) => {
+            io.to(gameId).emit('STATE', state);
+        };
+
+        // Join human player as p1
+        const joinResult = room.join(socket.id);
+        if (joinResult.role === 'player') {
+            socket.emit('ROLE', { role: 'player', playerId: joinResult.playerId });
+        }
+
+        // Add bot as p2
+        room.addBotPlayer('p2');
+
+        socket.emit('STATE', room.getCurrentState());
+        socket.emit('AI_GAME_CREATED', { gameId });
+
+        // Start game immediately (both players "ready")
+        if (room.getPlayerCount() === 2) {
+            io.to(gameId).emit('BOTH_PLAYERS_READY');
+            room.refreshTimer();
+        }
+
+        console.log(`AI Game ${gameId} created, model: ${modelId}`);
+    });
+
     socket.on('LEAVE_GAME', ({ gameId }) => {
         const room = getRoom(gameId);
         socket.leave(gameId);

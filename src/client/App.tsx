@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
+import { createAIGame } from './net/socket';
 import { HexBoard } from './game/board/HexBoard';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
@@ -294,6 +295,24 @@ export function App() {
                         >
                             Join game
                         </button>
+                        <div className="flex gap-2 mt-2">
+                            <button className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                                disabled={!connected}
+                                onClick={() => createAIGame('cpu_facil')}
+                            >CPU Facil</button>
+                            <button className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                                disabled={!connected}
+                                onClick={() => createAIGame('cpu_medio')}
+                            >CPU Medio</button>
+                            <button className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                                disabled={!connected}
+                                onClick={() => createAIGame('cpu_dificil')}
+                            >CPU Dificil</button>
+                            <button className="bg-purple-700 hover:bg-purple-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                                disabled={!connected}
+                                onClick={() => createAIGame('general_mares')}
+                            >Gral. Mares</button>
+                        </div>
                         {!connected && (
                             <div className="text-xs text-zinc-500">
                                 Connecting to server…
