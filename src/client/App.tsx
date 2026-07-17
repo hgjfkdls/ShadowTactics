@@ -65,6 +65,15 @@ export function App() {
         }
     }, []);
 
+    // Auto-start AI game desde URL: ?ai=modelId
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        const aiModel = url.searchParams.get('ai');
+        if (aiModel && !gameId && connected) {
+            createAIGame(aiModel);
+        }
+    }, [connected]);
+
     useEffect(() => {
         if (state?.gamePhase === 'PREPARATION') {
             setPrepDone(false);
@@ -295,20 +304,22 @@ export function App() {
                         >
                             Join game
                         </button>
-                        <div className="flex gap-2 mt-2">
-                            <button className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                        <div className="w-full border-t border-zinc-800 my-3" />
+                        <div className="text-sm font-semibold text-zinc-400">Jugar contra la IA</div>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            <button className="bg-emerald-700 hover:bg-emerald-600 transition text-white px-3 py-1.5 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
                                 disabled={!connected}
                                 onClick={() => createAIGame('cpu_facil')}
-                            >CPU Facil</button>
-                            <button className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                            >Facil</button>
+                            <button className="bg-emerald-700 hover:bg-emerald-600 transition text-white px-3 py-1.5 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
                                 disabled={!connected}
                                 onClick={() => createAIGame('cpu_medio')}
-                            >CPU Medio</button>
-                            <button className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                            >Medio</button>
+                            <button className="bg-orange-700 hover:bg-orange-600 transition text-white px-3 py-1.5 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
                                 disabled={!connected}
                                 onClick={() => createAIGame('cpu_dificil')}
-                            >CPU Dificil</button>
-                            <button className="bg-purple-700 hover:bg-purple-600 text-white px-2 py-1 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                            >Dificil</button>
+                            <button className="bg-violet-700 hover:bg-violet-600 transition text-white px-3 py-1.5 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
                                 disabled={!connected}
                                 onClick={() => createAIGame('general_mares')}
                             >Gral. Mares</button>
