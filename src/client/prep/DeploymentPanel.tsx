@@ -1,5 +1,6 @@
 import type { GameState } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from './identityData';
+import { identityImgUrl, IDENTITY_CARD_FALLBACK } from '../game/helpers/cards';
 import { l } from '@shared/i18n';
 
 type Props = {
@@ -47,7 +48,9 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
             <div className="border-b border-zinc-700 p-3 space-y-2">
                 <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('ui.yourInfo')}</div>
                 <div className="flex items-center gap-2">
-                    <div className="text-lg">🛡️</div>
+                    <div className="w-6 h-8 flex items-center justify-center">
+                        <img src={player?.selectedIdentity ? identityImgUrl(getIdentityKey(player.selectedIdentity)) : ''} alt="" className="h-full object-contain" onError={e => { if ((e.target as HTMLImageElement).src !== IDENTITY_CARD_FALLBACK) (e.target as HTMLImageElement).src = IDENTITY_CARD_FALLBACK; }} />
+                    </div>
                     <div>
                         <div className="text-sm font-bold">{getIdentityName(player?.selectedIdentity)}</div>
                         <div className="text-xs text-zinc-400">{l('ui.playerLabel', { n: playerId === 'p1' ? '1' : '2' })}</div>
@@ -72,7 +75,9 @@ export function DeploymentPanel({ state, playerId, selectedUnitId, onSelectUnit 
             <div className="border-b border-zinc-700 p-3 space-y-2">
                 <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{l('ui.oponente')}</div>
                 <div className="flex items-center gap-2">
-                    <div className="text-lg">🛡️</div>
+                    <div className="w-6 h-8 flex items-center justify-center">
+                        <img src={opponent?.selectedIdentity ? identityImgUrl(getIdentityKey(opponent.selectedIdentity)) : ''} alt="" className="h-full object-contain" onError={e => { if ((e.target as HTMLImageElement).src !== IDENTITY_CARD_FALLBACK) (e.target as HTMLImageElement).src = IDENTITY_CARD_FALLBACK; }} />
+                    </div>
                     <div>
                         <div className="text-sm font-bold">{getIdentityName(opponent?.selectedIdentity)}</div>
                         <div className="text-xs text-zinc-400">{l('ui.playerLabel', { n: opponentId })}</div>

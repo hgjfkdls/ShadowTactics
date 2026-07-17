@@ -47,7 +47,7 @@ export const CAVALRY_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         activation: { whenAttack: true, self: true },
         effects: [
             { type: 'combatMutator', target: 'self', stat: 'ignoresPassives', value: 1, descriptionKey: 'ability.romper_filas.effect.ignoresPassives' },
-            { type: 'indicator', target: 'self', indicatorIcon: 'crosshair', indicatorCategory: 'attack', indicatorTrigger: 'attack', indicatorVisibleTo: 'active', targetFilter: {classes: ['cavalry']} }, 
+            { type: 'indicator', target: 'enemies', indicatorIcon: 'crosshair', indicatorCategory: 'attack', indicatorTrigger: 'select', indicatorVisibleTo: 'active', targetFilter: {classes: ['infantry', 'general']}, descriptionKey: 'ability.romper_filas.effect.ignnoresPassives' }, 
         ],
     },
 };

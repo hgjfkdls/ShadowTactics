@@ -258,12 +258,7 @@ export function applyTurnStart(state: GameState, playerId: string): GameState {
             }
         }
         newState = { ...newState, units: uu };
-
-        // Proteger: si no se usó, el efecto va al General
-        const general = Object.values(newState.units).find(u => u.owner === playerId && u.class === 'general');
-        if (general && !(general.flags ?? []).includes('proteger')) {
-            newState = addModifier(newState, playerId, general.id, 'defense', 1, 'ADD', 0, undefined, 'identity', 'angel_guardian');
-        }
+        // Proteger_auto se maneja via processEndTurnPassives (cfg.activation.endTurn)
     }
 
     // Aura de mando: regenerar escudo al inicio del turno

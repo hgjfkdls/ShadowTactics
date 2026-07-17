@@ -177,12 +177,16 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
     // First check consumedModifiers snapshot (for buffs consumed by resolveAttack before display)
     const consumedSrc = snapshotModifiers ?? [];
     const modAccum = new Map<string, { count: number; sumValue: number; m: any }>();
+    const processedModIds = new Set<string>();
     for (const src of [s.activeModifiers, consumedSrc]) {
         for (const m of src) {
             if (m.remainingTurns !== undefined && m.remainingTurns < 0) continue;
             if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
             if (m.source !== 'ability' && m.source !== 'identity' && m.source !== 'card') continue;
             if (m.targetId !== undefined && m.targetId !== attackerId && m.targetId !== targetId) continue;
+            const modId = m.id || `${m.sourceName}-${m.stat}-${m.targetId ?? 'global'}-${m.value}`;
+            if (processedModIds.has(modId)) continue;
+            processedModIds.add(modId);
             if (configId && m.source === 'ability') {
                 const cfg = ABILITY_CONFIG[configId];
                 const allowed = cfg?.allowedModifiers ?? [];

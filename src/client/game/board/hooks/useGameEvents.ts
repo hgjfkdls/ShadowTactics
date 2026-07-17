@@ -4,6 +4,7 @@ import { l } from '@shared/i18n';
 import { SOUND_CONFIG } from '../../sound/soundConfig';
 import { useAnimation } from '../../animation/AnimationContext';
 import { useSound } from '../../sound/SoundContext';
+import { cardImgUrl } from '../../helpers/cards';
 
 function soundText(key: string): string {
   const entry = SOUND_CONFIG[key];
@@ -12,12 +13,8 @@ function soundText(key: string): string {
   return t !== entry.i18nKey ? t : key;
 }
 
-function getCardKey(cardId: string): string {
-  return cardId.replace(/_\d+$/, '');
-}
-
 function getCardImg(cardId: string): string {
-  return `/cards/${getCardKey(cardId)}.png`;
+  return cardImgUrl(cardId);
 }
 
 export function useGameEvents(state: GameState) {

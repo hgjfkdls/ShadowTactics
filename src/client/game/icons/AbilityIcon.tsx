@@ -1,6 +1,5 @@
 import { ReactNode } from 'react';
-import { useTheme } from '../theme/ThemeContext';
-import { getAbilityIconUrl } from '../theme/resolveAsset';
+import { ABILITIES } from '@shared/game/data/abilities';
 
 const CLASS_COLORS: Record<string, string> = {
   archer: 'var(--color-class-archer)',
@@ -39,15 +38,28 @@ function silouette(abilityId: string): ReactNode {
   }
 }
 
-export default function AbilityIcon({ abilityId, size = 24, cls }: { abilityId: string; size?: number; cls?: string }) {
-  const { theme } = useTheme();
-  const imgUrl = getAbilityIconUrl(theme.id, abilityId);
+function abilityIconUrl(abilityId: string): string | undefined {
+  return `/icons/habilidades/${abilityId}.webp`;
+}
 
-  if (imgUrl) {
-    return <img src={imgUrl} alt={abilityId} width={size} height={size} className="rounded" />;
+export function preloadAbilityIcons(): void {
+  for (const id of Object.keys(ABILITIES)) {
+    const url = abilityIconUrl(id);
+    if (url) {
+      const img = new Image();
+      img.src = url;
+    }
+  }
+}
+
+export default function AbilityIcon({ abilityId, size = 24, cls }: { abilityId: string; size?: number; cls?: string }) {
+  const url = abilityIconUrl(abilityId);
+  const bg = cls ? (CLASS_COLORS[cls] ?? '#1a1a2e') : '#1a1a2e';
+
+  if (url) {
+    return <img src={url} alt={abilityId} width={size} height={size} className="rounded" />;
   }
 
-  const bg = cls ? (CLASS_COLORS[cls] ?? '#1a1a2e') : '#1a1a2e';
   return (
     <svg width={size} height={size} viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="11" fill={bg} stroke="var(--color-gold)" strokeWidth="1.5" />

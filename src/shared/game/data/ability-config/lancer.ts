@@ -13,7 +13,7 @@ export const LANCER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         activation: { whenAttack: true, self: true, isBasicAttack: true },
         effects: [
             { type: 'combatMutator', target: 'self', stat: 'attack', value: 1, targetFilter: { classes: ['cavalry'] }, descriptionKey: 'ability.anti_caballeria.effect.attack' },
-            { type: 'indicator', target: 'enemies', indicatorIcon: 'crosshair', indicatorCategory: 'attack', indicatorTrigger: 'attack', indicatorVisibleTo: 'active', targetFilter: { classes: ['cavalry'] } },
+            { type: 'indicator', target: 'enemies', indicatorIcon: 'crosshair', indicatorCategory: 'attack', indicatorTrigger: 'select', indicatorVisibleTo: 'active', targetFilter: { classes: ['cavalry'] }, descriptionKey: 'ability.anti_caballeria.effect.attack' },
         ],
     },
     formacion_defensiva: {
@@ -28,7 +28,7 @@ export const LANCER_ABILITY_CONFIG: Record<string, AbilityConfig> = {
         activation: { whenAttacked: true, self: true },
         effects: [
             { type: 'combatMutator', target: 'self', stat: 'nullifyCharge', value: 1, descriptionKey: 'ability.formacion_defensiva.effect.nullifyCharge' },
-            { type: 'indicator', target: 'self', indicatorIcon: 'shield', indicatorCategory: 'defense', indicatorTrigger: 'select', indicatorVisibleTo: 'all', indicatorOnEnemySelect: { enemyClasses: ['cavalry'], targetClasses: ['lancer']} },
+            { type: 'indicator', target: 'self', indicatorIcon: 'shield', indicatorCategory: 'defense', indicatorTrigger: 'select', indicatorVisibleTo: 'all', indicatorOnEnemySelect: { enemyClasses: ['cavalry'], targetClasses: ['lancer']}, descriptionKey: 'ability.formacion_defensiva.effect.nullifyCharge' },
         ],
     },
     ventaja_alcance: {

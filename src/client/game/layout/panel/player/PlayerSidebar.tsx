@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { GameState, GameAction } from '@shared';
 import { IDENTITY_INFO, getIdentityKey } from '../../../../prep/identityData';
+import { identityImgUrl, cardImgUrl, CARD_BACK_URL, IDENTITY_CARD_FALLBACK } from '../../../helpers/cards';
 import { getCardName, getCardType } from '@shared/game/actions/card';
 import { l } from '@shared/i18n';
 
@@ -8,7 +9,7 @@ const CLASS_BORDER: Record<string, string> = {
     archer: 'border-class-archer/50', infantry: 'border-class-infantry/50', cavalry: 'border-class-cavalry/50', lancer: 'border-class-lancer/50', general: 'border-class-general/50',
 };
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string; fromRect?: DOMRect; _ck?: number; isReclick?: boolean } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
 
 type Props = {
     state: GameState;
@@ -73,7 +74,7 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
                     </div>
                 </div>
             )}
-            <div className="flex-1 flex flex-col overflow-hidden border-b border-white/10">
+            <div className="flex-[6] flex flex-col overflow-hidden border-b border-white/10">
                 <PlayerHalf
                     playerId={playerId}
                     isOwner={true}
@@ -90,7 +91,7 @@ export function PlayerSidebar({ state, playerId, mode, onSelectIdentity, selecte
                     selectedInfo={selectedInfo}
                 />
             </div>
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-[3] flex flex-col overflow-hidden">
                 <PlayerHalf
                     playerId={opponentId}
                     isOwner={false}
@@ -215,7 +216,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 : 'border-l-2 border-transparent',
         ].join(' ')}>
             {/* Player name + active badge */}
-            <div className="mx-2 mt-6 mb-2 bg-zinc-900 border-2 border-white/20 rounded-lg p-2.5">
+            <div className="mx-2 mt-3 mb-1 bg-zinc-900 border-2 border-white/20 rounded-lg p-1.5">
                 <div className="flex items-center justify-between">
                     <span className={['text-sm font-semibold', playerId === 'p1' ? 'text-player1' : 'text-player2'].join(' ')}>{l(playerId === 'p1' ? 'board.player1' : 'board.player2')}</span>
                     {isActive && (
@@ -227,7 +228,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
             </div>
 
             {/* Compact identity card */}
-            <div className="px-2 mb-2">
+            <div className="px-2 mb-1">
                     <div
                         onClick={onIdentityClick}
                         className={[
@@ -237,8 +238,8 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                 : 'border-white/20 hover:border-white/40',
                         ].join(' ')}
                     >
-                    <div className="text-lg relative">
-                        🛡️
+                    <div className="w-6 h-8 relative flex items-center justify-center">
+                        <img src={CARD_BACK_URL} alt="" className="h-full object-contain" />
                         <span
                             className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-zinc-900 shadow-lg"
                             style={{ backgroundColor: playerId === 'p1' ? 'var(--color-player1)' : 'var(--color-player2)', boxShadow: playerId === 'p1' ? '0 0 6px var(--color-player1)' : '0 0 6px var(--color-player2)' }}
@@ -253,7 +254,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
 
             {/* Stats row (GAME) */}
             {mode === 'GAME' && (
-                <div className="flex gap-3 px-3 py-2 bg-zinc-900 border-2 border-white/20 mx-2 rounded-lg mb-2">
+                <div className="flex gap-3 px-3 py-2 bg-zinc-900 border-2 border-white/20 mx-2 rounded-lg mb-1">
                     <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-zinc-200 font-bold uppercase">{l('board.paLabel')}</span>
                         <span className="text-sm font-bold text-yellow-400">{actionPoints}</span>
@@ -274,7 +275,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 });
                 if (playerMods.length === 0) return null;
                 return (
-                    <div className="px-3 py-1.5 space-y-1">
+                    <div className="px-3 py-1 space-y-1">
                         <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">{l('cardDetail.effects')}</div>
                         <div className="flex flex-wrap gap-1">
                             {playerMods.map((m, i) => {
@@ -399,7 +400,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 });
                 if (unitDebuffs.length === 0) return null;
                 return (
-                    <div className="px-3 py-1.5 space-y-1">
+                    <div className="px-3 py-1 space-y-1">
                         <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">Unidades afectadas</div>
                         <div className="flex flex-wrap gap-1">
                             {unitDebuffs.map((m, i) => {
@@ -434,7 +435,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
 
             {/* Cards in hand (GAME) */}
             {mode === 'GAME' && (
-            <div className="mx-2 mb-2 bg-zinc-900 border-2 border-white/20 rounded-lg p-2.5">
+            <div className="mx-2 mb-1 bg-zinc-900 border-2 border-white/20 rounded-lg p-1.5">
                     <div className="text-[10px] text-white/50 font-semibold uppercase tracking-wide mb-1.5">
                         {l('board.cards')} ({hand.length})
                     </div>
@@ -445,7 +446,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                     key={cid}
                                     onMouseEnter={() => isOwner && setHoverAndTimer(cid)}
                                     onMouseLeave={() => { clearHoverTimer(); setHoveredCard(null); startLeaveTimer(); }}
-                                    onClick={() => isOwner && onInfoSelect?.({ type: 'card', cardId: cid })}
+                                    onClick={(e) => isOwner && onInfoSelect?.({ type: 'card', cardId: cid, fromRect: (e.currentTarget as HTMLElement).getBoundingClientRect(), _ck: Date.now(), isReclick: selectedInfo?.type === 'card' && selectedInfo.cardId === cid })}
                                             className={[
                                                 'flex items-center gap-2 rounded border px-2.5 py-2 transition min-h-[38px]',
                                                 selectedInfo?.type === 'card' && selectedInfo.cardId === cid
@@ -455,7 +456,11 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                                                         : 'border-white/10 bg-zinc-800/60',
                                             ].join(' ')}
                                         >
-                                            <span className="text-sm">🃏</span>
+                                            <img
+                                                src={isOwner ? cardImgUrl(cid) : CARD_BACK_URL}
+                                                alt=""
+                                                className="w-8 h-[44px] rounded object-cover shrink-0"
+                                            />
                                             <span className="text-xs font-semibold flex-1 truncate">
                                                 {isOwner ? getCardName(cid) : '?'}
                                             </span>

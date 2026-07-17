@@ -89,7 +89,8 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
         if (!unitHasAbility(unit, action.abilityId)) return state;
     }
 
-    const costMods = getModifierSum(state, action.playerId, action.unitId, 'attackCost') + getModifierSum(state, action.playerId, action.unitId, 'actionCost');
+    const costMods = getModifierSum(state, action.playerId, action.unitId, 'actionCost');
+    const attackCostMod = cfg.type === 'attack' ? getModifierSum(state, action.playerId, action.unitId, 'attackCost') : 0;
     let baseCost = cfg.base.paCost === 'unit.movementCost' ? unit.movementCost : (cfg.base.paCost ?? 0);
     // Apply movementCost modifiers (movilidad card, pantano, etc.)
     let hasMovementSet = false;
@@ -173,7 +174,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     }
 
     // Consume AP (base cost + cost modifiers + movementCost MUL)
-    const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods);
+    const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods + attackCostMod);
 
 
     // Resolver voiceKey desde config

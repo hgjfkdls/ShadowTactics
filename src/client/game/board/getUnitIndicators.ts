@@ -93,14 +93,36 @@ function getLabelForEffect(
     remainingUsesOverride?: number,
 ): string {
     if (effect.indicatorLabel) return effect.indicatorLabel;
-    let label = l(`ability.${abilId}.name`);
 
-    // Find the associated combat/mutator or modifierPush effect for value + uses display
+    // Try descriptionKey from the indicator effect itself first (self-contained)
+    const descKey = effect.descriptionKey;
+    if (descKey) {
+        const desc = l(descKey);
+        if (desc && desc !== descKey) {
+            return desc;
+        }
+    }
+
+    // Fallback: find companion combatMutator/modifierPush for value info
     const cfg = ABILITY_CONFIG[abilId];
     const valueEffect = cfg?.effects?.find(e =>
         e.type === 'combatMutator' || e.type === 'modifierPush'
     );
-    if (valueEffect?.value !== undefined) {
+
+    let label = l(`ability.${abilId}.name`) || abilId;
+
+    // Also try descriptionKey from the companion effect
+    if (valueEffect?.descriptionKey) {
+        const desc = l(valueEffect.descriptionKey);
+        if (desc && desc !== valueEffect.descriptionKey) {
+            label = desc;
+        }
+    }
+
+    if (valueEffect?.value !== undefined && valueEffect.stat) {
+        const combatStats = new Set(['attack', 'defense', 'difficulty', 'range', 'damage', 'movementCost', 'attackCost', 'actionCost']);
+        if (!combatStats.has(valueEffect.stat)) return label;
+
         let val = valueEffect.value;
         if (valueEffect.identityBonus) {
             const identity = state.players[source.owner]?.selectedIdentity ?? '';
@@ -121,24 +143,25 @@ function getLabelForEffect(
                 val += cv.value;
                 matched = true;
             }
-            if (!matched) {
-                // No conditional matched, restore base value
-            }
         }
         const prefix = val > 0 ? '+' : '';
-        // Show stat label for known stats
-        if (valueEffect.stat === 'attack' || valueEffect.stat === 'defense' || valueEffect.stat === 'difficulty' || valueEffect.stat === 'range') {
-            const key = valueEffect.stat === 'difficulty' ? 'passive.difficultyAbbr'
-                : valueEffect.stat === 'attack' ? 'passive.attackAbbr'
-                : valueEffect.stat === 'defense' ? 'passive.defenseAbbr'
-                : 'cat.range';
-            const abbr = l(key);
-            const abbrStr = abbr !== key ? abbr : '';
-            label += abbrStr ? ` (${prefix}${val} ${abbrStr})` : `: ${prefix}${val}`;
-        } else {
-            label += `: ${prefix}${val}`;
+        const valStr = `${prefix}${val}`;
+        if (!label.includes(valStr)) {
+            const abbrKey: Record<string, string> = {
+                attack: 'passive.attackAbbr',
+                defense: 'passive.defenseAbbr',
+                difficulty: 'passive.difficultyAbbr',
+                range: 'cat.range',
+                damage: 'unitDetail.hp',
+                movementCost: 'unitDetail.costLabel',
+                attackCost: 'unitDetail.costLabel',
+                actionCost: 'unitDetail.costLabel',
+            };
+            const key = abbrKey[valueEffect.stat] ?? '';
+            const abbr = key ? l(key) : '';
+            const abbrStr = abbr && abbr !== key ? abbr : valueEffect.stat;
+            label += ` (${valStr} ${abbrStr})`;
         }
-        // Show remainingUses if > 1 (override from activeModifiers takes precedence)
         const uses = remainingUsesOverride ?? valueEffect.remainingUses;
         if (uses !== undefined && uses > 1) {
             label += ` (x${uses})`;
@@ -157,9 +180,26 @@ export function getIndicatorsForUnit(
     playerId?: string,
 ): UnitIndicator[] {
     try {
-        return getIndicatorsForUnitSafe(state, unit, selectedUnit, attackingUnit, pendingAbilityId, pendingAbilityUnitId, playerId);
+        return getIndicatorsForUnitSafe(state, unit, selectedUnit, attackingUnit, pendingAbilityId, pendingAbilityUnitId, playerId).indicators;
     } catch (e) {
         console.error('[getIndicatorsForUnit] error:', e, 'unit:', unit?.id);
+        return [];
+    }
+}
+
+export function getConditionalIndicatorsForUnit(
+    state: GameState,
+    unit: Unit,
+    selectedUnit: Unit | null,
+    attackingUnit: Unit | null,
+    pendingAbilityId: string | null,
+    pendingAbilityUnitId: UnitId | null,
+    playerId?: string,
+): UnitIndicator[] {
+    try {
+        return getIndicatorsForUnitSafe(state, unit, selectedUnit, attackingUnit, pendingAbilityId, pendingAbilityUnitId, playerId).conditional;
+    } catch (e) {
+        console.error('[getConditionalIndicatorsForUnit] error:', e, 'unit:', unit?.id);
         return [];
     }
 }
@@ -172,12 +212,13 @@ function getIndicatorsForUnitSafe(
     pendingAbilityId: string | null,
     pendingAbilityUnitId: UnitId | null,
     playerId?: string,
-): UnitIndicator[] {
+): { indicators: UnitIndicator[]; conditional: UnitIndicator[] } {
     const indicators: UnitIndicator[] = [];
+    const conditional: UnitIndicator[] = [];
     const processedKeys = new Set<string>();
 
     // ─── Source 1: selectedUnit abilities (triggerOn: 'select') ───
-    if (selectedUnit && selectedUnit.owner === playerId) {
+    if (selectedUnit) {
         for (const abilId of selectedUnit.abilities ?? []) {
             const cfg = ABILITY_CONFIG[abilId];
             if (!cfg?.effects) continue;
@@ -185,6 +226,8 @@ function getIndicatorsForUnitSafe(
                 if (effect.type !== 'indicator') continue;
                 const trigger = effect.indicatorTrigger ?? 'select';
                 if (trigger !== 'select') continue;
+                // Skip indicatorOnEnemySelect in select flow — they're handled by Source 3
+                if (effect.indicatorOnEnemySelect) continue;
                 const visible = effect.indicatorVisibleTo ?? 'active';
                 if (visible !== 'active' && visible !== 'owner') continue;
 
@@ -206,6 +249,7 @@ function getIndicatorsForUnitSafe(
                     const icon = effect.indicatorIcon ?? 'crosshair';
                     const category = mapToNewCategory(effect.indicatorCategory, abilId);
                     indicators.push({ icon, label, category });
+                    conditional.push({ icon, label, category });
             }
         }
     }
@@ -219,6 +263,8 @@ function getIndicatorsForUnitSafe(
                 if (effect.type !== 'indicator') continue;
                 const trigger = effect.indicatorTrigger ?? 'select';
                 if (trigger !== 'attack') continue;
+                // Skip indicatorOnEnemySelect indicators in attack flow — they're defender-side, handled by Source 3
+                if (effect.indicatorOnEnemySelect) continue;
 
                 const key = `${abilId}-${unit.id}`;
                 if (processedKeys.has(key)) continue;
@@ -233,11 +279,13 @@ function getIndicatorsForUnitSafe(
                 if ((effect.target === 'self' || effect.target === 'ally') && unit.owner !== attackingUnit.owner) continue;
 
                 processedKeys.add(key);
-                indicators.push({
+                const item = {
                     icon: effect.indicatorIcon ?? 'crosshair',
                     label: getLabelForEffect(abilId, effect, attackingUnit, unit, state),
                     category: mapToNewCategory(effect.indicatorCategory, abilId),
-                });
+                };
+                indicators.push(item);
+                conditional.push(item);
             }
         }
     }
@@ -254,7 +302,7 @@ function getIndicatorsForUnitSafe(
                 const trigger = effect.indicatorTrigger ?? 'select';
                 if (trigger !== 'always') {
                     // Check indicatorOnEnemySelect: show when selectedUnit is an enemy matching conditions
-                    if (effect.indicatorOnEnemySelect && selectedUnit && selectedUnit.owner !== source.owner) {
+                    if (effect.indicatorOnEnemySelect && selectedUnit) {
                         const ies = effect.indicatorOnEnemySelect;
                         if (ies.enemyClasses && !ies.enemyClasses.includes(selectedUnit.class)) continue;
                         if (ies.range !== undefined && hexDistance(source.position, selectedUnit.position) > ies.range) continue;
@@ -290,7 +338,11 @@ function getIndicatorsForUnitSafe(
                     ? Math.max(...activeMods.map(m => m.remainingUses ?? 1))
                     : undefined;
                 const label = getLabelForEffect(abilId, effect, source, unit, state, remainingUses);
-                indicators.push({ icon, label, category: mapToNewCategory(effect.indicatorCategory, abilId) });
+                const item = { icon, label, category: mapToNewCategory(effect.indicatorCategory, abilId) };
+                indicators.push(item);
+                if (effect.indicatorOnEnemySelect || effect.indicatorTrigger === 'select') {
+                    conditional.push(item);
+                }
             }
         }
     }
@@ -319,7 +371,11 @@ function getIndicatorsForUnitSafe(
     }
 
     // Deduplicate by icon+label
-    return indicators.filter((ind, i) =>
+    const deduped = indicators.filter((ind, i) =>
         i === indicators.findIndex(o => o.label === ind.label && o.icon === ind.icon)
     );
+    const condDeduped = conditional.filter((ind, i) =>
+        i === conditional.findIndex(o => o.label === ind.label && o.icon === ind.icon)
+    ).filter(cd => deduped.some(d => d.label === cd.label && d.icon === cd.icon));
+    return { indicators: deduped, conditional: condDeduped };
 }

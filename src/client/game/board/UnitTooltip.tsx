@@ -1,9 +1,8 @@
-import type { Unit, HexCoord } from '@shared';
+import type { Unit } from '@shared';
+import type { ModifierInstance } from '@shared/game/modifiers';
 import { l } from '@shared/i18n';
-import { statusLabel, classLabel, hitPercent } from './unitLabels';
-import { getAuraBuffs } from '@shared/game/aura';
-import type { UnitIndicator, UnitIndicatorCategory } from './getUnitIndicators';
-import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
+import { classLabel, hitPercent } from './unitLabels';
+import type { UnitIndicator } from './getUnitIndicators';
 import { UnitDebugInfo } from './UnitDebugInfo';
 
 const TOKEN_W = 38;
@@ -21,6 +20,9 @@ type Props = {
     attackInfo: { distance: number; difficulty: number; baseDifficulty: number } | null;
     indicators?: UnitIndicator[];
     auraBuffs?: AuraBuffs | null;
+    conditionalLabels?: string[];
+    conditionalIndicators?: UnitIndicator[];
+    modifiers?: ModifierInstance[];
 };
 
 const AURA_ITEMS: { key: keyof AuraBuffs; fmt: (v: number) => string }[] = [
@@ -30,14 +32,12 @@ const AURA_ITEMS: { key: keyof AuraBuffs; fmt: (v: number) => string }[] = [
     { key: 'defenseBonus', fmt: (v) => l('aura.defense', { n: v }) },
 ];
 
-const GROUP_CONFIG: { category: UnitIndicatorCategory; labelKey: string; color: string }[] = [
-    { category: 'aura', labelKey: 'aura.title', color: 'var(--color-class-general)' },
-    { category: 'offensive', labelKey: 'passive.offensiveHeader', color: 'var(--color-attack)' },
-    { category: 'defensive', labelKey: 'passive.defensiveHeader', color: '#60a5fa' },
-    { category: 'cost', labelKey: 'passive.costHeader', color: '#fbbf24' },
-];
+const GENERAL_COLOR = 'var(--color-class-general)';
+const BUFF_COLOR = '#22c55e';
+const DEBUFF_COLOR = '#ef4444';
+const ESPECIAL_COLOR = '#a78bfa';
 
-export function UnitTooltip({ unit, maxHp, identityName, ownerColor, buffs, debuffs, attackInfo, indicators, auraBuffs }: Props) {
+export function UnitTooltip({ unit, maxHp, identityName, ownerColor, buffs, debuffs, attackInfo, indicators, auraBuffs, conditionalLabels, conditionalIndicators, modifiers }: Props) {
     const lineH = 16;
     const padX = 12;
     const padY = 10;
@@ -46,64 +46,50 @@ export function UnitTooltip({ unit, maxHp, identityName, ownerColor, buffs, debu
 
     const showAura = auraBuffs !== undefined && auraBuffs !== null;
     const auraItems = showAura ? AURA_ITEMS.filter(item => (auraBuffs?.[item.key] ?? 0) > 0) : [];
-    const showIndicators = (indicators ?? []).length > 0;
 
-    // Group indicators by new 4-type category
-    const grouped = new Map<UnitIndicatorCategory, UnitIndicator[]>();
-    for (const ind of indicators ?? []) {
-        const list = grouped.get(ind.category) ?? [];
-        list.push(ind);
-        grouped.set(ind.category, list);
+    function itemBase(s: string): string {
+        return s.split(/[(:]/)[0].trim().toLowerCase();
     }
+    const especialItems = [
+        ...(conditionalIndicators ?? []).map(ind => ind.label),
+        ...(conditionalLabels ?? []),
+    ].filter((v, i, a) => a.indexOf(v) === i);
 
-    // Build display groups: aura first, then offensive, defensive, cost
-    const groupEntries = GROUP_CONFIG
-        .map(g => ({ ...g, items: grouped.get(g.category) ?? [] }))
-        .filter(g => g.items.length > 0);
-
-    const showAnyAura = auraItems.length > 0;
-    const totalGroups = (showAnyAura ? 1 : 0) + groupEntries.filter(g => g.category !== 'aura').length;
-
-    const catCount = groupEntries.length;
-    // Row 1 = class name, Row 2 = identity (optional), Row 3 = HP
     let rows = 2;
     if (identityName) rows += 1;
     if (attackInfo) rows += 2;
-    if (buffs.length > 0) rows += 2 + buffs.length;
-    if (debuffs.length > 0) rows += 2 + debuffs.length;
-    if (showAnyAura) rows += 2 + auraItems.length;
-    if (showIndicators) rows += groupEntries.filter(g => g.category !== 'aura').length + (indicators ?? []).length;
+    if (auraItems.length > 0) rows += 1 + auraItems.length;
+    if (buffs.length > 0) rows += 1 + buffs.length;
+    if (debuffs.length > 0) rows += 1 + debuffs.length;
+    if (especialItems.length > 0) rows += 1 + especialItems.length;
     const isDebug = typeof __DEBUG__ !== 'undefined' && __DEBUG__;
-    if (isDebug) rows += 1; // DEBUG flags line // header + items per group
+    if (isDebug) rows += 1;
 
     const tipW = 200;
     const tipH = padY * 2 + rows * lineH;
 
-    // Row positions: 1=class, 2=identity(if), 3=HP, 4+=rest
     const hpRow = identityName ? 3 : 2;
     let r = hpRow;
     const showAttackInfo = !!attackInfo;
     const attackRow = showAttackInfo ? r + 1 : -1;
     const diffRow = showAttackInfo ? r + 2 : -1;
     if (showAttackInfo) r += 2;
+
+    const auraHeaderRow = auraItems.length > 0 ? r + 1 : -1;
+    const auraStartRow = auraHeaderRow + 1;
+    if (auraItems.length > 0) r += 1 + auraItems.length;
+
     const buffHeaderRow = buffs.length > 0 ? r + 1 : -1;
     const buffStartRow = buffHeaderRow + 1;
-    if (buffs.length > 0) r += 2 + buffs.length;
+    if (buffs.length > 0) r += 1 + buffs.length;
+
     const debuffHeaderRow = debuffs.length > 0 ? r + 1 : -1;
     const debuffStartRow = debuffHeaderRow + 1;
-    if (debuffs.length > 0) r += 2 + debuffs.length;
-    const auraHeaderRow = showAnyAura ? r + 1 : -1;
-    const auraStartRow = auraHeaderRow + 1;
-    if (showAnyAura) r += 1 + auraItems.length;
+    if (debuffs.length > 0) r += 1 + debuffs.length;
 
-    // Compute group positions for indicator groups (non-aura)
-    const nonAuraGroups = groupEntries.filter(g => g.category !== 'aura');
-    const groupPositions = nonAuraGroups.map(g => {
-        const headerRow = r + 1;
-        const startRow = headerRow + 1;
-        r += 1 + g.items.length;
-        return { ...g, headerRow, startRow };
-    });
+    const especialHeaderRow = especialItems.length > 0 ? r + 1 : -1;
+    const especialStartRow = especialHeaderRow + 1;
+    if (especialItems.length > 0) r += 1 + especialItems.length;
 
     function y(line: number): number { return firstY + lineH * line; }
 
@@ -113,15 +99,15 @@ export function UnitTooltip({ unit, maxHp, identityName, ownerColor, buffs, debu
             <text x={colX} y={y(1)} fontSize={9} fill="#e5e7eb" fontWeight="bold" pointerEvents="none">{classLabel(unit.class)}</text>
             {identityName && <text x={colX} y={y(2)} fontSize={7} fill={ownerColor ?? '#a78bfa'} pointerEvents="none">{identityName}</text>}
             {(() => {
-    const shield = unit.auraShield ?? 0;
-    const royalHp = unit.royalShieldSavedHp ?? unit.hp;
-    const royalExtra = unit.royalShieldSavedHp !== undefined ? unit.hp - unit.royalShieldSavedHp : 0;
-    const totalShield = royalExtra + shield;
-    const displayHp = totalShield > 0 ? `${royalHp}+${totalShield}/${maxHp}` : `${unit.hp}/${maxHp}`;
-    const effectiveMax = maxHp + totalShield;
-    const pct = Math.round((unit.hp / effectiveMax) * 100);
-    return <text x={colX} y={y(hpRow)} fontSize={9} fill="#9ca3af" pointerEvents="none">HP: {displayHp} ({pct}%)</text>;
-})()}
+                const shield = unit.auraShield ?? 0;
+                const royalHp = unit.royalShieldSavedHp ?? unit.hp;
+                const royalExtra = unit.royalShieldSavedHp !== undefined ? unit.hp - unit.royalShieldSavedHp : 0;
+                const totalShield = royalExtra + shield;
+                const displayHp = totalShield > 0 ? `${royalHp}+${totalShield}/${maxHp}` : `${unit.hp}/${maxHp}`;
+                const effectiveMax = maxHp + totalShield;
+                const pct = Math.round((unit.hp / effectiveMax) * 100);
+                return <text x={colX} y={y(hpRow)} fontSize={9} fill="#9ca3af" pointerEvents="none">HP: {displayHp} ({pct}%)</text>;
+            })()}
 
             {showAttackInfo && (
                 <>
@@ -130,49 +116,45 @@ export function UnitTooltip({ unit, maxHp, identityName, ownerColor, buffs, debu
                 </>
             )}
 
-            {buffs.length > 0 && (
+            {auraItems.length > 0 && (
                 <>
-                    <text x={colX} y={y(buffHeaderRow)} fontSize={8} fill="#22c55e" fontWeight="bold" pointerEvents="none">{l('passive.buffsHeader')}</text>
-                    {buffs.map((b, i) => <text key={b} x={colX + 6} y={y(buffStartRow + i)} fontSize={8} fill="#86efac" pointerEvents="none">{statusLabel(b)}</text>)}
-                </>
-            )}
-
-            {debuffs.length > 0 && (
-                <>
-                    <text x={colX} y={y(debuffHeaderRow)} fontSize={8} fill="#ef4444" fontWeight="bold" pointerEvents="none">{l('passive.debuffsHeader')}</text>
-                    {debuffs.map((d, i) => <text key={d} x={colX + 6} y={y(debuffStartRow + i)} fontSize={8} fill="#fca5a5" pointerEvents="none">{statusLabel(d)}</text>)}
-                </>
-            )}
-
-            {showAnyAura && (
-                <>
-                    <text x={colX} y={y(auraHeaderRow)} fontSize={8} fill="var(--color-class-general)" fontWeight="bold" pointerEvents="none">{l('aura.title')}</text>
+                    <text x={colX} y={y(auraHeaderRow)} fontSize={8} fill={GENERAL_COLOR} fontWeight="bold" pointerEvents="none">{l('aura.title')}</text>
                     {auraItems.map((item, i) => (
-                        <text key={item.key} x={colX + 6} y={y(auraStartRow + i)} fontSize={8} fill="var(--color-class-general)" pointerEvents="none">
+                        <text key={item.key} x={colX + 6} y={y(auraStartRow + i)} fontSize={8} fill={GENERAL_COLOR} pointerEvents="none">
                             {item.fmt(auraBuffs![item.key])}
                         </text>
                     ))}
                 </>
             )}
 
-    {/* Grouped indicators by new 4-type category */}
-            {groupPositions.map(g => (
-                <g key={g.category}>
-                    <text x={colX} y={y(g.headerRow)} fontSize={8} fill={g.color} fontWeight="bold" pointerEvents="none">
-                        {l(g.labelKey)}
-                    </text>
-                    {g.items.map((ind, i) => (
-                        <text key={ind.label} x={colX + 6} y={y(g.startRow + i)} fontSize={8} fill="#93c5fd" pointerEvents="none">{ind.label}</text>
-                    ))}
-                </g>
-            ))}
+            {buffs.length > 0 && (
+                <>
+                    <text x={colX} y={y(buffHeaderRow)} fontSize={8} fill={BUFF_COLOR} fontWeight="bold" pointerEvents="none">{l('passive.buffsHeader')}</text>
+                    {buffs.map((b, i) => <text key={b} x={colX + 6} y={y(buffStartRow + i)} fontSize={8} fill={BUFF_COLOR} pointerEvents="none">{b}</text>)}
+                </>
+            )}
 
-            {/* ─── DEBUG: flags activas (solo cuando __DEBUG__=true) ─── */}
+            {debuffs.length > 0 && (
+                <>
+                    <text x={colX} y={y(debuffHeaderRow)} fontSize={8} fill={DEBUFF_COLOR} fontWeight="bold" pointerEvents="none">{l('passive.debuffsHeader')}</text>
+                    {debuffs.map((d, i) => <text key={d} x={colX + 6} y={y(debuffStartRow + i)} fontSize={8} fill={DEBUFF_COLOR} pointerEvents="none">{d}</text>)}
+                </>
+            )}
+
+            {especialItems.length > 0 && (
+                <>
+                    <text x={colX} y={y(especialHeaderRow)} fontSize={8} fill={ESPECIAL_COLOR} fontWeight="bold" pointerEvents="none">{l('passive.especialHeader')}</text>
+                    {especialItems.map((item, i) => (
+                        <text key={i} x={colX + 6} y={y(especialStartRow + i)} fontSize={8} fill={ESPECIAL_COLOR} pointerEvents="none">{item}</text>
+                    ))}
+                </>
+            )}
+
             {typeof __DEBUG__ !== 'undefined' && __DEBUG__ && (() => {
                 const dbgRow = r + 1;
                 return (
                     <text x={colX} y={y(dbgRow)} fontSize={7} fill="#f59e0b" pointerEvents="none">
-                        <UnitDebugInfo unit={unit} />
+                        <UnitDebugInfo unit={unit} modifiers={modifiers} />
                     </text>
                 );
             })()}

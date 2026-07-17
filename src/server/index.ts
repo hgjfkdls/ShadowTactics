@@ -25,6 +25,7 @@ const MIME: Record<string, string> = {
     '.css': 'text/css',
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
+    '.webp': 'image/webp',
     '.ico': 'image/x-icon',
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
@@ -67,6 +68,9 @@ const io = new Server(httpServer, {
     },
 });
 
+// Seguimiento de carga de assets por sala (compartido entre conexiones)
+const gameAssetsReady: Record<string, Set<string>> = {};
+
 io.on('connection', socket => {
     console.log('Cliente conectado:', socket.id);
 
@@ -105,6 +109,11 @@ io.on('connection', socket => {
                 const reconnected = room.onPlayerReconnect(joinResult.playerId);
                 if (reconnected) {
                     io.to(gameId).emit('OPPONENT_RECONNECTED', { playerId: joinResult.playerId });
+                    // Reenviar LOAD_ASSETS si el otro también está listo
+                    if (room.getPlayerCount() === 2 && !gameAssetsReady[gameId]) {
+                        gameAssetsReady[gameId] = new Set();
+                        io.to(gameId).emit('LOAD_ASSETS');
+                    }
                 }
             }
         } else {
@@ -115,8 +124,20 @@ io.on('connection', socket => {
 
         socket.emit('STATE', room.getCurrentState());
 
-        // Cuando ambos jugadores están conectados, notificar a todos y arrancar timer
-        if (room.getPlayerCount() === 2) {
+        // Ambos jugadores conectados: comenzar precarga de assets
+        if (room.getPlayerCount() === 2 && !gameAssetsReady[gameId]) {
+            gameAssetsReady[gameId] = new Set();
+            io.to(gameId).emit('LOAD_ASSETS');
+        }
+    });
+
+    socket.on('ASSETS_LOADED', ({ gameId, playerId }) => {
+        const set = gameAssetsReady[gameId];
+        if (!set) return;
+        set.add(playerId);
+        if (set.size === 2) {
+            delete gameAssetsReady[gameId];
+            const room = getRoom(gameId);
             io.to(gameId).emit('BOTH_PLAYERS_READY');
             room.refreshTimer();
 
@@ -128,7 +149,7 @@ io.on('connection', socket => {
                 };
             }
 
-            // Notificar al web API que la partida comenzó para cancelar el timeout del ActiveMatch
+            // Notificar al web API que la partida comenzó
             const webApiUrl = process.env.WEB_API_URL ?? 'http://localhost:3001';
             const apiKey = process.env.REPORT_API_KEY ?? 'dev-key-change-me';
             fetch(`${webApiUrl}/api/games/start`, {
@@ -146,8 +167,6 @@ io.on('connection', socket => {
                 console.warn(`[game/start] Error de red para game ${gameId}:`, err?.message ?? err);
             });
         }
-
-        // console.log(room.debugInfo());
     });
 
     socket.on('ACTION', ({ gameId, action, playerId }) => {

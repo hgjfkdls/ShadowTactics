@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { IDENTITY_INFO, getIdentityKey } from './identityData';
+import { identityImgUrl, IDENTITY_CARD_FALLBACK } from '../game/helpers/cards';
 import { l } from '@shared/i18n';
 
 type Props = {
@@ -78,8 +79,10 @@ function MiniIdentity({ id, label, color }: { id: string | undefined; label: str
     const iName = key ? (l(`identity.${key}.name`) || info?.name) : (info?.name ?? '?');
     const iClass = key ? (l(`identity.${key}.className`) || info?.className) : (info?.className ?? '');
     return (
-        <div className={`bg-zinc-800 border ${borderColor} rounded-lg px-5 py-3 flex flex-col items-center gap-1 w-36`}>
-            <div className="text-2xl">🛡️</div>
+        <div className={`bg-zinc-800 border ${borderColor} rounded-lg px-4 py-3 flex flex-col items-center gap-1`}>
+            <div className="h-10 flex items-center justify-center">
+              <img src={key ? identityImgUrl(key) : ''} alt="" className="h-full object-contain" onError={e => { if ((e.target as HTMLImageElement).src !== IDENTITY_CARD_FALLBACK) (e.target as HTMLImageElement).src = IDENTITY_CARD_FALLBACK; }} />
+            </div>
             <div className="text-center">
                 <div className="text-xs text-zinc-400">{label}</div>
                 <div className="text-sm font-bold">{iName}</div>
