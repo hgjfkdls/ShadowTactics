@@ -3,16 +3,12 @@ import { ABILITIES, CLASS_ABILITIES } from '@shared/game/data/abilities';
 import { IDENTITY_EFFECTS } from '@shared/game/data/identities';
 import { IDENTITY_INFO, getIdentityKey } from '../../../../../prep/identityData';
 import { BASE_STATS } from '@shared/game/units';
-import { getAuraBuffs, AURA_CONFIG } from '@shared/game/aura';
 import { l } from '@shared/i18n';
 import { findPoolEntry } from './findPoolEntry';
 import { getProjectedPoolUnitInfo } from './getProjectedPoolUnitInfo';
 import { StatsGrid } from './StatsGrid';
 import AbilityGrid from './AbilityGrid';
 import type { IdentityIconData } from './AbilityGrid';
-import AuraBox from '../abilities/AuraBox';
-import { getUnitStatus } from './getUnitStatus';
-import { statusLabel } from './statusLabel';
 import { getMaxHp } from './getMaxHp';
 
 function cls(cls: string): string { return l(`unit.class.${cls}`) || cls; }
@@ -139,31 +135,6 @@ export function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; un
               range={unit?.range ?? projected?.stats.range ?? 1}
               movement={unit?.movementCost ?? projected?.stats.movementCost ?? 1}
             />
-
-            {liveUnit && liveUnit.class === 'general' && AURA_CONFIG.isActive && (
-                <AuraBox state={state} playerId={liveUnit.owner} />
-            )}
-
-            {liveUnit && (() => {
-                const { buffs, debuffs } = getUnitStatus(liveUnit, state.activeModifiers);
-                const all = [...buffs.map(s => ({ s, isDebuff: false })), ...debuffs.map(s => ({ s, isDebuff: true }))];
-                if (all.length === 0) return null;
-                return (
-                    <div className="space-y-1">
-                        <div className="text-xs font-semibold text-panel-title uppercase tracking-wide">{l('unitDetail.activeEffects')}</div>
-                        <div className="space-y-1">
-                            {all.map(({ s, isDebuff }) => (
-                                <div key={s} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs ${isDebuff ? 'border-red-800/60 bg-red-900/15' : 'border-green-800/60 bg-green-900/15'}`}>
-                                    <span>{isDebuff ? '🔴' : '🟢'}</span>
-                                    <span className={`font-semibold ${isDebuff ? 'text-red-300' : 'text-green-300'}`}>
-                                        {statusLabel(s)}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                );
-            })()}
 
             {liveUnit && (
                 <div className="text-xs text-zinc-500">

@@ -42,7 +42,7 @@ type Props = {
 export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedDeployUnitId, selectedInfo, onInfoSelect, addAlert, disableInput }: Props) {
     const hexes = generateHexMap(state.map);
     const sel = useSelection();
-    const { animPositions, enqueue, enqueueMultiple, bubble, activeEffect } = useAnimation();
+    const { animPositions, enqueue, enqueueMultiple, bubble, activeEffects } = useAnimation();
     useGameEvents(state);
     const {
         hoveredHex, selectedHex, selectedUnitId,
@@ -370,6 +370,14 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             }
             return [];
         }
+        if (selectedInfo?.type === 'historyDeploy') {
+            const e = selectedInfo.entry;
+            if (e.unitId) {
+                const u = Object.values(state.units).find(u => u.id === e.unitId);
+                if (u) return [u.position];
+            }
+            return [];
+        }
         return [];
     })();
 
@@ -609,12 +617,18 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             setPendingPatadaTargetId(null);
                         }}
                     />
-                    {activeEffect && <SlashLine from={activeEffect.from} to={activeEffect.to} />}
-                    <SpeechBubble
-                        message={bubble.message}
-                        visible={bubble.visible}
-                        generalPosition={bubble.generalPosition}
-                    />
+                    {Object.entries(activeEffects).map(([id, ef]) =>
+                      ef.name === 'slash' ? <SlashCut key={id} from={ef.from} to={ef.to} />
+                        : ef.name === 'arrows' ? <ArrowVolley key={id} from={ef.from} to={ef.to} />
+                        : ef.name === 'stab' ? <SpearStab key={id} from={ef.from} to={ef.to} />
+                        : ef.name === 'stars' ? <StarsEffect key={id} from={ef.from} to={ef.to} />
+                        : null
+                    )}
+                    {Object.entries(bubble).map(([id, b]) => {
+                      const animPos = b.unitId ? animPositions[b.unitId] : undefined;
+                      const pos = animPos ?? b.position;
+                      return <SpeechBubble key={id} message={b.message} visible generalPosition={pos} />;
+                    })}
                 </g>
             </svg>
             <FlipCardOverlay />
@@ -622,8 +636,13 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 gameHistory={state.gameHistory ?? []}
                 selectedInfo={selectedInfo}
                 onSelectEntry={entry => {
+                    if (!entry) { clearAllSelections(); return; }
+                    // Deploy entries: highlight without changing selection in right panel
+                    if (entry.type === 'move' && entry.turn === 0 && entry.unitId && !entry.attackName) {
+                        onInfoSelect?.({ type: 'historyDeploy', entry: entry as any });
+                        return;
+                    }
                     clearAllSelections();
-                    if (!entry) return;
                     setTimeout(() => {
                         if (entry.type === 'attack') onInfoSelect?.({ type: 'historyAttack', entry: entry as any });
                         else if (entry.type === 'move') onInfoSelect?.({ type: 'historyMove', entry: entry as any });
@@ -749,25 +768,300 @@ function getRangeHexes(state: GameState, attackingUnitId: UnitId | null, pending
     return highlights.filter(h => h.highlight === 'range').map(h => h.hex);
 }
 
-function SlashLine({ from, to }: { from: HexCoord; to: HexCoord }) {
+function SlashCut({ from, to }: { from: HexCoord; to: HexCoord }) {
   const p1 = axialToPixel(from);
   const p2 = axialToPixel(to);
-  const midX = (p1.x + p2.x) / 2;
-  const midY = (p1.y + p2.y) / 2;
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const cx = p1.x + dx * 0.5;
+  const cy = p1.y + dy * 0.5;
+  const baseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const bladeLen = Math.min(dist * 0.5, 36);
+  const sweepDeg = 65;
+  const r = bladeLen;
+  const sa = (-sweepDeg / 2) * Math.PI / 180;
+  const ea = (sweepDeg / 2) * Math.PI / 180;
+  const ax1 = r * Math.cos(sa);
+  const ay1 = r * Math.sin(sa);
+  const ax2 = r * Math.cos(ea);
+  const ay2 = r * Math.sin(ea);
+  const largeArc = sweepDeg > 180 ? 1 : 0;
+  const arcLen = bladeLen * sweepDeg * Math.PI / 180;
+  const starS = 3.5;
+  const nineOffsets = [
+    [-2, -3, 14], [3, -1, 18], [-1, 2, 12],
+    [4, 2, 16], [-3, -2, 10], [1, -3, 20],
+    [-4, 1, 15], [2, 3, 13], [0, -1, 17],
+  ];
   return (
-    <g opacity={0.8} style={{ pointerEvents: 'none' }}>
-      <line
-        x1={p1.x} y1={p1.y} x2={midX} y2={midY}
-        stroke="#fbbf24"
-        strokeWidth={3}
-        strokeLinecap="round"
-      />
-      <line
-        x1={midX} y1={midY} x2={p2.x} y2={p2.y}
-        stroke="#f59e0b"
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
+    <g style={{ pointerEvents: 'none' }}>
+      <style>{`
+        @keyframes swing {
+          0% { transform: rotate(${-sweepDeg / 2}deg); }
+          100% { transform: rotate(${sweepDeg / 2}deg); }
+        }
+        @keyframes trailReveal {
+          0% { stroke-dashoffset: ${-arcLen}; }
+          100% { stroke-dashoffset: 0; }
+        }
+        @keyframes starBurst {
+          0% { opacity: 0; transform: scale(0); }
+          20% { opacity: 1; transform: scale(1.2); }
+          50% { opacity: 0.8; }
+          100% { opacity: 0; transform: scale(0.3); }
+        }
+      `}</style>
+      <g transform={`translate(${cx}, ${cy}) rotate(${baseAngle})`}>
+        <polygon
+          points={`0,0 ${ax1},${ay1} ${ax2},${ay2}`}
+          fill="white"
+          fillOpacity={0.25}
+        />
+        <path
+          d={`M ${ax1} ${ay1} A ${r} ${r} 0 ${largeArc} 1 ${ax2} ${ay2}`}
+          fill="none"
+          stroke="white"
+          strokeWidth={2}
+          strokeLinecap="round"
+          opacity={0.4}
+          strokeDasharray={arcLen}
+          style={{ animation: 'trailReveal 0.3s ease-out forwards' }}
+        />
+        <g style={{ animation: 'swing 0.3s ease-out forwards', transformOrigin: '0px 0px' }}>
+          <line x1={0} y1={0} x2={bladeLen} y2={0} stroke="white" strokeWidth={3} strokeLinecap="round" />
+        </g>
+      </g>
+      {nineOffsets.map(([ox, oy, r2], i) => {
+        const tx = p2.x + ox * 3.5;
+        const ty = p2.y + oy * 3.5 + r2 * 0.2;
+        const pts = [0, -starS, starS * 0.224, -starS * 0.309, starS, -starS * 0.309,
+          starS * 0.363, starS * 0.118, starS * 0.588, starS * 0.809,
+          0, starS * 0.382, -starS * 0.588, starS * 0.809,
+          -starS * 0.363, starS * 0.118, -starS, -starS * 0.309,
+          -starS * 0.224, -starS * 0.309].join(' ');
+        return (
+          <g key={i} transform={`translate(${tx}, ${ty})`}>
+            <polygon
+              points={pts}
+              fill="#fbbf24"
+              style={{
+                transformOrigin: '0 0',
+                animation: `starBurst 0.3s ease-out ${0.06 + i * 0.025}s forwards`,
+                opacity: 0,
+              }}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function ArrowVolley({ from, to }: { from: HexCoord; to: HexCoord }) {
+  const p1 = axialToPixel(from);
+  const p2 = axialToPixel(to);
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const starS = 3.5;
+  const nineOffsets = [
+    [-2, -3, 14], [3, -1, 18], [-1, 2, 12],
+    [4, 2, 16], [-3, -2, 10], [1, -3, 20],
+    [-4, 1, 15], [2, 3, 13], [0, -1, 17],
+  ];
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <style>{`
+        @keyframes arrowShot {
+          0% { stroke-dashoffset: ${dist}; }
+          70% { stroke-dashoffset: 0; }
+          100% { stroke-dashoffset: 0; opacity: 0; }
+        }
+        @keyframes starBurst {
+          0% { opacity: 0; transform: scale(0); }
+          20% { opacity: 1; transform: scale(1.2); }
+          50% { opacity: 0.8; }
+          100% { opacity: 0; transform: scale(0.3); }
+        }
+      `}</style>
+      {Array.from({ length: 3 }, (_, i) => {
+        const offX = (i - 1) * 5;
+        const offY = (i - 1) * 5;
+        return (
+          <line
+            key={i}
+            x1={p1.x + offX} y1={p1.y + offY}
+            x2={p2.x + offX} y2={p2.y + offY}
+            stroke="#fbbf24"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeDasharray={dist}
+            style={{ animation: `arrowShot 0.55s ease-out ${i * 0.1}s forwards` }}
+          />
+        );
+      })}
+      {nineOffsets.map(([ox, oy, r2], i) => {
+        const tx = p2.x + ox * 3.5;
+        const ty = p2.y + oy * 3.5 + r2 * 0.2;
+        const pts = [0, -starS, starS * 0.224, -starS * 0.309, starS, -starS * 0.309,
+          starS * 0.363, starS * 0.118, starS * 0.588, starS * 0.809,
+          0, starS * 0.382, -starS * 0.588, starS * 0.809,
+          -starS * 0.363, starS * 0.118, -starS, -starS * 0.309,
+          -starS * 0.224, -starS * 0.309].join(' ');
+        return (
+          <g key={i} transform={`translate(${tx}, ${ty})`}>
+            <polygon
+              points={pts}
+              fill="#fbbf24"
+              style={{
+                transformOrigin: '0 0',
+                animation: `starBurst 0.3s ease-out ${0.45 + i * 0.025}s forwards`,
+                opacity: 0,
+              }}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function SpearStab({ from, to }: { from: HexCoord; to: HexCoord }) {
+  const p1 = axialToPixel(from);
+  const p2 = axialToPixel(to);
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const baseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const spearLen = 40;
+  const starS = 3.5;
+  const nineOffsets = [
+    [-2, -3, 14], [3, -1, 18], [-1, 2, 12],
+    [4, 2, 16], [-3, -2, 10], [1, -3, 20],
+    [-4, 1, 15], [2, 3, 13], [0, -1, 17],
+  ];
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <style>{`
+        @keyframes spearThrust {
+          0% { stroke-dashoffset: ${spearLen}; }
+          18% { stroke-dashoffset: 0; }
+          24% { stroke-dashoffset: ${spearLen * 0.5}; }
+          30% { stroke-dashoffset: 0; }
+          34% { stroke-dashoffset: ${spearLen * 0.5}; }
+          40% { stroke-dashoffset: 0; }
+          44% { stroke-dashoffset: ${spearLen * 0.5}; }
+          50% { stroke-dashoffset: 0; }
+          54% { stroke-dashoffset: ${spearLen * 0.5}; }
+          60% { stroke-dashoffset: 0; }
+          75% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes spearAngle {
+          0% { transform: rotate(0deg); }
+          24% { transform: rotate(0deg); }
+          30% { transform: rotate(0deg); }
+          34% { transform: rotate(-4deg); }
+          40% { transform: rotate(0deg); }
+          44% { transform: rotate(4deg); }
+          50% { transform: rotate(0deg); }
+          54% { transform: rotate(-3deg); }
+          60% { transform: rotate(0deg); }
+          100% { transform: rotate(0deg); }
+        }
+        @keyframes starBurst {
+          0% { opacity: 0; transform: scale(0); }
+          20% { opacity: 1; transform: scale(1.2); }
+          50% { opacity: 0.8; }
+          100% { opacity: 0; transform: scale(0.3); }
+        }
+      `}</style>
+      <g transform={`translate(${p1.x}, ${p1.y}) rotate(${baseAngle})`}>
+        <g style={{ animation: 'spearAngle 0.9s ease-in-out forwards', transformOrigin: '0px 0px' }}>
+          <line
+            x1={0} y1={0} x2={spearLen} y2={0}
+            stroke="#e2e8f0"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeDasharray={spearLen}
+            style={{ animation: 'spearThrust 0.9s ease-in-out forwards' }}
+          />
+        </g>
+      </g>
+      {nineOffsets.map(([ox, oy, r2], i) => {
+        const tx = p2.x + ox * 3.5;
+        const ty = p2.y + oy * 3.5 + r2 * 0.2;
+        const pts = [0, -starS, starS * 0.224, -starS * 0.309, starS, -starS * 0.309,
+          starS * 0.363, starS * 0.118, starS * 0.588, starS * 0.809,
+          0, starS * 0.382, -starS * 0.588, starS * 0.809,
+          -starS * 0.363, starS * 0.118, -starS, -starS * 0.309,
+          -starS * 0.224, -starS * 0.309].join(' ');
+        return (
+          <g key={i} transform={`translate(${tx}, ${ty})`}>
+            <polygon
+              points={pts}
+              fill="#fbbf24"
+              style={{
+                transformOrigin: '0 0',
+                animation: `starBurst 0.3s ease-out ${0.36 + i * 0.025}s forwards`,
+                opacity: 0,
+              }}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function StarIcon({ x, y, size, delay }: { x: number; y: number; size: number; delay: number }) {
+  const s = size;
+  const points = [
+    [0, -s], [s * 0.224, -s * 0.309], [s, -s * 0.309],
+    [s * 0.363, s * 0.118], [s * 0.588, s * 0.809],
+    [0, s * 0.382], [-s * 0.588, s * 0.809],
+    [-s * 0.363, s * 0.118], [-s, -s * 0.309],
+    [-s * 0.224, -s * 0.309],
+  ].map(([px, py]) => `${x + px},${y + py}`).join(' ');
+  return (
+    <polygon
+      points={points}
+      fill="#fbbf24"
+      style={{
+        animation: `starFall 1.2s ease-out ${delay}s both`,
+        transformOrigin: `${x}px ${y}px`,
+      }}
+    />
+  );
+}
+
+function StarsEffect({ from, to }: { from: HexCoord; to: HexCoord }) {
+  const p1 = axialToPixel(from);
+  const p2 = axialToPixel(to);
+  const stars1 = Array.from({ length: 3 }, (_, i) => ({
+    x: p1.x + (i - 1) * 14,
+    y: p1.y,
+    delay: i * 0.15,
+  }));
+  const stars2 = p1.x === p2.x && p1.y === p2.y ? [] : Array.from({ length: 3 }, (_, i) => ({
+    x: p2.x + (i - 1) * 14,
+    y: p2.y,
+    delay: i * 0.15 + 0.3,
+  }));
+  const all = [...stars1, ...stars2];
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <style>{`
+        @keyframes starFall {
+          0% { opacity: 0; transform: translateY(-80px) scale(0.2); }
+          20% { opacity: 1; transform: translateY(-24px) scale(1.2); }
+          60% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(8px) scale(0.3); }
+        }
+      `}</style>
+      {all.map((s, i) => (
+        <StarIcon key={i} x={s.x} y={s.y} size={7} delay={s.delay} />
+      ))}
     </g>
   );
 }

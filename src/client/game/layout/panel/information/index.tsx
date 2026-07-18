@@ -8,7 +8,15 @@ import { UnitDetail } from './units/UnitDetail';
 import { cls } from './helpers';
 import HistoryEntryDetail from './history/HistoryEntryDetail';
 
-export type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string; fromRect?: DOMRect; _ck?: number; isReclick?: boolean } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | null;
+const CLASS_ICONS: Record<string, string> = {
+    archer: '/icons/units/arquero_icon.webp',
+    infantry: '/icons/units/infanteria_icon.webp',
+    cavalry: '/icons/units/caballeria_icon.webp',
+    lancer: '/icons/units/lancero_icon.webp',
+    general: '/icons/units/general_icon.webp',
+};
+
+export type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string; fromRect?: DOMRect; _ck?: number; isReclick?: boolean } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | { type: 'historyDeploy'; entry: any } | null;
 
 type Props = {
     state: GameState;
@@ -39,6 +47,30 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
         }
         if (selectedInfo?.type === 'historyAttack' || selectedInfo?.type === 'historyMove' || selectedInfo?.type === 'historyCard') {
             return <HistoryEntryDetail entry={selectedInfo.entry} state={state} />;
+        }
+        // Deploy entries
+        if (selectedInfo?.type === 'historyDeploy') {
+            const e = selectedInfo.entry;
+            const playerLabel = e.playerId === 'p1' ? l('board.player1') : l('board.player2');
+            const unitClass = e.unitClass ?? '';
+            const className = l(`unit.class.${unitClass}`) || unitClass;
+            const iconSrc = CLASS_ICONS[unitClass] ?? '/icons/units/infanteria_icon.webp';
+            return (
+                <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                        <img src={iconSrc} alt={unitClass} className="w-10 h-10 object-contain" />
+                        <div>
+                            <div className="text-lg font-bold">{e.unitId ? `[${e.unitId}]${className}` : className}</div>
+                            <div className={`text-xs font-semibold ${e.playerId === 'p1' ? 'text-player1' : 'text-player2'}`}>{playerLabel}</div>
+                        </div>
+                    </div>
+                    <div className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-3 space-y-1 text-xs text-zinc-300">
+                        {e.gameTime && <div className="text-zinc-500">{e.gameTime}</div>}
+                        <div>{l('history.deployUnit', { n: e.actionNumber })}</div>
+                        <div className="text-zinc-400">{l('history.hexLabel', { q: e.to?.q ?? 0, r: e.to?.r ?? 0 })}</div>
+                    </div>
+                </div>
+            );
         }
         return null;
     }

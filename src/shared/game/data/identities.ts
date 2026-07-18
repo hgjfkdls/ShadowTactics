@@ -16,11 +16,11 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   francotirador: {
     unitClassOverride: 'archer',
     copyStats: true,
-    abilitiesOverride: ['francotirador', 'blanco_facil', 'patada_acrobatica', 'fuego_cobertura'],
+    abilitiesOverride: ['francotirador', 'blanco_facil', 'patada_acrobatica', 'fuego_cobertura', 'tiro_a_distancia'],
   },
   dios_trueno: {
     unitClassOverride: 'infantry',
-    abilitiesOverride: ['resistencia', 'presion', 'rayo_celestial'],
+    abilitiesOverride: ['resistencia', 'presion', 'rayo_celestial', 'furia_berserker'],
   },
   capitan_guardia: {
     unitClassOverride: 'infantry',
@@ -34,7 +34,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   cazadores: {
     unitClassOverride: 'cavalry',
     copyStats: true,
-    abilitiesOverride: ['romper_filas', 'cabalgar', 'carga'],
+    abilitiesOverride: ['romper_filas', 'cabalgar', 'carga', 'acechar', 'hostigar'],
   },
   punta_lanza: {
     unitClassOverride: 'lancer',
@@ -46,7 +46,7 @@ export const IDENTITY_EFFECTS: Record<string, IdentityEffect> = {
   },
   monje_shaolin: {
     unitClassOverride: 'general',
-    abilitiesOverride: ['meditacion', 'karma'],
+    abilitiesOverride: ['meditacion', 'karma', 'meditacion_2'],
   },
   comandante_supremo: {
     unitClassOverride: 'general',

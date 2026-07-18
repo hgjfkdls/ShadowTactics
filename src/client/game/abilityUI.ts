@@ -255,7 +255,12 @@ export function isAbilityDisabled(state: GameState, abilityId: string, unit: Uni
         return l('alert.abilityNotAvailable');
     }
 
-    if ((ui.cost ?? 0) > ap) {
+    // Check for attackCost SET modifier (ataque_extra → cost 0)
+    const attackSet = state.activeModifiers.find(m =>
+        m.stat === 'attackCost' && m.operator === 'SET' && m.targetId === unit.id && (m.remainingUses ?? 1) > 0
+    );
+    const effectiveCost = attackSet !== undefined ? Math.max(0, attackSet.value) : (ui.cost ?? 0);
+    if (effectiveCost > ap) {
         return l('alert.noPA');
     }
 

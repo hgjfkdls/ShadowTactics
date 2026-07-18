@@ -1,21 +1,17 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import type { Animation, AnimationLayer } from './types';
+import type { Animation } from './types';
 import { AnimationEngine } from './AnimationEngine';
 import { SvgRenderer } from './render/SvgRenderer';
 import { useSound } from '../sound/SoundContext';
 import type { HexCoord } from '@shared';
 
-export type BubbleState = {
-  visible: boolean;
-  message: string;
-  generalPosition?: { q: number; r: number } | null;
-};
+export type BubbleState = Record<string, { message: string; position?: { q: number; r: number } | null; unitId?: string }>;
 
 export type EffectState = {
   name: string;
   from: HexCoord;
   to: HexCoord;
-} | null;
+};
 
 export type FlipCardState = {
   visible: boolean;
@@ -29,14 +25,14 @@ export type FlipCardState = {
 };
 
 type AnimationContextType = {
-  enqueue: (anim: Animation, layer?: AnimationLayer) => void;
-  enqueueMultiple: (anims: Animation[], layer?: AnimationLayer) => void;
+  enqueue: (anim: Animation, layer?: string, replace?: boolean) => void;
+  enqueueMultiple: (anims: Animation[], layer?: string, replace?: boolean) => void;
   isAnimating: boolean;
   skipAll: () => void;
   setDamageOverlay: (cb: (targetId: string, amount: number, isHeal?: boolean) => void) => void;
   animPositions: Record<string, { q: number; r: number }>;
   bubble: BubbleState;
-  activeEffect: EffectState;
+  activeEffects: Record<string, EffectState>;
   flipCard: FlipCardState;
 };
 
@@ -46,8 +42,8 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
   const { playKey, playSfx } = useSound();
   const [animPositions, setAnimPositions] = useState<Record<string, { q: number; r: number }>>({});
   const [isAnimating, setIsAnimating] = useState(false);
-  const [bubble, setBubble] = useState<BubbleState>({ visible: false, message: '', generalPosition: null });
-  const [activeEffect, setActiveEffect] = useState<EffectState>(null);
+  const [bubble, setBubble] = useState<BubbleState>({});
+  const [activeEffects, setActiveEffects] = useState<Record<string, EffectState>>({});
   const [flipCard, setFlipCard] = useState<FlipCardState>({ visible: false, name: '', cardId: '', type: 'BUFF', playerId: '', targetX: 0, targetY: 0 });
   const engineRef = useRef<AnimationEngine | null>(null);
   const rendererRef = useRef<SvgRenderer | null>(null);
@@ -72,7 +68,10 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
           playSfxRef.current(anim.soundKey, { layer: anim.soundLayer ?? 'sfx' });
         }
         if (anim.effect && anim.fromPosition && anim.position) {
-          setActiveEffect({ name: anim.effect, from: anim.fromPosition, to: anim.position });
+          setActiveEffects(prev => ({
+            ...prev,
+            [anim.id]: { name: anim.effect, from: anim.fromPosition, to: anim.position },
+          }));
         }
         if (anim.type === 'flipCard') {
           setFlipCard({
@@ -88,7 +87,13 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
         }
       },
       onComplete: (anim) => {
-        if (anim.effect) setActiveEffect(null);
+        if (anim.effect) {
+          setActiveEffects(prev => {
+            const next = { ...prev };
+            delete next[anim.id];
+            return next;
+          });
+        }
         if (anim.type === 'flipCard') {
           setFlipCard(prev => ({ ...prev, visible: false }));
         }
@@ -102,12 +107,19 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
           playKeyRef.current(anim.soundKey, { layer: 'voice' });
         }
         if (anim.type === 'speech') {
-          setBubble({ visible: true, message: anim.message ?? '', generalPosition: anim.generalPosition ?? null });
+          setBubble(prev => ({
+            ...prev,
+            [anim.id]: { message: anim.message ?? '', position: anim.generalPosition ?? null, unitId: anim.unitId },
+          }));
         }
       },
       onComplete: (anim) => {
         if (anim.type === 'speech') {
-          setBubble({ visible: false, message: '', generalPosition: null });
+          setBubble(prev => {
+            const next = { ...prev };
+            delete next[anim.id];
+            return next;
+          });
         }
       },
       onQueueEmpty: () => checkIdle(),
@@ -136,14 +148,14 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const ctx: AnimationContextType = {
-    enqueue: (anim, layer) => engineRef.current?.enqueue(anim, layer),
-    enqueueMultiple: (anims, layer) => engineRef.current?.enqueueMultiple(anims, layer),
+    enqueue: (anim, layer, replace) => engineRef.current?.enqueue(anim, layer, replace),
+    enqueueMultiple: (anims, layer, replace) => engineRef.current?.enqueueMultiple(anims, layer, replace),
     isAnimating,
     skipAll: () => engineRef.current?.skipAll(),
     setDamageOverlay,
     animPositions,
     bubble,
-    activeEffect,
+    activeEffects,
     flipCard,
   };
 

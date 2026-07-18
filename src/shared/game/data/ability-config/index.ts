@@ -15,24 +15,8 @@ import { DEBUFF_CARD_CONFIG } from '../card-config/debuff';
 import { COUNTER_CARD_CONFIG } from '../card-config/counter';
 
 function toAbilityConfig(card: any): any {
-    const effects = (card.effects ?? []).filter((e: any) => e.type === 'modifierPush' || e.type === 'stateChange' || e.type === 'flagPop');
-    const indicators = effects.map((e: any) => {
-        const stat = e.stat ?? '';
-        const cat = stat === 'difficulty' ? 'difficulty' : stat === 'attack' ? 'attack' : stat === 'defense' ? 'defense' : 'other';
-        const prefix = (e.value ?? 0) > 0 ? '+' : '';
-        return {
-            type: 'indicator' as const,
-            target: 'self' as const,
-            indicatorIcon: (stat === 'difficulty' || stat === 'attack') ? 'crosshair' as const : 'shield' as const,
-            indicatorCategory: cat as any,
-            indicatorTrigger: 'always' as const,
-            indicatorVisibleTo: 'all' as const,
-            modifierStat: stat,
-            modifierSourceName: card.id,
-            indicatorLabel: `${card.id}: ${prefix}${e.value} ${cat}`,
-        };
-    });
-    return { id: card.id, type: 'card' as const, targetType: 'none' as const, base: {}, allowedModifiers: [] as string[], effects: indicators };
+    // Pasar directamente los efectos existentes (incluye indicadores explícitos de la carta)
+    return { id: card.id, type: 'card' as const, targetType: 'none' as const, base: {}, allowedModifiers: [] as string[], effects: card.effects ?? [] };
 }
 
 export const ABILITY_CONFIG: Record<string, import('./types').AbilityConfig> = {

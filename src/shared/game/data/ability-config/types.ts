@@ -117,6 +117,7 @@ export type ConfigEffect = {
         targetClasses?: string[];        // target debe ser una de estas clases (include)
         excludeTargetClasses?: string[]; // target NO debe ser una de estas clases
         includeTargetClasses?: string[]; // alias de targetClasses
+        targetDied?: boolean;            // true = se activa si el blanco muere
         operator?: 'set' | 'add';
         value: number;
     }[];

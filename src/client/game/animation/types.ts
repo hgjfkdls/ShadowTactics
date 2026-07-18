@@ -1,7 +1,7 @@
 import type { HexCoord } from '@shared';
 import type { SoundLayer } from '../sound/types';
 
-export type AnimationLayer = 'fx' | 'ui' | 'sfx';
+export type AnimationLayer = string;
 
 export type Animation = {
   id: string;

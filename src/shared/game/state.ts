@@ -189,6 +189,7 @@ export type GameState = {
         actionNumber: number;
         playerId: string;
         type: 'support';
+        unitId?: string;
         cardId: string;
         cardName: string;
         configId?: string;

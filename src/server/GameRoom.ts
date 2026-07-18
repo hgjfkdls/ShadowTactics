@@ -419,12 +419,13 @@ export class GameRoom {
                 const pool = this.currentState.players[pid]?.unitsToDeploy ?? [];
                 if (pool.length === 0) break;
 
+                // Priorizar: general al último. Separar el general del pool aleatorio.
+                const nonGeneral = pool.filter(e => e.unitClass !== 'general');
+                const generalEntry = pool.find(e => e.unitClass === 'general');
+
                 const deployedUnits = this.currentState.players[pid]?.deployedUnits ?? [];
-                let entries = pool;
-                if (deployedUnits.length >= 10 && !deployedUnits.some(id => this.currentState.units[id]?.class === 'general')) {
-                    const generalEntry = pool.find(e => e.unitClass === 'general');
-                    if (generalEntry) entries = [generalEntry];
-                }
+                // El general solo se despliega cuando no quedan otras unidades
+                let entries = nonGeneral.length > 0 ? nonGeneral : (generalEntry ? [generalEntry] : pool);
 
                 const shuffled = [...entries].sort(() => Math.random() - 0.5);
                 let done = false;

@@ -382,6 +382,7 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
             ...s,
             gameHistory: [...s.gameHistory, karmaEntry as any],
             nextHistoryId: s.nextHistoryId + 1,
+            karmaEntryToAppend: undefined,
         };
     }
     return s;

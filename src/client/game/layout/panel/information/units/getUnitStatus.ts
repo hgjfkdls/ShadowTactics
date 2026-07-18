@@ -14,7 +14,8 @@ export function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buff
         if (!isUnitSpecific && !isPlayerWide) continue;
 
         const stat = m.stat;
-        const abilityName = m.sourceName ? l(`ability.${m.sourceName}.name`) || m.sourceName : '';
+        const nameKey = m.source === 'card' ? `card.${m.sourceName}.name` : `ability.${m.sourceName}.name`;
+        const abilityName = m.sourceName ? l(nameKey) || m.sourceName : '';
 
         if (stat === 'ap') continue;
         if (stat === 'passiveDamage') {

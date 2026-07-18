@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
 import { createAIGame } from './net/socket';
-import { HexBoard } from './game/board/HexBoard';
+import { HexBoard } from './game/board/Board';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
 import { PlayerSidebar } from './game/layout/panel/player/PlayerSidebar';
@@ -125,6 +125,13 @@ export function App() {
     const engineRef = useRef<SoundEngine | null>(null);
     if (!engineRef.current) {
         engineRef.current = new SoundEngine(new WebAudioRenderer());
+    }
+
+    // Precargar fondo de pantalla de carga inmediatamente
+    const bgImgRef = useRef<HTMLImageElement | null>(null);
+    if (!bgImgRef.current) {
+        bgImgRef.current = new Image();
+        bgImgRef.current.src = '/icons/img/fondos/fondo1.webp';
     }
 
     const allSoundEvents: SoundEvent[] = [

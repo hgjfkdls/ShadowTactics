@@ -225,7 +225,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 const hasAttackBonusMod = state.activeModifiers.some(m => (m.targetId as string | undefined) === unit.id && m.stat === 'attack' && m.value > 0 && (m.remainingUses ?? 1) > 0);
                 const isMonjeShaolin = unitOwnerIdentity.startsWith('monje_shaolin');
                 const isCorazonEstratega = unitOwnerIdentity.startsWith('corazon_estratega');
-                const showAtaqueExtra = (unit.ataqueExtraCharges ?? 0) > 0 && unit.owner === playerId;
+                const showAtaqueExtra = (unit.ataqueExtraCharges ?? 0) > 0 && unit.owner === playerId && unit.id === selectedUnitId;
                 const showPrecision = (unit.precisionCharges ?? 0) > 0 && unit.owner === playerId;
                 const showMeditacionShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && unit.owner !== playerId && hasDamageReductionMod && isMonjeShaolin;
                 const showFormacionLineaShield = (isAttacking || (!!selectedUnit && selectedUnit.owner === playerId)) && hasDamageReductionMod && isCorazonEstratega;
@@ -465,7 +465,8 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
         if (!isUnitSpecific && !isPlayerWide) continue;
 
         const stat = m.stat;
-        const abilityName = m.sourceName ? l(`ability.${m.sourceName}.name`) || m.sourceName : '';
+        const nameKey = m.source === 'card' ? `card.${m.sourceName}.name` : `ability.${m.sourceName}.name`;
+        const abilityName = m.sourceName ? l(nameKey) || m.sourceName : '';
 
         if (stat === 'ap') continue;
         if (stat === 'passiveDamage') {

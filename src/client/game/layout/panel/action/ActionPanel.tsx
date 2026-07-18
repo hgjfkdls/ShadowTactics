@@ -60,12 +60,16 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
         : false;
 
     const uFlags = unit?.flags ?? [];
+    const attackCostSet = unit ? state.activeModifiers.find(m =>
+        m.stat === 'attackCost' && m.operator === 'SET' && m.targetId === unit.id && (m.remainingUses ?? 1) > 0
+    ) : undefined;
+    const basicAttackCost = attackCostSet !== undefined ? Math.max(0, attackCostSet.value) : (extraCharges > 0 ? 0 : 1);
     const basicAttackDisabled = extraCharges > 0 ? false : !!(unit && isAbilityDisabled(state, 'ataque_basico', unit, playerId, ap));
     const basicActions = unit ? [
         {
             id: '__attack__',
             label: basicAttackDisabled ? l('button.alreadyAttacked') : l('button.basicAttack'),
-            cost: extraCharges > 0 ? 0 : 1,
+            cost: basicAttackCost,
             disabled: basicAttackDisabled,
             binding: bindings.BASIC_ATTACK,
         },

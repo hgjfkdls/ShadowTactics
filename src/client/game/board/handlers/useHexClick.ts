@@ -182,7 +182,7 @@ export function useHexClick(deps: ClickDeps, setters: ClickSetters): (hex: HexCo
                     const mid = { q: u.position.q + dq / 2, r: u.position.r + dr / 2 };
                     const animPath = [u.position, mid, hex];
                     sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId, abilityId, to: hex });
-                    enqueue({ id: `cabalgar_${unitId}_${Date.now()}`, type: 'move', unitId, path: animPath, duration: 700 * 2 });
+                    enqueue({ id: `cabalgar_${unitId}_${Date.now()}`, type: 'move', unitId, path: animPath, duration: 700 * 2 }, `fx:${unitId}`);
                 }
             } else {
                 sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId, abilityId, to: hex });

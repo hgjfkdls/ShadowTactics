@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { l } from '@shared/i18n';
 import { getCardName } from '@shared/game/actions/card';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
@@ -18,22 +18,94 @@ function attackNameDisplay(entry: any): string {
     return name;
 }
 
+const MIN_H = 180;
+const STORAGE_KEY = 'shadowtactics_history_h';
+function loadHeight(): number {
+    if (typeof localStorage !== 'undefined') {
+        const v = parseInt(localStorage.getItem(STORAGE_KEY) ?? '');
+        if (v >= MIN_H) return v;
+    }
+    return 253;
+}
+function saveHeight(v: number) {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, String(v));
+}
+
+function getMaxH(): number {
+    const main = document.querySelector('main');
+    if (!main) return 600;
+    return Math.round(main.clientHeight * 7 / 8);
+}
+
 export function HistoryPanel({ gameHistory, selectedInfo, onSelectEntry }: {
     gameHistory: HistoryEntry[];
     selectedInfo: any;
     onSelectEntry?: (entry: HistoryEntry | null) => void;
 }) {
+    const [height, setHeight] = useState(() => Math.min(loadHeight(), getMaxH()));
+    const maxHRef = useRef(getMaxH());
+    const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+
+    useEffect(() => {
+        const onResize = () => { maxHRef.current = getMaxH(); setHeight(h => Math.min(h, maxHRef.current)); };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    const boardSvgRef = useRef<SVGSVGElement | null>(null);
+    const dragInProgress = useRef(false);
+
+    const onMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const panel = (e.currentTarget as HTMLElement).parentElement!;
+        const rect = panel.getBoundingClientRect();
+        dragRef.current = { startY: e.clientY, startH: rect.height };
+        dragInProgress.current = true;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'n-resize';
+        // Disable board panning during resize
+        const svg = document.querySelector('main svg') as SVGSVGElement | null;
+        boardSvgRef.current = svg;
+        if (svg) svg.style.pointerEvents = 'none';
+        const onMove = (ev: MouseEvent) => {
+            if (!dragRef.current) return;
+            const dh = dragRef.current.startY - ev.clientY;
+            const h = Math.min(maxHRef.current, Math.max(MIN_H, dragRef.current.startH + dh));
+            setHeight(h);
+        };
+        const onUp = () => {
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            if (boardSvgRef.current) boardSvgRef.current.style.pointerEvents = '';
+            boardSvgRef.current = null;
+            dragRef.current = null;
+            dragInProgress.current = false;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }, []);
+
+    useEffect(() => { saveHeight(height); }, [height]);
+
     function isSelected(e: HistoryEntry): boolean {
         if (!selectedInfo) return false;
         if (selectedInfo.type === 'historyAttack' && selectedInfo.entry?.id === e.id) return true;
         if (selectedInfo.type === 'historyMove' && selectedInfo.entry?.id === e.id) return true;
         if (selectedInfo.type === 'historyCard' && selectedInfo.entry?.id === e.id) return true;
+        if (selectedInfo.type === 'historyDeploy' && selectedInfo.entry?.id === e.id) return true;
         return false;
     }
 
     return (
-        <div className="absolute bottom-4 left-4 z-50 w-[300px]">
-            <div className="bg-zinc-800/95 border border-zinc-600 rounded-lg p-3 shadow-xl w-full h-[253px] flex flex-col">
+        <div className="absolute bottom-4 left-4 z-50 w-[300px]" style={{ height }}>
+            <div
+                onMouseDown={onMouseDown}
+                className="absolute -top-1 left-0 right-0 h-2 cursor-n-resize z-10 hover:bg-blue-500/20 rounded-t"
+            />
+            <div className="bg-zinc-800/95 border border-zinc-600 rounded-lg p-3 shadow-xl w-full h-full flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between text-xs text-zinc-500 font-semibold border-b border-zinc-700 pb-1 mb-1 shrink-0">
                     <span>{l('history.title')}</span>
                 </div>
@@ -183,6 +255,29 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
         );
     }
 
+    // Deploy entry
+    if (entry.type === 'move' && entry.turn === 0 && entry.unitId && !entry.attackName) {
+        const className = l(`unit.class.${entry.unitClass}`) ?? entry.unitClass;
+        const playerLabel = entry.playerId === 'p1' ? l('board.player1') : l('board.player2');
+        return (
+            <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
+                <div className="space-y-0.5 flex-1">
+                    <div className="text-zinc-500 flex justify-between">
+                        <span>{entry.gameTime ? `${entry.gameTime} — ` : ''}{playerLabel}</span>
+                        <span className={`${entry.playerId === 'p1' ? 'text-player1' : 'text-player2'} text-[10px]`}>{l('history.deployTitle')}</span>
+                    </div>
+                    <div className="text-zinc-300 text-[10px] space-y-0.5">
+                        <div className="text-zinc-400">{l('history.deployUnit', { n: entry.actionNumber })}</div>
+                        <div className="flex justify-between text-zinc-300">
+                            <span>[{entry.unitId}]{className}</span>
+                            <span className="text-zinc-400">{l('history.hexLabel', { q: entry.to?.q ?? 0, r: entry.to?.r ?? 0 })}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (entry.type === 'move' && pShowMovement) {
         return (
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
@@ -214,7 +309,10 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
         const cls = (c: string) => l(`unit.class.${c}`) ?? c;
         if (entry.details) {
             const detailsText = entry.details.startsWith('ability.') || entry.details.startsWith('passive.') ? l(entry.details) : entry.details;
-            effLines.push({ text: detailsText, color: 'text-zinc-300' });
+            const lines = detailsText.split('\n');
+            for (const line of lines) {
+                effLines.push({ text: line, color: 'text-zinc-300' });
+            }
         }
         return (
             <div className={`${borderCls} ${bgCls} border-l-4 ${playerBorder} rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer transition flex flex-col`}>
