@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
 import { createAIGame } from './net/socket';
-import { HexBoard } from './game/board/HexBoard';
+import { HexBoard } from './game/board/Board';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
 import { PlayerSidebar } from './game/layout/panel/player/PlayerSidebar';
@@ -304,6 +304,10 @@ export function App() {
                                 disabled={!connected}
                                 onClick={() => createAIGame('general_mares')}
                             >Gral. Mares</button>
+                            <button className="bg-amber-700 hover:bg-amber-600 transition text-white px-3 py-1.5 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                                disabled={!connected}
+                                onClick={() => createAIGame('el_gran_general')}
+                            >Gran Gral.</button>
                         </div>
                         {!connected && (
                             <div className="text-xs text-zinc-500">

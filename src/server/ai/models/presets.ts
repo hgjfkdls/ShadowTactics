@@ -1,6 +1,7 @@
 import { registerModel } from './registry';
 import { GreedyModel } from './GreedyModel';
 import { MCTSModel } from './MCTSModel';
+import { MinimaxModel } from './MinimaxModel';
 import { PRIORITIES } from '../evaluate';
 
 export function registerPresets(): void {
@@ -37,13 +38,25 @@ export function registerPresets(): void {
     weights: PRIORITIES.hard,
   }));
 
+  registerModel(new MinimaxModel({
+    id: 'el_gran_general',
+    name: 'El Gran General',
+    description: 'Minimax con poda Alfa-Beta, Quiescence Search, TT e Iterative Deepening',
+    algorithm: 'minimax',
+    depth: 20,
+    timeLimitMs: 10000,
+    noise: 0,
+    weights: PRIORITIES.hard,
+  }));
+
   registerModel(new MCTSModel({
     id: 'general_mares',
     name: 'General de los Mares',
     description: 'Monte Carlo Tree Search con 50 simulaciones por nodo',
     algorithm: 'mcts',
     depth: 50,
-    timeLimitMs: 5000,
+    timeLimitMs: 10000,
     noise: 0,
+    weights: PRIORITIES.hard,
   }));
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { GameState, GameAction } from '@shared';
 import type { PlayerRole } from '@server/GameRoom';
-import { HexBoard } from '../game/board/HexBoard';
+import { HexBoard } from '../game/board/Board';
 import { PlayerSidebar } from '../game/layout/panel/player/PlayerSidebar';
 import { RightPanel } from '../game/layout/RightPanel';
 import { AlertPanel, useAlerts } from '../game/layout/AlertPanel';

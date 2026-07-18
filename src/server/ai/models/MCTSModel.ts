@@ -2,12 +2,8 @@ import type { GameState, GameAction } from '@shared';
 import { applyAction } from '@shared/game';
 import type { AIModel, AIModelConfig } from './types';
 import { getValidActions, cloneState } from '../actions';
-import { evaluate, getWeights } from '../evaluate';
+import { evaluate, getWeights, PRIORITIES } from '../evaluate';
 import type { Weights } from '../types';
-
-function getOpponent(pid: string): string {
-  return pid === 'p1' ? 'p2' : 'p1';
-}
 
 class MCTSNode {
   state: GameState;
@@ -68,6 +64,10 @@ class MCTSNode {
     let simState = cloneState(this.state);
     let simPlayer = this.playerId;
     const maxDepth = 30;
+
+    // Early heuristic: abort if position is clearly losing
+    const initScore = evaluate(simState, this.playerId, this.weights);
+    if (initScore < -3) return Math.tanh(initScore * 0.1);
 
     for (let i = 0; i < maxDepth; i++) {
       if (simState.gamePhase === 'GAME_OVER') {
