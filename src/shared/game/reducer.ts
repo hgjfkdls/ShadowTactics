@@ -156,6 +156,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                 },
             };
             const planAffected = Object.values(s.units).filter(u => u.owner === action.playerId).map(u => u.id);
+            const gen = Object.values(s.units).find(u => u.owner === action.playerId && u.class === 'general');
             // Limpiar modifiers anteriores de plan_batalla para evitar acumulación
             s = { ...s, activeModifiers: s.activeModifiers.filter(m => !(m.sourceName === 'plan_batalla' && m.sourcePlayerId === action.playerId)) };
             const planCfg = ABILITY_CONFIG['plan_batalla'];
@@ -170,6 +171,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     turn: state.turn,
                     actionNumber: state.gameHistory.filter((h: any) => h.turn === state.turn).length + 1,
                     playerId: action.playerId,
+                    unitId: gen.id,
                     type: 'support' as const,
                     cardId: 'plan_batalla',
                     cardName: 'Plan de batalla',
@@ -201,6 +203,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     turn: s.turn,
                     actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                     playerId: action.playerId,
+                    unitId: general.id,
                     type: 'support' as const,
                     cardId: 'lanza_escudo',
                     cardName: 'Lanza y escudo',

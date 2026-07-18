@@ -268,6 +268,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
 
             {/* Player-wide effects (GAME) - card indicators */}
             {mode === 'GAME' && (() => {
+                // Player-wide effects from cards (self/opponent)
                 const playerMods = state.activeModifiers.filter(m => {
                     if (m.remainingTurns < 0) return false;
                     if (m.remainingUses !== undefined && m.remainingUses <= 0) return false;
@@ -386,52 +387,6 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                     )}
                 </div>
             )}
-
-            {/* Unit-specific debuffs from cards (GAME) */}
-            {mode === 'GAME' && (() => {
-                const unitDebuffs = state.activeModifiers.filter(m => {
-                    if (m.source !== 'card') return false;
-                    if (m.remainingTurns < 0) return false;
-                    if (m.remainingUses !== undefined && m.remainingUses <= 0) return false;
-                    if (!m.targetId) return false;
-                    if (m.sourcePlayerId !== playerId) return false;
-                    const unit = state.units[m.targetId];
-                    return unit && unit.owner === playerId;
-                });
-                if (unitDebuffs.length === 0) return null;
-                return (
-                    <div className="px-3 py-1 space-y-1">
-                        <div className="text-[9px] text-panel-title font-semibold uppercase tracking-wide">Unidades afectadas</div>
-                        <div className="flex flex-wrap gap-1">
-                            {unitDebuffs.map((m, i) => {
-                                const unit = state.units[m.targetId!];
-                                const label = unit ? `[${unit.id}] ${l(`unit.class.${unit.class}`)}` : m.targetId!;
-                                const displayLabel = `${label}: ${l(m.stat === 'bloqueo' ? 'unit.status.bloqueo' : m.stat)}`;
-                                return (
-                                    <button
-                                        key={i}
-                                        onClick={() => {
-                                            const historyEntry = state.gameHistory?.slice().reverse().find(e =>
-                                                e.type === 'card' && e.cardId && e.cardId.startsWith(m.sourceName + '_')
-                                            ) || state.gameHistory?.slice().reverse().find(e =>
-                                                e.type === 'card' && e.cardType === 'COUNTER' && e.counterCardId && e.counterCardId.split('_')[0] === m.sourceName
-                                            );
-                                            if (historyEntry) {
-                                                onInfoSelect?.({ type: 'historyCard', entry: historyEntry as any });
-                                            } else if (m.sourceName) {
-                                                onInfoSelect?.({ type: 'card', cardId: m.sourceName + '_0' });
-                                            }
-                                        }}
-                                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800/50 cursor-pointer hover:bg-red-900/60 transition"
-                                    >
-                                        {displayLabel}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                );
-            })()}
 
             {/* Cards in hand (GAME) */}
             {mode === 'GAME' && (

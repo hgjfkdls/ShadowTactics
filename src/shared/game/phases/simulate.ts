@@ -117,7 +117,7 @@ export function simulatePreparation(state: GameState): GameState {
             },
         };
     }
-    s = { ...s, preparationPhase: 'ROLL' };
+    s = { ...s, preparationPhase: 'ROLL', gameStartTime: Date.now() };
 
     // 2. Roll dice for both, handle ties
     let rollAttempts = 0;
@@ -140,6 +140,7 @@ export function simulatePreparation(state: GameState): GameState {
     }
 
     // 3. Deploy all units — alternando jugadores (respeta currentDeployingPlayer + targetPerStep)
+    const historyBeforeDeploy = s.gameHistory.length;
     const p1Order = buildDeployOrder(s.players.p1?.unitsToDeploy ?? []);
     const p2Order = buildDeployOrder(s.players.p2?.unitsToDeploy ?? []);
     const allPositions: Record<string, {q:number;r:number}[]> = {
@@ -167,6 +168,19 @@ export function simulatePreparation(state: GameState): GameState {
             s = next;
             if (player === 'p1') p1Idx++; else p2Idx++;
         }
+    }
+
+    // Asignar gameTime a las entradas de historial generadas durante el despliegue
+    const gameStart = s.gameStartTime ?? 0;
+    if (gameStart > 0) {
+        const elapsed = Math.floor((Date.now() - gameStart) / 1000);
+        const formatted = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+        s = {
+            ...s,
+            gameHistory: s.gameHistory.map((entry, i) =>
+                i >= historyBeforeDeploy ? { ...entry, gameTime: formatted } as any : entry
+            ),
+        };
     }
 
     // Mover cartas específicas al principio del mazo para testeo rápido

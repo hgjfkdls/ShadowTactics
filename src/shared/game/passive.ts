@@ -571,6 +571,7 @@ export function processOnKillPassives(state: GameState, killedUnitId: string, ki
                             turn: s.turn,
                             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                             playerId: unit.owner,
+                            unitId: unit.id,
                             type: 'support' as const,
                             configId: cfg.id,
                             sourceClass: unit.class,

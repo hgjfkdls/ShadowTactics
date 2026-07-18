@@ -133,7 +133,7 @@ export function GameModals(props: Props) {
                                 sendAction({ type: 'USE_ABILITY', playerId: myPlayerId, unitId: pendingAbility!.unitId, abilityId: 'cabalgar_2', path: cabalgarPath });
                                 const startPos = state.units[pendingAbility!.unitId]?.position;
                                 if (startPos) {
-                                    enqueue({ id: `cabalgar2_${pendingAbility!.unitId}_${Date.now()}`, type: 'move', unitId: pendingAbility!.unitId, path: [startPos, ...cabalgarPath], duration: 700 * cabalgarPath.length });
+                                    enqueue({ id: `cabalgar2_${pendingAbility!.unitId}_${Date.now()}`, type: 'move', unitId: pendingAbility!.unitId, path: [startPos, ...cabalgarPath], duration: 700 * cabalgarPath.length }, `fx:${pendingAbility!.unitId}`);
                                 }
                                 const c2Uid = pendingAbility!.unitId;
                                 setPendingAbility(null);

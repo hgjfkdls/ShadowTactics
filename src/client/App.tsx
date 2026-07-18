@@ -136,6 +136,13 @@ export function App() {
         engineRef.current = new SoundEngine(new WebAudioRenderer());
     }
 
+    // Precargar fondo de pantalla de carga inmediatamente
+    const bgImgRef = useRef<HTMLImageElement | null>(null);
+    if (!bgImgRef.current) {
+        bgImgRef.current = new Image();
+        bgImgRef.current.src = '/icons/img/fondos/fondo1.webp';
+    }
+
     const allSoundEvents: SoundEvent[] = [
         'ui_click', 'ui_confirm', 'ui_cancel', 'ui_error', 'ui_select_unit',
         'move', 'attack', 'hit', 'miss', 'critical',

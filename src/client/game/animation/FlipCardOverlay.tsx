@@ -91,7 +91,7 @@ export function FlipCardOverlay() {
   return (
     <>
       {flipCard.visible && !lightbox && !consumedRef.current && (
-        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 60 }}>
           <div
             style={{
               position: 'fixed',

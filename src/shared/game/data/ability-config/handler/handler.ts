@@ -117,8 +117,14 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
         }
         baseCost = Math.max(0, baseCost);
     }
-    // Si hay SET, se ignora costMods (actionCost). Si no, se suma después de MUL/ADD.
+    // Si hay SET en movementCost, se ignora costMods (actionCost). Si no, se suma después de MUL/ADD.
+    // Para attacks, attackCost SET define el coste total (ataque_extra → 0 PA)
+    const attackSetMod = cfg.type === 'attack' ? state.activeModifiers.find(m =>
+        m.stat === 'attackCost' && m.operator === 'SET' && m.targetId === unit.id && (m.remainingUses ?? 1) > 0
+    ) : undefined;
+    const attackCostOverride = attackSetMod ? Math.max(0, attackSetMod.value) : undefined;
     let totalCost = hasMovementSet ? baseCost : (baseCost + costMods);
+    if (attackCostOverride !== undefined) totalCost = attackCostOverride;
     totalCost = Math.max(0, totalCost);
     if ((state.players[action.playerId]?.actionPoints ?? 0) < totalCost) return state;
 
@@ -173,8 +179,8 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
         }
     }
 
-    // Consume AP (base cost + cost modifiers + movementCost MUL)
-    const moveFinalCost = cfg.type === 'move' ? totalCost : (baseCost + costMods + attackCostMod);
+    // Consume AP: attackCost SET override, or base cost + modifiers
+    const moveFinalCost = attackCostOverride !== undefined ? attackCostOverride : (cfg.type === 'move' ? totalCost : (baseCost + costMods + attackCostMod));
 
 
     // Resolver voiceKey desde config
@@ -235,6 +241,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: action.playerId,
+                unitId: unit.id,
                 type: 'support' as const,
                 cardId: phe.abilId,
                 cardName: `ability.${phe.abilId}.name`,
@@ -577,7 +584,7 @@ let s = state;
         s = { ...s, gameHistory: [...s.gameHistory, {
             id: `h${s.nextHistoryId}`, turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-            playerId: unit.owner, type: 'support' as const,
+            playerId: unit.owner, unitId: unit.id, type: 'support' as const,
             cardId: 'liderar_tropas',
             cardName: 'ability.liderar_tropas.name',
             configId: 'liderar_tropas',
@@ -758,6 +765,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
+                unitId: unit.id,
                 type: 'support' as const,
                 cardId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
@@ -799,6 +807,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
+                unitId: unit.id,
                 type: 'support' as const,
                 cardId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
@@ -825,8 +834,10 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
                 turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
+                unitId: unit.id,
                 type: 'support' as const,
                 cardId: cfg.id,
+                configId: cfg.id,
                 cardName: `ability.${cfg.id}.name`,
                 cardType: 'BUFF' as const,
                 targetId: action.targetId,
@@ -846,7 +857,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner, type: 'support' as const,
+                playerId: unit.owner, unitId: unit.id, type: 'support' as const,
                 cardId: cfg.id, cardName: `ability.${cfg.id}.name`, cardType: 'BUFF' as const,
                 targetId: action.targetId, targetClass: buffTarget?.class,
                 details: '+2 ataque · Escudo +3 HP',
@@ -873,7 +884,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             gameHistory: [...s.gameHistory, {
                 id: `h${s.nextHistoryId}`, turn: s.turn,
                 actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
-                playerId: unit.owner, type: 'support' as const,
+                playerId: unit.owner, unitId: unit.id, type: 'support' as const,
                 cardId: cfg.id, cardName: `ability.${cfg.id}.name`, cardType: 'BUFF' as const,
                 targetId: ally.id, targetClass: ally.class,
                 alliesHit: [ally.id, unit.id],
@@ -893,6 +904,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
             turn: s.turn,
             actionNumber: s.gameHistory.filter((h: any) => h.turn === s.turn).length + 1,
                 playerId: unit.owner,
+                unitId: unit.id,
                 type: 'support' as const,
                 cardId: cfg.id,
                 configId: cfg.id,

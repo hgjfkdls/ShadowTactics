@@ -5,6 +5,7 @@ import { isHexOccupied, isWithinBounds, countPlayerClasses } from '../utils';
 import { createUnit } from '../units';
 import { applyTurnStart } from './turn';
 import { applyIdentityEffects } from './identity-apply';
+import { l } from '@shared/i18n';
 
 function getTargetForStep(step: number): number {
     if (step === 0) return 1;   // order[0] (menor dado) coloca 1 primero
@@ -70,6 +71,29 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
     newState = applyIdentityEffects(newState);
     // Update unit reference in case identity effects modified it
     unit = newState.units[unit.id];
+
+    // Registrar historial de despliegue
+    const className = l(`unit.class.${unitClass}`) || unitClass;
+    const playerLabel = action.playerId === 'p1' ? 'Jugador 1' : 'Jugador 2';
+    const unitNum = (player.deployedUnits?.length ?? 0) + 1;
+    newState = {
+        ...newState,
+        gameHistory: [...newState.gameHistory, {
+            id: `h${newState.nextHistoryId}`,
+            turn: 0,
+            actionNumber: unitNum,
+            playerId: action.playerId,
+            type: 'move' as const,
+            unitId: unit.id,
+            unitClass,
+            from: unit.position,
+            to: unit.position,
+            cost: 0,
+            baseCost: 0,
+            modifiers: [],
+        }],
+        nextHistoryId: newState.nextHistoryId + 1,
+    };
 
     const nextCount = state.deploymentCount + 1;
     const target = getTargetForStep(state.deploymentStep);

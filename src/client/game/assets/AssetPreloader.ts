@@ -107,9 +107,16 @@ export async function preloadAllAssets(onProgress?: (loaded: number, total: numb
   const total = urls.length;
   let loaded = 0;
 
+  // Mantener referencias a imágenes precargadas para evitar GC del navegador
+  const imageCache: HTMLImageElement[] = [];
+
   const promises = urls.map(async (url) => {
     if (url.endsWith('.png') || url.endsWith('.webp')) {
       await preloadImage(url);
+      // Almacenar referencia global para evitar que el navegador descarte el cache
+      const img = new Image();
+      img.src = url;
+      imageCache.push(img);
     } else {
       await preloadAudio(url);
     }
@@ -118,4 +125,5 @@ export async function preloadAllAssets(onProgress?: (loaded: number, total: numb
   });
 
   await Promise.all(promises);
+  (window as any).__ASSET_CACHE__ = imageCache;
 }

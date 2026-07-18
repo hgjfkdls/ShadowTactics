@@ -303,21 +303,28 @@ export function handleCard(state: GameState, action: GameAction): GameState {
     // ── BUFF / DEBUFF ──
 
     const otherId = action.playerId === 'p1' ? 'p2' : 'p1';
-    if (!hasValidCounterCards(state, otherId, config.type)) {
-        // Sin counters disponibles: resolver inmediatamente (si necesita target, usar el pending para la selección)
+
+    // Si la carta necesita target y no se proporcionó, pedir target primero
+    if (config.targetType && config.targetType !== 'none' && !action.targetId) {
         const s = {
             ...state,
             lastCardAction: { cardId: action.cardId, playerId: action.playerId, targetId: action.targetId },
             players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }
         };
-        if (config.targetType && config.targetType !== 'none' && !action.targetId) {
-            // Marcar para selección de target y pasar a MAIN (sin COUNTER)
-            return {
-                ...s,
-                turnPhase: 'MAIN',
-                players: { ...s.players, [action.playerId]: { ...s.players[action.playerId], pendingCardNeedsTarget: true } },
-            };
-        }
+        return {
+            ...s,
+            turnPhase: 'MAIN',
+            players: { ...s.players, [action.playerId]: { ...s.players[action.playerId], pendingCardNeedsTarget: true } },
+        };
+    }
+
+    if (!hasValidCounterCards(state, otherId, config.type)) {
+        // Sin counters disponibles: resolver inmediatamente
+        const s = {
+            ...state,
+            lastCardAction: { cardId: action.cardId, playerId: action.playerId, targetId: action.targetId },
+            players: { ...state.players, [action.playerId]: { ...player, cardsInHand: newHand } }
+        };
         return { ...resolvePending(s, []), turnPhase: 'MAIN' };
     }
 

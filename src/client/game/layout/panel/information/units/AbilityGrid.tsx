@@ -115,9 +115,6 @@ export default function AbilityGrid({ abilities, identityIcons, identityExcludeI
                       </svg>
                     )}
                   </button>
-                  <div className="text-[10px] text-zinc-500 mt-1 text-center leading-tight">
-                    {item.header.startsWith('Especial') ? '👑' : '🌍'}
-                  </div>
                   {tooltip && (
                     <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-600 rounded px-2 py-1 text-xs text-zinc-200 whitespace-nowrap z-10 pointer-events-none shadow-lg">
                       {tooltip}
@@ -155,9 +152,6 @@ export default function AbilityGrid({ abilities, identityIcons, identityExcludeI
                   >
                     <AbilityIcon abilityId={abId} size={40} />
                   </button>
-                  <div className="text-[10px] text-zinc-500 mt-1 text-center leading-tight">
-                    {ab.type === 'active' ? `⚡${ab.cost ?? '?'}` : '🔰'}
-                  </div>
                   {tooltip && (
                     <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-600 rounded px-2 py-1 text-xs text-zinc-200 whitespace-nowrap z-10 pointer-events-none shadow-lg">
                       {tooltip}
@@ -179,6 +173,12 @@ export default function AbilityGrid({ abilities, identityIcons, identityExcludeI
       )}
       {selectedAb && ABILITIES[selectedAb] && selectedIdentityIdx === null && (
         <DescriptionBox abId={selectedAb} />
+      )}
+      {!selectedAb && selectedIdentityIdx === null && showIdentity && (
+        <IdentityDescriptionBox
+          header={identityIcons![0].header}
+          description={identityIcons![0].description}
+        />
       )}
     </div>
   );

@@ -187,6 +187,9 @@ export const es = {
     difficultyAbbrev: 'Dif {n}',
     alliesAffected: 'Aliados afectados: {count}',
     enemiesAffected: 'Enemigos afectados: {count}',
+    deployTitle: 'Despliegue',
+    deployUnit: 'Despliega unidad {n}',
+    hexLabel: 'hex: ({q}, {r})',
   },
 
   alert: {
