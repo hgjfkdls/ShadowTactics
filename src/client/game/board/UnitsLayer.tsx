@@ -10,7 +10,7 @@ import { statusLabel, classLabel, hitPercent } from './unitLabels';
 import { getAuraBuffs } from '@shared/game/aura';
 import { getAbilityHighlights } from '@shared/game/board/selection';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
-import { getIndicatorsForUnit } from './getUnitIndicators';
+import { getIndicatorsForUnit, getConditionalIndicatorsForUnit } from './getUnitIndicators';
 import type { UnitIndicator } from './getUnitIndicators';
 
 type Props = {
@@ -50,7 +50,14 @@ function getMaxHp(cls: string): number {
 
 const TOKEN_W = 38;
 const TOKEN_H = 46;
-const TOKEN_RX = 7;
+
+const CLASS_ICON_MAP: Record<string, string> = {
+    archer: '/icons/units/arquero_icon.webp',
+    infantry: '/icons/units/infanteria_icon.webp',
+    cavalry: '/icons/units/caballeria_icon.webp',
+    lancer: '/icons/units/lancero_icon.webp',
+    general: '/icons/units/general_icon.webp',
+};
 
 export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbilityId, pendingAbilityUnitId, playerId, canAct, identityTargetMode, onIdentityTargetSelect, cardTargetMode, isCardTargetAlly, isCardTargetEnemy, cardTargetCardId, onCardTargetSelect, pendingCounterEspejoCard, setPendingCounterEspejoCard, onPatadaTargetSelect, animPositions, movingUnitId, onSelectUnit, onRequestMove, onRequestAttack, onAttackUnit, onRequestAbilityTarget, onUseAbilityOnUnit, onHexClick, onInfoSelect, sendAction }: Props) {
     // ─── Frame-based hover detection ───
@@ -194,6 +201,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
 
                 // Config-driven indicators from ability effects
                 const indicators = getIndicatorsForUnit(state, unit, selectedUnit, attackingUnit, pendingAbilityId, pendingAbilityUnitId, playerId);
+                const conditionalIndicators = getConditionalIndicatorsForUnit(state, unit, selectedUnit, attackingUnit, pendingAbilityId, pendingAbilityUnitId, playerId);
 
                 const unitAbilities = unit.abilities ?? [];
                 const hasActiveShield = unitAbilities.includes('linea_defensiva') && unit.didMovePreviousTurn === false
@@ -237,29 +245,30 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 for (const ind of indicators) {
                     passiveLabels.push(ind.label);
                 }
+                const conditionalLabels: string[] = [];
                 if (hasTerror) {
                     if (unit.owner !== playerId && isTiranoViewer) {
-                        passiveLabels.push(l('passive.terror'));
+                        conditionalLabels.push(l('passive.terror'));
                     } else if (unit.owner === playerId && !isTiranoViewer) {
-                        passiveLabels.push(l('passive.terrorDifficulty'));
+                        conditionalLabels.push(l('passive.terrorDifficulty'));
                     }
                 }
-                if (showLiderarTropas) passiveLabels.push(`${l('passive.liderarActive')} (+${liderarBonus} ${l('passive.attackAbbr')})`);
+                if (showLiderarTropas) conditionalLabels.push(`${l('passive.liderarActive')} (+${liderarBonus} ${l('passive.attackAbbr')})`);
                 if (isDiosTrueno && unit.class === 'general') {
                     const hasValidAlly = Object.values(state.units).some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(unit.position, u.position) <= 2);
-                    if (hasValidAlly) passiveLabels.push(`${l('passive.rayoCelestialDisponible')} (${l('passive.attackAbbr')} +3)`);
+                    if (hasValidAlly) conditionalLabels.push(`${l('passive.rayoCelestialDisponible')} (${l('passive.attackAbbr')} +3)`);
                 }
-                if (isMonjeShaolin) passiveLabels.push(l('passive.karma'));
+                if (isMonjeShaolin) conditionalLabels.push(l('passive.karma'));
                 const isEspartano = unitOwnerIdentity.startsWith('espartano');
-                if (unit.espartanoRangeBonus) passiveLabels.push(l('passive.lanzaEscudoRango'));
-                if (unit.espartanoDefenseBonus) passiveLabels.push(l('passive.lanzaEscudoDefensa'));
+                if (unit.espartanoRangeBonus) conditionalLabels.push(l('passive.lanzaEscudoRango'));
+                if (unit.espartanoDefenseBonus) conditionalLabels.push(l('passive.lanzaEscudoDefensa'));
                 const showMuroEspartano = isEspartano && (unit.class === 'lancer' || unit.class === 'general')
                     && Object.values(state.units).some(u => u.owner === unit.owner && u.id !== unit.id && hexDistance(unit.position, u.position) === 1 && (
                         u.class === 'lancer' || (u.class === 'general' && (state.players[u.owner]?.selectedIdentity ?? '').startsWith('espartano'))
                     ));
-                if (showMuroEspartano) passiveLabels.push(l('passive.muroEspartano'));
-                if (showAtaqueExtra) passiveLabels.push(l('passive.ataqueExtra'));
-                if (showPrecision) passiveLabels.push(l('passive.precision'));
+                if (showMuroEspartano) conditionalLabels.push(l('passive.muroEspartano'));
+                if (showAtaqueExtra) conditionalLabels.push(l('passive.ataqueExtra'));
+                if (showPrecision) conditionalLabels.push(l('passive.precision'));
 
                 const attackAbilities = new Set(['patada_acrobatica', 'fuego_cobertura', 'carga', 'doble_ataque', 'ventaja_alcance']);
                 const isAbilityTarget = pendingAttacker && unit.owner !== playerId && isEnemyInAbilityRange(pendingAttacker.position, unit.position, pendingAbilityId ?? '', pendingAttacker);
@@ -308,16 +317,18 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                 // ─── New UI: token + HP bar + traffic light indicators ───
                 const hpPct = Math.max(0, Math.min(1, unit.hp / maxHp));
                 const hasAura = auraBuffs !== undefined && auraBuffs !== null && (auraBuffs.shieldPoints > 0 || auraBuffs.difficultyReduction > 0 || auraBuffs.defenseBonus > 0 || auraBuffs.difficultyPenalty > 0);
-                const showAtkInd = indicators.some(i => i.category === 'offensive');
-                const showDefInd = indicators.some(i => i.category === 'defensive');
-                const showCostInd = indicators.some(i => i.category === 'cost');
+                const hasBuffs = buffs.length > 0;
+                const hasDebuffs = debuffs.length > 0;
+                const hasEspecial = selectedUnitId !== null && (
+                    conditionalIndicators.length > 0 || conditionalLabels.length > 0
+                );
 
                 // Owner color ring
                 const ownerColor = unit.owner === 'p1' ? 'var(--color-player1)' : 'var(--color-player2)';
 
                 // Traffic light panel: right side, dark background
-                const showTraffic = hasAura || showAtkInd || showDefInd || showCostInd;
-                const trafficCount = (hasAura ? 1 : 0) + (showAtkInd ? 1 : 0) + (showDefInd ? 1 : 0) + (showCostInd ? 1 : 0);
+                const showTraffic = hasAura || hasBuffs || hasDebuffs || hasEspecial;
+                const trafficCount = (hasAura ? 1 : 0) + (hasBuffs ? 1 : 0) + (hasDebuffs ? 1 : 0) + (hasEspecial ? 1 : 0);
                 const panelY = showTraffic ? (hasAura ? -16 : -12) : 0;
                 const panelH = showTraffic ? trafficCount * 8 + 4 : 0;
                 const trafficSpacing = 8;
@@ -359,44 +370,48 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         className="cursor-pointer"
                         style={{ outline: 'none' }}
                     >
-                        {/* Owner color ring behind the icon */}
-                        <circle cx={0} cy={3} r={15} fill={ownerColor} fillOpacity={0.15} stroke={ownerColor} strokeWidth={1.5} opacity={0.8} />
-
-                        {/* Class icon SVG */}
-                        <g transform="translate(-10, -6)">
-                            <BustIcon cls={unit.class} size={20} />
-                        </g>
+                        {/* Coin with panel color + player ring */}
+                        <circle cx={0} cy={3} r={23} fill="#1f2937" fillOpacity={0.95} />
+                        <circle cx={0} cy={3} r={23} fill="none" stroke={ownerColor} strokeWidth={2} />
+                        <image
+                            href={CLASS_ICON_MAP[unit.class] || '/icons/units/infanteria_icon.webp'}
+                            x={-22}
+                            y={-19}
+                            width={44}
+                            height={44}
+                            opacity={1}
+                        />
 
                         {/* HP bar with shield overlay (square) */}
-                        <rect x={-14} y={17} width={28} height={5} rx={0} fill="#374151" />
+                        <rect x={-17} y={20} width={34} height={6} rx={0} fill="#374151" />
                         {(() => {
                             const royalShield = unit.royalShieldSavedHp !== undefined ? unit.hp - unit.royalShieldSavedHp : 0;
                             const baseHp = unit.royalShieldSavedHp ?? unit.hp;
                             const effectiveTotal = (unit.hp + (unit.auraShield ?? 0)) > maxHp ? (unit.hp + (unit.auraShield ?? 0)) : maxHp;
                             const auraShieldVal = unit.auraShield === 1 ? 2 : (unit.auraShield ?? 0);
-                            const hpW = Math.round(28 * (baseHp / effectiveTotal));
-                            const royalShieldW = royalShield > 0 ? Math.max(1, Math.round(28 * (royalShield / effectiveTotal))) : 0;
-                            const auraShieldW = auraShieldVal > 0 ? Math.max(1, Math.round(28 * (auraShieldVal / effectiveTotal))) : 0;
+                            const hpW = Math.round(34 * (baseHp / effectiveTotal));
+                            const royalShieldW = royalShield > 0 ? Math.max(1, Math.round(34 * (royalShield / effectiveTotal))) : 0;
+                            const auraShieldW = auraShieldVal > 0 ? Math.max(1, Math.round(34 * (auraShieldVal / effectiveTotal))) : 0;
                             const baseHpPct = baseHp / maxHp;
                             return <>
-                                <rect x={-14} y={17} width={hpW} height={5} rx={0} fill={baseHpPct > 0.5 ? '#22c55e' : baseHpPct > 0.25 ? '#eab308' : '#ef4444'} />
-                                {royalShieldW > 0 && <rect x={-14 + hpW} y={17} width={royalShieldW} height={5} rx={0} fill="#f0f0f0" />}
-                                {auraShieldW > 0 && <rect x={-14 + hpW + royalShieldW} y={17} width={auraShieldW} height={5} rx={0} fill="#e2e8f0" />}
+                                <rect x={-17} y={20} width={hpW} height={6} rx={0} fill={baseHpPct > 0.5 ? '#22c55e' : baseHpPct > 0.25 ? '#eab308' : '#ef4444'} />
+                                {royalShieldW > 0 && <rect x={-17 + hpW} y={20} width={royalShieldW} height={6} rx={0} fill="#f0f0f0" />}
+                                {auraShieldW > 0 && <rect x={-17 + hpW + royalShieldW} y={20} width={auraShieldW} height={6} rx={0} fill="#e2e8f0" />}
                             </>;
                         })()}
 
-                        {/* ─── Horizontal indicator panel (fixed width, start-aligned) ─── */}
+                        {/* ─── Horizontal indicator panel (aura → buffs → debuffs → especial) ─── */}
                         {showTraffic && (() => {
                             const items: { key: string; show: boolean; color: string; stroke: string }[] = [
-                                { key: 'aura', show: hasAura, color: '#a78bfa', stroke: '#7c3aed' },
-                                { key: 'atk', show: showAtkInd, color: '#ef4444', stroke: '#dc2626' },
-                                { key: 'def', show: showDefInd, color: '#3b82f6', stroke: '#2563eb' },
-                                { key: 'cost', show: showCostInd, color: '#fbbf24', stroke: '#d97706' },
+                                { key: 'aura',    show: hasAura,     color: 'var(--color-class-general)', stroke: 'var(--color-class-general)' },
+                                { key: 'buff',    show: hasBuffs,    color: '#22c55e', stroke: '#16a34a' },
+                                { key: 'debuff',  show: hasDebuffs,  color: '#ef4444', stroke: '#dc2626' },
+                                { key: 'especial', show: hasEspecial, color: '#a78bfa', stroke: '#7c3aed' },
                             ];
-                            const pw = 44; // fixed width for 4 circles
-                            let xOff = -pw / 2 + 6; // start from left with padding
+                            const pw = 44;
+                            let xOff = -pw / 2 + 6;
                             return (
-                                <g transform="translate(0, -16)">
+                                <g transform="translate(0, -19)">
                                     <rect x={-pw / 2} y={-6} width={pw} height={12} rx={3} fill="#374151" fillOpacity={0.95} stroke="#4b5563" strokeWidth={0.5} />
                                     {items.map((item) => {
                                         if (!item.show) return null;
@@ -409,7 +424,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         })()}
 
                         {hovered && (
-                            <UnitTooltip unit={unit} maxHp={maxHp} identityName={unit.class === 'general' && identityKey ? l(`identity.${identityKey}.name`) : undefined} ownerColor={ownerColor} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} indicators={indicators} auraBuffs={auraBuffs} />
+                            <UnitTooltip unit={unit} maxHp={maxHp} identityName={unit.class === 'general' && identityKey ? l(`identity.${identityKey}.name`) : undefined} ownerColor={ownerColor} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} indicators={indicators} auraBuffs={auraBuffs} conditionalLabels={conditionalLabels} conditionalIndicators={conditionalIndicators} modifiers={state.activeModifiers} />
                         )}
                     </g>
                 );
@@ -441,57 +456,62 @@ function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buffs: stri
     const buffs: string[] = [];
     const debuffs: string[] = [];
 
-    const harmfulStats = ['movementCost', 'difficulty', 'attackCost', 'actionCost', 'bloqueo', 'inmovil'];
-    const helpfulStats = ['attack', 'dotOnHit'];
-    const passiveStats: string[] = [];
-
     for (const m of modifiers) {
         if (m.remainingTurns < 0) continue;
         if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
 
         const isUnitSpecific = m.targetId === unit.id;
         const isPlayerWide = !m.targetId && m.sourcePlayerId === unit.owner;
-
         if (!isUnitSpecific && !isPlayerWide) continue;
 
         const stat = m.stat;
+        const abilityName = m.sourceName ? l(`ability.${m.sourceName}.name`) || m.sourceName : '';
 
-        if (stat === 'movementCost' && m.value === 0 && m.operator === 'SET') {
-            if (!buffs.includes(stat)) buffs.push(stat);
-            continue;
-        }
-
-        if (stat === 'damage' && m.value < 0 && m.targetId) {
-            continue;
-        }
-        if (stat === 'attack' && m.value > 0 && m.targetId) {
-            continue;
-        }
-        if (stat === 'difficulty' && m.value > 0 && m.targetId) {
-            continue;
-        }
-        if (stat === 'ap') continue; // AP es global del jugador, no por unidad
+        if (stat === 'ap') continue;
         if (stat === 'passiveDamage') {
             const label = `${l('unit.status.passiveDamage')} (${m.value} HP, ${m.remainingUses ?? '?'} turnos)`;
             if (!debuffs.includes(label)) debuffs.push(label);
             continue;
         }
+        if (stat === 'movementCost' && m.value === 0 && m.operator === 'SET') {
+            const label = abilityName || `${l('unitDetail.movement')} 0`;
+            if (!buffs.includes(label)) buffs.push(label);
+            continue;
+        }
         if (stat === 'damage') {
-            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
-            else if (m.value < 0) { if (!debuffs.includes(stat)) debuffs.push(stat); }
-        } else if (stat === 'attack') {
-            if (m.value > 0) { if (!buffs.includes(stat)) buffs.push(stat); }
-            else { if (!debuffs.includes(stat)) debuffs.push(stat); }
-        } else if (harmfulStats.includes(stat)) {
-            if (!debuffs.includes(stat)) debuffs.push(stat);
-        } else if (helpfulStats.includes(stat)) {
-            if (!buffs.includes(stat)) buffs.push(stat);
-        } else if (passiveStats.includes(stat)) {
-            if (!debuffs.includes(stat)) debuffs.push(stat);
+            if (m.value > 0) { const lab = abilityName ? `${abilityName} (+${m.value})` : `+${m.value} daño`; if (!buffs.includes(lab)) buffs.push(lab); }
+            else if (m.value < 0) { const lab = abilityName ? `${abilityName} (${m.value})` : `${m.value} daño`; if (!debuffs.includes(lab)) debuffs.push(lab); }
+            continue;
+        }
+
+        const prefix = m.value > 0 ? '+' : '';
+        const valStr = `${prefix}${m.value}`;
+        const abbrKey: Record<string, string> = {
+            attack: l('passive.attackAbbr'),
+            defense: l('passive.defenseAbbr'),
+            difficulty: l('passive.difficultyAbbr'),
+            range: l('cat.range'),
+            damage: 'daño',
+            movementCost: l('unitDetail.costLabel', { n: 1 }),
+            attackCost: l('unitDetail.costLabel', { n: 1 }),
+            actionCost: l('unitDetail.costLabel', { n: 1 }),
+        };
+        const abbr = abbrKey[stat] ?? stat;
+        const label = abilityName ? `${abilityName} (${valStr} ${abbr})` : `${valStr} ${abbr}`;
+
+        if (stat === 'attack' || stat === 'defense' || stat === 'range') {
+            if (m.value > 0) { if (!buffs.includes(label)) buffs.push(label); }
+            else { if (!debuffs.includes(label)) debuffs.push(label); }
+        } else if (stat === 'difficulty') {
+            if (m.value > 0) { if (!debuffs.includes(label)) debuffs.push(label); }
+            else { if (!buffs.includes(label)) buffs.push(label); }
+        } else if (stat === 'attackCost' || stat === 'actionCost') {
+            if (m.value > 0) { if (!debuffs.includes(label)) debuffs.push(label); }
+            else { if (!buffs.includes(label)) buffs.push(label); }
+        } else if (['bloqueo', 'inmovil'].includes(stat)) {
+            if (!debuffs.includes(label)) debuffs.push(label);
         }
     }
 
     return { buffs, debuffs };
 }
-
-import BustIcon from '../icons/BustIcon';

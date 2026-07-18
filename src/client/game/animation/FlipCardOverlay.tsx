@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAnimation } from './AnimationContext';
 import { getLocale } from '@shared/i18n';
-import { createPortal } from 'react-dom';
+import { useLightbox } from '../helpers/Lightbox';
 
 const TYPE_COLORS: Record<string, string> = {
   BUFF: '#059669',
@@ -24,11 +24,13 @@ export function FlipCardOverlay() {
   const [flipped, setFlipped] = useState(false);
   const [frontImg, setFrontImg] = useState<string | null>(null);
   const [backImg, setBackImg] = useState<string | null>(null);
-  const [localLightbox, setLocalLightbox] = useState<string | null>(null);
+  const { setLightbox, lightboxEl, lightbox } = useLightbox();
   const visibleRef = useRef(false);
+  const consumedRef = useRef(false);
 
   useEffect(() => {
     if (flipCard.visible && !visibleRef.current) {
+      consumedRef.current = false;
       visibleRef.current = true;
       setAnimating(false);
       setFlipped(false);
@@ -38,8 +40,8 @@ export function FlipCardOverlay() {
       const locale = getLocale() || 'es';
 
       // Preload back image
-      const backLocaleUrl = `/cards/${locale}/reverso.png`;
-      const backEsUrl = '/cards/es/reverso.png';
+      const backLocaleUrl = `/cards/${locale}/reverso.webp`;
+      const backEsUrl = '/cards/es/reverso.webp';
       const backImgEl = new Image();
       backImgEl.onload = () => setBackImg(backLocaleUrl);
       backImgEl.onerror = () => {
@@ -51,8 +53,8 @@ export function FlipCardOverlay() {
 
       // Preload front image
       const key = getCardKey(flipCard.cardId);
-      const frontLocaleUrl = `/cards/${locale}/${key}.png`;
-      const frontEsUrl = `/cards/es/${key}.png`;
+      const frontLocaleUrl = `/cards/${locale}/${key}.webp`;
+      const frontEsUrl = `/cards/es/${key}.webp`;
       const frontImgEl = new Image();
       frontImgEl.onload = () => setFrontImg(frontLocaleUrl);
       frontImgEl.onerror = () => {
@@ -79,7 +81,7 @@ export function FlipCardOverlay() {
     }
   }, [flipCard.visible, flipCard.cardId]);
 
-  if (!flipCard.visible && !localLightbox) return null;
+  if (!flipCard.visible && !lightbox && !consumedRef.current) return null;
 
   const startX = 240;
   const startY = flipCard.playerId === 'p1' ? window.innerHeight * 0.15 : window.innerHeight * 0.65;
@@ -88,7 +90,7 @@ export function FlipCardOverlay() {
 
   return (
     <>
-      {flipCard.visible && (
+      {flipCard.visible && !lightbox && !consumedRef.current && (
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
           <div
             style={{
@@ -104,7 +106,7 @@ export function FlipCardOverlay() {
               pointerEvents: flipped ? 'auto' : 'none',
               cursor: flipped ? 'pointer' : undefined,
             }}
-            onClick={() => { if (flipped && frontImg) setLocalLightbox(frontImg); }}
+            onClick={(e) => { if (flipped && frontImg) { consumedRef.current = true; setLightbox(frontImg, 'flipcard', (e.currentTarget as HTMLElement).getBoundingClientRect()); } }}
           >
             {/* Back face */}
             <div
@@ -138,20 +140,7 @@ export function FlipCardOverlay() {
         </div>
       )}
 
-      {localLightbox && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
-          onClick={() => setLocalLightbox(null)}
-        >
-          <img
-            src={localLightbox}
-            alt=""
-            className="max-w-[85vw] max-h-[85vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>,
-        document.body
-      )}
+      {lightboxEl}
     </>
   );
 }

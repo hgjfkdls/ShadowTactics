@@ -74,10 +74,11 @@ const CLASS_COLORS: Record<string, string> = {
 import BustIcon from '../../../../icons/BustIcon';
 
 const CLASS_ICONS: Record<string, string> = {
-    archer: '/icons/units/arquero_icon.png',
-    infantry: '/icons/units/infanteria_icon.png',
-    cavalry: '/icons/units/caballeria_icon.png',
-    lancer: '/icons/units/lanceros_icon.png',
+    archer: '/icons/units/arquero_icon.webp',
+    infantry: '/icons/units/infanteria_icon.webp',
+    cavalry: '/icons/units/caballeria_icon.webp',
+    lancer: '/icons/units/lancero_icon.webp',
+    general: '/icons/units/general_icon.webp',
 };
 
 export function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; unitId: string; myPlayerId: string }) {
@@ -119,7 +120,7 @@ export function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; un
                     className="w-12 h-12 object-contain"
                 />
                 <div>
-                    <div className={`text-lg font-bold ${CLASS_COLORS[unitClass]}`}>
+                    <div className={`text-lg font-bold ${isMine ? 'text-player1' : 'text-player2'}`}>
                         {unit?.id ? `[${unit.id}]` : ''}{cls(unitClass)}
                     </div>
                     <div className={`text-xs font-semibold mt-1 ${isMine ? 'text-player1' : 'text-player2'}`}>

@@ -8,7 +8,7 @@ import { UnitDetail } from './units/UnitDetail';
 import { cls } from './helpers';
 import HistoryEntryDetail from './history/HistoryEntryDetail';
 
-export type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | null;
+export type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string; fromRect?: DOMRect; _ck?: number; isReclick?: boolean } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | { type: 'attackResult'; resultIndex: number } | { type: 'historyAttack'; entry: any } | { type: 'historyMove'; entry: any } | { type: 'historyCard'; entry: any } | null;
 
 type Props = {
     state: GameState;
@@ -27,7 +27,7 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
             return <UnitDetail state={state} unitId={selectedInfo.unitId} myPlayerId={playerId} />;
         }
         if (selectedInfo?.type === 'card') {
-            return <CardDetail cardId={selectedInfo.cardId} />;
+            return <CardDetail cardId={selectedInfo.cardId} fromRect={selectedInfo.fromRect} isReclick={selectedInfo.isReclick} key={selectedInfo.cardId + '_' + (selectedInfo._ck ?? 0)} />;
         }
         if (selectedInfo?.type === 'effect') {
             return <EffectDetail stat={selectedInfo.stat} label={selectedInfo.label} description={selectedInfo.description} source={selectedInfo.source} sourceName={selectedInfo.sourceName} value={selectedInfo.value} />;

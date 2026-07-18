@@ -361,7 +361,7 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                     <div className="flex items-center gap-1 text-zinc-300">
                         <span className={isCounter ? 'text-violet-400' : isRealCard ? '' : 'text-effect-range'}>
                             {isRealCard
-                                ? <img src="/cards/es/reverso.png" alt="" className="inline-block w-4 h-[22px] rounded-sm object-cover align-middle" />
+                                ? <img src="/cards/es/reverso.webp" alt="" className="inline-block w-4 h-[22px] rounded-sm object-cover align-middle" />
                                 : '✨'}
                         </span>
                         <span className="text-zinc-200 font-semibold truncate">{titleLine ?? (entry.cardName?.startsWith('ability.') || entry.cardName?.startsWith('button.') ? l(entry.cardName) : getCardName(entry.cardId))}</span>

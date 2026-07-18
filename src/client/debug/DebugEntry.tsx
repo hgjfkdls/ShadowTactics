@@ -9,7 +9,7 @@ export function DebugEntry({ event }: Props) {
     const [open, setOpen] = useState(true);
 
     return (
-        <div className="border-b border-zinc-700" onClick={() => setOpen(o => !o)}>
+        <div className="border-b" onClick={() => setOpen(o => !o)}>
             <button
                 className="w-full text-left px-2 py-1 text-xs flex justify-between items-center hover:bg-zinc-800"
             >

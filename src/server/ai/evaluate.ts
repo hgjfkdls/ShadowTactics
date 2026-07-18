@@ -1,6 +1,19 @@
-import type { GameState } from '@shared';
-import { hexDistance, hexNeighbors } from '@shared';
+import type { GameState, HexCoord } from '@shared';
+import { hexDistance } from '@shared';
 import type { Weights, Difficulty } from './types';
+import { cloneState } from './actions';
+import { createUnit } from '@shared/game/units/factory';
+
+const PIECE_VALUE: Record<string, number> = {
+  general: 100, archer: 30, infantry: 20, cavalry: 25, lancer: 25,
+};
+
+function getBaseHp(cls: string): number {
+  const hpMap: Record<string, number> = {
+    archer: 12, infantry: 16, cavalry: 14, lancer: 14, general: 20,
+  };
+  return hpMap[cls] ?? 12;
+}
 
 export const PRIORITIES: Record<Difficulty, Weights> = {
   easy:   { hp: 1.5, kill: 0.5, pos: 0.3, dmg: 0.3, ap: 0.1, card: 0.2, formation: 0.1 },
@@ -37,6 +50,14 @@ export function evaluate(state: GameState, playerId: string, w: Weights): number
   const oppMaxHp = oppUnits.reduce((s, u) => s + getBaseHp(u.class), 0);
   const hpRatio = myHp + oppHp > 0 ? (myHp - oppHp) / (myHp + oppHp) : 0;
   score += w.hp * hpRatio;
+
+  // ── 1b. Piece value advantage ──
+  let myPieceScore = 0;
+  let oppPieceScore = 0;
+  for (const u of myUnits) myPieceScore += (PIECE_VALUE[u.class] ?? 20) * (u.hp / getBaseHp(u.class));
+  for (const u of oppUnits) oppPieceScore += (PIECE_VALUE[u.class] ?? 20) * (u.hp / getBaseHp(u.class));
+  const pieceRatio = (myPieceScore + oppPieceScore) > 0 ? (myPieceScore - oppPieceScore) / (myPieceScore + oppPieceScore) : 0;
+  score += w.hp * 0.5 * pieceRatio;
 
   // ── 2. Unit count advantage ──
   const unitCountRatio = (myUnits.length - oppUnits.length) / (myUnits.length + oppUnits.length + 1);
@@ -160,9 +181,47 @@ export function evaluate(state: GameState, playerId: string, w: Weights): number
   return score;
 }
 
-function getBaseHp(cls: string): number {
-  const hpMap: Record<string, number> = {
-    archer: 12, infantry: 16, cavalry: 14, lancer: 14, general: 20,
-  };
-  return hpMap[cls] ?? 12;
+export function evaluateDeployPosition(
+  state: GameState, playerId: string,
+  unitId: string, unitClass: string, hex: HexCoord
+): number {
+  const sim = cloneState(state);
+  sim.units[unitId] = createUnit(unitId, playerId, hex, unitClass);
+
+  // Remove this unit from unitsToDeploy
+  const newPlayers = { ...sim.players };
+  const pl = { ...newPlayers[playerId] };
+  if (pl.unitsToDeploy) {
+    pl.unitsToDeploy = pl.unitsToDeploy.filter((e: any) => e.unitId !== unitId);
+  }
+  newPlayers[playerId] = pl;
+  sim.players = newPlayers;
+
+  const weights = getWeights('medium');
+  let score = evaluate(sim, playerId, weights);
+
+  // Bonus por cercania a aliados (formacion)
+  const allies = Object.values(sim.units).filter(u => u.owner === playerId && u.id !== unitId);
+  for (const ally of allies) {
+    const d = hexDistance(hex, ally.position);
+    if (d === 1) score += 0.1;
+    if (d === 0) score -= 0.3;
+  }
+
+  // Bonus por cercania al general
+  const general = allies.find(u => u.class === 'general');
+  if (general) {
+    const d = hexDistance(hex, general.position);
+    if (d <= 2) score += 0.2;
+  }
+
+  // Bonus posicional por clase
+  const nearestEnemy = Object.values(sim.units)
+    .filter(u => u.owner !== playerId)
+    .reduce((min: number, u) => Math.min(min, hexDistance(hex, u.position)), 99);
+
+  if (unitClass === 'archer' && nearestEnemy > 3) score += 0.15;
+  if (unitClass === 'cavalry' && nearestEnemy >= 2 && nearestEnemy <= 3) score += 0.1;
+
+  return score;
 }

@@ -1,7 +1,8 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
 import { createAIGame } from './net/socket';
-import { HexBoard } from './game/board/HexBoard';
+import { HexBoard } from './game/board/Board';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
 import { PlayerSidebar } from './game/layout/panel/player/PlayerSidebar';
@@ -13,6 +14,7 @@ import { SoundProvider } from './game/sound/SoundContext';
 import { SoundEngine } from './game/sound/SoundEngine';
 import { WebAudioRenderer } from './game/sound/render/WebAudioRenderer';
 import type { SoundEvent } from './game/sound/types';
+import { LoadingScreen } from './game/assets/LoadingScreen';
 import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
@@ -20,7 +22,7 @@ import { DisconnectModal } from './game/layout/DisconnectModal';
 import { ThemeProvider } from './game/theme/ThemeProvider';
 import { l } from '@shared/i18n';
 
-type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
+type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string; fromRect?: DOMRect; _ck?: number; isReclick?: boolean } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
 
 export function App() {
     const [localeKey, setLocaleKey] = useState(0);
@@ -35,6 +37,8 @@ export function App() {
         gameId,
         role,
         bothPlayersReady,
+        assetsLoading,
+        assetProgress,
         joinGame,
         leaveGame,
         sendAction,
@@ -144,35 +148,21 @@ export function App() {
     ];
     useEffect(() => {
         engineRef.current?.preloadAll(allSoundEvents);
-        // Pre-cargar voces multi-idioma desde soundConfig
         import('./game/sound/soundConfig').then(({ SOUND_CONFIG }) => {
             engineRef.current?.preloadKeys(Object.keys(SOUND_CONFIG));
         });
-        // Pre-cargar imágenes de cartas (front + back, ambos idiomas)
-        const CARD_KEYS = ['movilidad','precision','inspiracion_tropa','ataque_extra','flechas_fuego','bajar_moral','pantano','mantenimiento','confusion','miedo','panacea','ladron','espejo'];
-        const LOCALES = ['es', 'en'];
-        const urls: string[] = ['/cards/reverso.png'];
-        for (const locale of LOCALES) {
-            for (const key of CARD_KEYS) {
-                urls.push(`/cards/${locale}/${key}.png`);
-            }
-        }
-        // Almacenar referencias para evitar GC
-        const imgs: HTMLImageElement[] = [];
-        for (const src of urls) {
-            const img = new Image();
-            img.src = src;
-            imgs.push(img);
-        }
-        // Guardar referencia global hasta que carguen
-        (window as any).__CARD_IMAGES__ = imgs;
+        import('./game/icons/AbilityIcon').then(({ preloadAbilityIcons }) => {
+            preloadAbilityIcons();
+        });
     }, []);
 
     return (
+
         <ThemeProvider>
         <KeyBindingsProvider>
         <SoundProvider engine={engineRef.current}>
         <AnimationProvider>
+        {assetsLoading && <LoadingScreen progress={assetProgress} />}
         <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr] overflow-hidden">
             <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
                 <div>Shadow Tactics</div>
@@ -213,6 +203,7 @@ export function App() {
             </header>
 
             {gameId ? (
+
                 <div className="relative h-full overflow-hidden">
                 {state && state.gamePhase === 'PREPARATION' && !prepDone ? (
                     <>
@@ -255,6 +246,7 @@ export function App() {
                         <main className="relative overflow-hidden">
                             <HexBoard
                                 state={state}
+                                role={role}
                                 sendAction={sendAction}
                                 playerId={playerId}
                                 selectedInfo={selectedInfo}
@@ -323,6 +315,10 @@ export function App() {
                                 disabled={!connected}
                                 onClick={() => createAIGame('general_mares')}
                             >Gral. Mares</button>
+                            <button className="bg-amber-700 hover:bg-amber-600 transition text-white px-3 py-1.5 rounded-md text-xs cursor-pointer disabled:opacity-50 border-none"
+                                disabled={!connected}
+                                onClick={() => createAIGame('el_gran_general')}
+                            >Gran Gral.</button>
                         </div>
                         {!connected && (
                             <div className="text-xs text-zinc-500">

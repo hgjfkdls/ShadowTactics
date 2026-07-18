@@ -35,7 +35,7 @@ export function StatsGrid({ hp, maxHp, shield, attack, difficulty, range, moveme
       {/* Panel 1: HP */}
       <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3">
         <div className="mb-1.5">
-          <StatCell iconSrc="/icons/stats/hp_icon.png" label={l('unitDetail.hp')} value={hasShield ? `${hp}+${sh}/${maxHp}` : `${hp}/${maxHp}`} />
+          <StatCell iconSrc="/icons/stats/hp_icon.webp" label={l('unitDetail.hp')} value={hasShield ? `${hp}+${sh}/${maxHp}` : `${hp}/${maxHp}`} />
         </div>
         <div className="w-full h-2.5 bg-zinc-700 relative overflow-hidden rounded">
           {hasShield && (
@@ -48,10 +48,10 @@ export function StatsGrid({ hp, maxHp, shield, attack, difficulty, range, moveme
       {/* Panel 2: Atk, Diff, Range, Mov — 2x2 grid */}
       <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3">
         <div className="grid grid-cols-2 gap-2">
-          <StatCell iconSrc="/icons/stats/atk_icon.png" label={l('unitDetail.attack')} value={attack} />
-          <StatCell iconSrc="/icons/stats/diff_icon.png" label={l('unitDetail.difficulty')} value={difficulty} />
-          <StatCell iconSrc="/icons/stats/range_icon.png" label={l('unitDetail.range')} value={range} />
-          <StatCell iconSrc="/icons/stats/mov_icon.png" label={l('unitDetail.movement')} value={movement} />
+          <StatCell iconSrc="/icons/stats/atk_icon.webp" label={l('unitDetail.attack')} value={attack} />
+          <StatCell iconSrc="/icons/stats/diff_icon.webp" label={l('unitDetail.difficulty')} value={difficulty} />
+          <StatCell iconSrc="/icons/stats/range_icon.webp" label={l('unitDetail.range')} value={range} />
+          <StatCell iconSrc="/icons/stats/mov_icon.webp" label={l('unitDetail.movement')} value={movement} />
         </div>
       </div>
     </div>

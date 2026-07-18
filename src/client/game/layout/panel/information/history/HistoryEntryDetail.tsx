@@ -18,7 +18,7 @@ import { cardImgUrl } from '../../../../helpers/cards';
 import { useLightbox } from '../../../../helpers/Lightbox';
 
 function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) {
-  const { setLightbox, lightboxEl } = useLightbox();
+  const { setLightbox, lightboxEl, lightbox } = useLightbox();
     const configId = entry.configId ?? entry.cardId;
     const panelCfg = (configId ? ABILITY_CONFIG[configId]?.panel : undefined) ?? {};
     const pTitle = panelCfg.title ?? true;
@@ -292,12 +292,16 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                                     <span className="font-semibold">{l('cardDetail.playerPlays', { n: entry.playerId === 'p1' ? '2' : '1' })}: </span>
                                     <span className="font-semibold text-red-400">{entry.counterCardName?.startsWith('card.') ? l(entry.counterCardName) : (entry.counterCardName ?? '?')}</span>
                                 </div>
-                                <div className="rounded-lg border-2 border-red-800/50 bg-red-900/20 p-1">
+                                <div className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-1 w-[70%]">
                                     <img
                                         src={cardImgUrl(entry.counterCardId)}
                                         alt=""
-                                        className="w-full h-auto rounded cursor-pointer"
-                                        onClick={(e) => setLightbox((e.currentTarget as HTMLImageElement).src)}
+                                        className={`w-full h-auto rounded ${lightbox === cardImgUrl(entry.counterCardId) ? 'invisible' : 'cursor-pointer'}`}
+                                        onClick={(e) => {
+                                            const img = e.currentTarget;
+                                            if (img.classList.contains('invisible')) return;
+                                            setLightbox(img.getAttribute('src') || img.src, 'panel', img.getBoundingClientRect());
+                                        }}
                                         onError={(e) => {
                                             const t = e.currentTarget;
                                             if (!t.dataset.fallback) {
@@ -315,12 +319,16 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                                     <span className="font-semibold">{l('cardDetail.butOpponentCounters', { n: entry.playerId === 'p1' ? '1' : '2' })}: </span>
                                     <span className="font-semibold text-violet-400">{entry.cardName?.startsWith('card.') ? l(entry.cardName) : (entry.cardName ?? '?')}</span>
                                 </div>
-                                <div className="rounded-lg border-2 border-violet-800/50 bg-violet-900/20 p-1">
+                                <div className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-1 w-[70%]">
                                     <img
                                         src={cardImgUrl(entry.cardId)}
                                         alt=""
-                                        className="w-full h-auto rounded cursor-pointer"
-                                        onClick={(e) => setLightbox((e.currentTarget as HTMLImageElement).src)}
+                                        className={`w-full h-auto rounded ${lightbox === cardImgUrl(entry.cardId) ? 'invisible' : 'cursor-pointer'}`}
+                                        onClick={(e) => {
+                                            const img = e.currentTarget;
+                                            if (img.classList.contains('invisible')) return;
+                                            setLightbox(img.getAttribute('src') || img.src, 'panel', img.getBoundingClientRect());
+                                        }}
                                         onError={(e) => {
                                             const t = e.currentTarget;
                                             if (!t.dataset.fallback) {
@@ -335,17 +343,16 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
                             </div>
                         </div>
                     ) : (
-                        <div className={[
-                            'rounded-lg border-2 p-1 text-xs',
-                            entry.cardType === 'BUFF' ? 'border-emerald-800/50 bg-emerald-900/20'
-                                : entry.cardType === 'DEBUFF' ? 'border-red-800/50 bg-red-900/20'
-                                : 'border-violet-800/50 bg-violet-900/20',
-                        ].join(' ')}>
+                        <div className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-1 w-[70%]">
                             <img
                                 src={cardImgUrl(entry.cardId)}
                                 alt={entry.cardName ?? ''}
-                                className="w-full h-auto rounded cursor-pointer"
-                                onClick={(e) => setLightbox((e.currentTarget as HTMLImageElement).src)}
+                                className={`w-full h-auto rounded ${lightbox === cardImgUrl(entry.cardId) ? 'invisible' : 'cursor-pointer'}`}
+                                onClick={(e) => {
+                                    const img = e.currentTarget;
+                                    if (img.classList.contains('invisible')) return;
+                                    setLightbox(img.getAttribute('src') || img.src, 'panel', img.getBoundingClientRect());
+                                }}
                                 onError={(e) => {
                                     const target = e.currentTarget;
                                     if (!target.dataset.fallback) {

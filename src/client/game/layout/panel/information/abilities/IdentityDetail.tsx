@@ -1,16 +1,15 @@
 import type { GameState } from '@shared';
 import { l } from '@shared/i18n';
 import { IDENTITY_INFO, getIdentityKey } from '../../../../../prep/identityData';
-import { ABILITIES, CLASS_ABILITIES } from '@shared/game/data/abilities';
-import { IDENTITY_EFFECTS } from '@shared/game/data/identities';
-
-const cls = (c: string) => l(`unit.class.${c}`) || c;
+import { identityImgUrl, IDENTITY_CARD_FALLBACK, CARD_BACK_URL } from '../../../../helpers/cards';
+import { useLightbox } from '../../../../helpers/Lightbox';
 
 const CLASS_COLORS: Record<string, string> = {
     archer: 'text-class-archer', infantry: 'text-class-infantry', cavalry: 'text-class-cavalry', lancer: 'text-class-lancer', general: 'text-class-general',
 };
 
 export default function IdentityDetail({ state, targetPlayerId, myPlayerId }: { state: GameState; targetPlayerId: string; myPlayerId: string }) {
+    const { setLightbox, lightboxEl } = useLightbox();
     const identityCardId = state.players[targetPlayerId]?.selectedIdentity;
     if (!identityCardId) return <div className="text-xs text-zinc-500">{l('identity.noIdentity')}</div>;
 
@@ -23,15 +22,10 @@ export default function IdentityDetail({ state, targetPlayerId, myPlayerId }: { 
     const iName = l(`identity.${key}.name`) || info.name;
     const iClass = l(`identity.${key}.className`) || info.className;
 
-    const verbose = (() => { const t = l(`identity.${key}.descVerbose`); return t && t !== `identity.${key}.descVerbose` ? t : info.descVerbose; })();
-    const sections = verbose.split('\n\n').filter((s: string) => s.trim());
-    const flavor = sections[0] ?? '';
-    const abilitySections = sections.slice(1);
-
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             <div className="flex items-start gap-3">
-                <div className="text-3xl">🛡️</div>
+                <img src={CARD_BACK_URL} alt="" className="w-8 h-[44px] rounded object-cover shrink-0" />
                 <div>
                     <div className="text-lg font-bold">{iName}</div>
                     <div className={`text-sm font-semibold ${CLASS_COLORS[identityCardId.includes('robin') || identityCardId.includes('franco') ? 'archer' : 'infantry']}`}>
@@ -47,34 +41,17 @@ export default function IdentityDetail({ state, targetPlayerId, myPlayerId }: { 
                 {l('identity.units', { count: unitCount })}
             </div>
 
-            {flavor && (
-                <div className="space-y-1">
-                    <div className="text-xs font-semibold text-panel-title uppercase tracking-wide">{l('identity.description')}</div>
-                    <div className="text-xs text-zinc-400 bg-zinc-800/50 rounded-lg p-3 leading-relaxed italic">
-                        {flavor}
-                    </div>
-                </div>
-            )}
+            <div
+                className="bg-zinc-800 rounded-lg border border-zinc-700 overflow-hidden cursor-pointer w-[70%]"
+                onClick={(e) => {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setLightbox(identityImgUrl(key), 'panel', rect);
+                }}
+            >
+                <img src={identityImgUrl(key)} alt="" className="w-full h-auto rounded" onError={e => { if ((e.target as HTMLImageElement).src !== IDENTITY_CARD_FALLBACK) (e.target as HTMLImageElement).src = IDENTITY_CARD_FALLBACK; }} />
+            </div>
 
-            {abilitySections.length > 0 && (
-                <div className="space-y-2">
-                    {abilitySections.map((section: string, i: number) => {
-                        const lines = section.split('\n');
-                        const header = lines[0] ?? '';
-                        const desc = lines.slice(1).join(' ').trim();
-                        const isEspecial = header.startsWith('Especial');
-                        return (
-                            <div key={i} className="border border-yellow-700/40 bg-yellow-900/10 rounded-lg p-2.5 space-y-1.5">
-                                <div className="flex items-center gap-2 text-xs">
-                                    <span className="text-[9px] font-mono text-zinc-500">👑</span>
-                                    <span className="font-semibold text-zinc-200">{header}</span>
-                                </div>
-                                <div className="text-[11px] text-zinc-300 leading-relaxed">{desc}</div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+            {lightboxEl}
         </div>
     );
 }

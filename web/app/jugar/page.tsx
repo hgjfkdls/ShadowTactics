@@ -132,10 +132,11 @@ function ModeSelector({ onSelect }: { onSelect: (m: GameMode) => void }) {
                         <h2 className="mb-4 text-lg font-bold text-white">Practicar contra la IA</h2>
                         <div className="grid grid-cols-2 gap-3">
                             {([
-                                { id: 'cpu_facil', label: 'Fácil', color: 'border-emerald-700/50 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-950/40' },
+                                { id: 'cpu_facil', label: 'Facil', color: 'border-emerald-700/50 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-950/40' },
                                 { id: 'cpu_medio', label: 'Medio', color: 'border-emerald-700/50 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-950/40' },
-                                { id: 'cpu_dificil', label: 'Difícil', color: 'border-orange-700/50 bg-orange-950/20 text-orange-400 hover:bg-orange-950/40' },
+                                { id: 'cpu_dificil', label: 'Dificil', color: 'border-orange-700/50 bg-orange-950/20 text-orange-400 hover:bg-orange-950/40' },
                                 { id: 'general_mares', label: 'Gral. Mares', color: 'border-violet-700/50 bg-violet-950/20 text-violet-400 hover:bg-violet-950/40' },
+                                { id: 'el_gran_general', label: 'Gran Gral.', color: 'border-amber-700/50 bg-amber-950/20 text-amber-400 hover:bg-amber-950/40' },
                             ] as const).map((ai) => (
                                 <button
                                     key={ai.id}

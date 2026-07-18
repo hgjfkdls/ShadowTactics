@@ -28,6 +28,7 @@ import { axialToPixel } from './hexMath';
 
 type Props = {
     state: GameState;
+    role: PlayerRole | null;
     sendAction: (action: any) => void;
     mode?: 'GAME' | 'DEPLOYMENT';
     playerId?: string;

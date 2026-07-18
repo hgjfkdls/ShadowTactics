@@ -40,4 +40,3 @@ logs/
 # ========================
 # ngrok config
 ngrok.yml
-public

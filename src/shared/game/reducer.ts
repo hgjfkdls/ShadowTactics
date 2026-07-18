@@ -156,6 +156,8 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                 },
             };
             const planAffected = Object.values(s.units).filter(u => u.owner === action.playerId).map(u => u.id);
+            // Limpiar modifiers anteriores de plan_batalla para evitar acumulación
+            s = { ...s, activeModifiers: s.activeModifiers.filter(m => !(m.sourceName === 'plan_batalla' && m.sourcePlayerId === action.playerId)) };
             const planCfg = ABILITY_CONFIG['plan_batalla'];
             const planEffect = planCfg?.effects?.[0];
             for (const uid of planAffected) {
