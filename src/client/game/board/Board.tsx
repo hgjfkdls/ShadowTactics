@@ -491,6 +491,11 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         },
     );
 
+    const handleHexClick = (hex: HexCoord) => {
+      setActionHighlightHexes([]);
+      onHexClick(hex);
+    };
+
     return (
         <>
             <svg
@@ -535,7 +540,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             enemyDeployable={mode === 'DEPLOYMENT' && !isMyDeployTurn && isDeployable(hex)}
                             highlighted={highlightedHexes.some(h => h.q === hex.q && h.r === hex.r)}
                             onHover={setHoveredHex}
-                            onClick={onHexClick}
+                            onClick={handleHexClick}
                         />
                     ))}
 
