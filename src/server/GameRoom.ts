@@ -10,6 +10,7 @@ import type { GameAction, GameState, HexCoord } from '@shared';
 import type { TimerInfo, TimerPhase } from '@shared/game/timer';
 import { createInitialGameState } from '@shared/game/init';
 import { decideAI } from './ai/AIPlayer';
+import { evaluateDeployPosition } from './ai/evaluate';
 
 const DISCONNECT_TIMEOUT_MS = 60_000;
 
@@ -600,7 +601,7 @@ export class GameRoom {
             const pool = cur.players[pid]?.unitsToDeploy ?? [];
             if (pool.length === 0) break;
 
-            // Priorizar general si ya se desplegaron >=10 unidades y a�n no est�
+            // Priorizar general si ya se desplegaron >=10 unidades y aun no esta
             const deployed = cur.players[pid]?.deployedUnits ?? [];
             let entries = pool;
             if (deployed.length >= 10 && !deployed.some(id => cur.units[id]?.class === 'general')) {
@@ -608,24 +609,49 @@ export class GameRoom {
                 if (generalEntry) entries = [generalEntry];
             }
 
-            const shuffled = [...entries].sort(() => Math.random() - 0.5);
-            let deployedOne = false;
-            for (const entry of shuffled) {
-                const pos = this.findRandomDeployPosition(cur, pid);
-                if (pos) {
-                    this.handleAction({
-                        type: 'DEPLOY_UNIT',
-                        playerId: pid,
-                        unitId: entry.unitId,
-                        position: pos,
-                    }, pid);
-                    deployedOne = true;
-                    break;
-                }
+            const entry = entries[0];
+            const candidates = this.deploymentCandidates(cur, pid);
+            if (candidates.length === 0) break;
+
+            // Evaluar cada hex candidato con IA
+            let bestHex: HexCoord | null = null;
+            let bestScore = -Infinity;
+            for (const hex of candidates) {
+                const score = evaluateDeployPosition(cur, pid, entry.unitId, entry.unitClass, hex);
+                if (score > bestScore) { bestScore = score; bestHex = hex; }
             }
-            if (!deployedOne) break;
-            await new Promise(r => setTimeout(r, 500));
+
+            if (bestHex) {
+                this.handleAction({
+                    type: 'DEPLOY_UNIT',
+                    playerId: pid,
+                    unitId: entry.unitId,
+                    position: bestHex,
+                }, pid);
+                await new Promise(r => setTimeout(r, 500));
+            } else {
+                break;
+            }
         }
+    }
+
+    private deploymentCandidates(state: GameState, playerId: 'p1' | 'p2'): HexCoord[] {
+        const friendlyUnits = Object.values(state.units).filter(u => u.owner === playerId);
+        const centerHex = state.centerHex;
+        const radius = state.map.radius;
+
+        if (friendlyUnits.length === 0) {
+            return hexRange(centerHex, 2).filter(h =>
+                hexDistance(h, centerHex) === 2
+                && isWithinBounds(h, radius)
+                && !isHexOccupied(state, h)
+            );
+        }
+        return hexRange(centerHex, radius).filter(h =>
+            isWithinBounds(h, radius)
+            && !isHexOccupied(state, h)
+            && friendlyUnits.some(u => hexDistance(u.position, h) <= 2)
+        );
     }
 
     private async runAITurn(pid: 'p1' | 'p2') {
