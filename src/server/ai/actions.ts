@@ -81,6 +81,7 @@ function getBasicAttackActions(state: GameState, playerId: string, unit: Unit, a
 function canUseAbility(unit: Unit, abilityId: string): boolean {
   const config = ABILITY_CONFIG[abilityId] as any;
   if (!config || config.type === 'passive') return false;
+  if (config.activation?.whenAttack || config.activation?.whenAttacked) return false;
   if (config.activation?.blockFlags?.some((f: string) => unit.flags?.includes(f))) return false;
   if (config.activation?.requireFlags?.some((f: string) => !unit.flags?.includes(f))) return false;
   return true;

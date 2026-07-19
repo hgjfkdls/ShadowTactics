@@ -148,6 +148,11 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     if ((hasRangeCfg || hasTargetCfg) && action.targetId) {
         if (!isValidTarget(state, unit.id, action.abilityId, action.targetId)) return state;
     }
+    // Bloquear uso directo de habilidades pasivas/de reacción que no tienen range/target configurado
+    // (blanco_facil, anti_caballeria, formacion_defensiva, acechar, hostigar, etc.)
+    if (!hasRangeCfg && !hasTargetCfg && action.targetId) {
+        if (cfg.activation?.whenAttack || cfg.activation?.whenAttacked) return state;
+    }
     // Para moves, validar destino antes de cualquier efecto o consumo de AP
     if (cfg.type === 'move' && (hasRangeCfg || hasTargetCfg) && action.to) {
         const highlights = getAbilityHighlights(state, unit.id, cfg.id);
