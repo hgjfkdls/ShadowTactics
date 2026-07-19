@@ -9,7 +9,7 @@ function nextId(state: GameState): { id: number; state: GameState } {
 
 export function addModifier(
     state: GameState,
-    targetPlayerId: PlayerId | null,  // null = global
+    targetPlayerId: PlayerId | null,
     targetUnitId: UnitId | null,
     stat: string,
     value: number,
@@ -18,6 +18,7 @@ export function addModifier(
     remainingUses?: number,
     source?: string,
     sourceName?: string,
+    consumedBy?: string,
 ): GameState {
     const { id, state: s } = nextId(state);
     const mod: ModifierInstance = {
@@ -31,6 +32,7 @@ export function addModifier(
         remainingUses,
         source,
         sourceName,
+        consumedBy,
     };
     return { ...s, activeModifiers: [...s.activeModifiers, mod] };
 }
@@ -39,19 +41,19 @@ export function getModifierSum(
     state: GameState,
     targetPlayerId: PlayerId | null,
     targetUnitId: UnitId | null,
-    stat: string
+    stat: string,
+    abilityId?: string,
 ): number {
     return state.activeModifiers
         .filter(m => {
             if (m.stat !== stat || isExpired(m)) return false;
             if (targetPlayerId !== null && m.sourcePlayerId !== targetPlayerId) return false;
             if (targetUnitId !== null) {
-                // Buscando por unidad específica: incluir player-wide y unit-specific que coincida
                 if (m.targetId !== undefined && m.targetId !== targetUnitId) return false;
             } else {
-                // Buscando player-wide: excluir modifiers unit-specific
                 if (m.targetId !== undefined) return false;
             }
+            if (abilityId !== undefined && m.consumedBy !== undefined && m.consumedBy !== abilityId) return false;
             return true;
         })
         .reduce((sum, m) => {
@@ -71,12 +73,14 @@ export function consumeModifier(
     targetPlayerId: PlayerId | null,
     stat: string,
     amount: number = 1,
-    targetUnitId?: string
+    targetUnitId?: string,
+    abilityId?: string,
 ): GameState {
     const entries = state.activeModifiers.map((m, i) => ({ m, i }))
         .filter(({ m }) => m.stat === stat && !isExpired(m) && (m.remainingUses === undefined || m.remainingUses > 0)
             && (targetPlayerId === null || m.sourcePlayerId === targetPlayerId)
-            && (targetUnitId === undefined ? m.targetId === undefined : m.targetId === targetUnitId));
+            && (targetUnitId === undefined ? m.targetId === undefined : m.targetId === targetUnitId)
+            && (abilityId === undefined || m.consumedBy === undefined || m.consumedBy === abilityId));
     if (entries.length === 0) return state;
 
     let mods = [...state.activeModifiers];

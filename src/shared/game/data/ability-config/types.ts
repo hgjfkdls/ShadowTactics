@@ -95,6 +95,7 @@ export type ConfigEffect = {
     value?: number;
     remainingTurns?: number;
     remainingUses?: number;
+    consumedBy?: string;    // abilityId que puede consumir este modifier (default undefined = any)
 
     // modifierPop
     modifierIds?: string[];

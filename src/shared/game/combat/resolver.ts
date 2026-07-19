@@ -103,16 +103,16 @@ export function resolveAttack(input: AttackInput): AttackResult {
             s = dealDamage(s, unit.id, cdmg);
         }
         // Consumir modificadores incluso en fallo (flechas de fuego, rayo celestial, etc.)
-        s = consumeModifier(s, unit.owner, 'damage', 1);
-        s = consumeModifier(s, target.owner, 'damage', 1, target.id);
-        s = consumeModifier(s, target.owner, 'defense', 1, target.id);
-        s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
-        s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
-        s = consumeModifier(s, unit.owner, 'attack', 1);  // player-wide (Mantenimiento)
-        s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id);
-        s = consumeModifier(s, unit.owner, 'difficulty', 1);
-        s = consumeModifier(s, null, 'attackCost', 1);
-        s = consumeModifier(s, unit.owner, 'actionCost', 1);
+        s = consumeModifier(s, unit.owner, 'damage', 1, undefined, input.configId);
+        s = consumeModifier(s, target.owner, 'damage', 1, target.id, input.configId);
+        s = consumeModifier(s, target.owner, 'defense', 1, target.id, input.configId);
+        s = consumeModifier(s, unit.owner, 'dotOnHit', 1, undefined, input.configId);
+        s = consumeModifier(s, unit.owner, 'attack', 1, unit.id, input.configId);
+        s = consumeModifier(s, unit.owner, 'attack', 1, undefined, input.configId);
+        s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id, input.configId);
+        s = consumeModifier(s, unit.owner, 'difficulty', 1, undefined, input.configId);
+        s = consumeModifier(s, null, 'attackCost', 1, undefined, input.configId);
+        s = consumeModifier(s, unit.owner, 'actionCost', 1, undefined, input.configId);
         return { state: s, roll: rollResult, difficulty: finalDifficulty, hit: false, damage: 0, counterDamage: cdmg, compute, configId: input.configId, consumedModifiers };
     }
 
@@ -151,20 +151,20 @@ export function resolveAttack(input: AttackInput): AttackResult {
     s = applyPostHitAbilities(defCtx, s, true);
 
     // Consumir modificadores tras el ataque (por unidad específica)
-    s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id);
-    s = consumeModifier(s, unit.owner, 'difficulty', 1);
-    s = consumeModifier(s, unit.owner, 'attack', 1, unit.id);
-    s = consumeModifier(s, unit.owner, 'attack', 1);  // player-wide (Mantenimiento)
-    s = consumeModifier(s, unit.owner, 'damage', 1);
+    s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id, input.configId);
+    s = consumeModifier(s, unit.owner, 'difficulty', 1, undefined, input.configId);
+    s = consumeModifier(s, unit.owner, 'attack', 1, unit.id, input.configId);
+    s = consumeModifier(s, unit.owner, 'attack', 1, undefined, input.configId);
+    s = consumeModifier(s, unit.owner, 'damage', 1, undefined, input.configId);
     // Consumir modificadores defensivos del objetivo (por unidad específica)
-    s = consumeModifier(s, target.owner, 'damage', 1, target.id);
-    s = consumeModifier(s, target.owner, 'defense', 1, target.id);
-    s = consumeModifier(s, null, 'attackCost', 1);
-    s = consumeModifier(s, unit.owner, 'actionCost', 1);
+    s = consumeModifier(s, target.owner, 'damage', 1, target.id, input.configId);
+    s = consumeModifier(s, target.owner, 'defense', 1, target.id, input.configId);
+    s = consumeModifier(s, null, 'attackCost', 1, undefined, input.configId);
+    s = consumeModifier(s, unit.owner, 'actionCost', 1, undefined, input.configId);
 
     // Aplicar DoT si el atacante tenía flechas_fuego (dotOnHit)
     const hadDot = s.activeModifiers.some(m => m.stat === 'dotOnHit' && m.sourcePlayerId === unit.owner && m.remainingUses !== undefined && m.remainingUses > 0);
-    s = consumeModifier(s, unit.owner, 'dotOnHit', 1);
+    s = consumeModifier(s, unit.owner, 'dotOnHit', 1, undefined, input.configId);
     if (hadDot) {
         s = addModifier(s, unit.owner, target.id, 'passiveDamage', 1, 'ADD', 0, 2);
     }

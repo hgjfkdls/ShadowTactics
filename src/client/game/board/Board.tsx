@@ -121,11 +121,15 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
 
             if (key === bindings.BASIC_ATTACK) {
                 const extraCharges = unit.ataqueExtraCharges ?? 0;
+                const atkSet = state.activeModifiers.find(m =>
+                    m.stat === 'attackCost' && m.operator === 'SET' && m.targetId === unit.id && (m.remainingUses ?? 1) > 0 && (m.consumedBy === undefined || m.consumedBy === 'ataque_basico')
+                );
+                const atkCost = atkSet !== undefined ? Math.max(0, atkSet.value) : (extraCharges > 0 ? 0 : 1);
                 if (extraCharges > 0) {
                     dispatch({ type: 'START_ATTACK', unitId: unit.id });
                 } else if (isAbilityDisabled(state, 'ataque_basico', unit, myPlayerId, ap)) {
                     addAlert?.(l('alert.alreadyAttacked'), 'warning');
-                } else if (ap < 1) {
+                } else if (ap < atkCost) {
                     addAlert?.(l('alert.noPA'), 'warning');
                 } else {
                     dispatch({ type: 'START_ATTACK', unitId: unit.id });

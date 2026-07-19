@@ -35,7 +35,7 @@ function applyConfigEffect(
     switch (e.type) {
         case 'modifierPush': {
             if (e.stat === 'bloqueo' && tgtUnit && state.activeModifiers.some(m => m.stat === 'bloqueo' && m.targetId === tgtUnit && m.remainingTurns > 0)) return state;
-            return addModifier(state, tgtPlayer, tgtUnit, e.stat ?? '', e.value ?? 1, e.operator ?? 'ADD', e.remainingTurns ?? 0, e.remainingUses, 'card', configId);
+            return addModifier(state, tgtPlayer, tgtUnit, e.stat ?? '', e.value ?? 1, e.operator ?? 'ADD', e.remainingTurns ?? 0, e.remainingUses, 'card', configId, e.consumedBy);
         }
         case 'stateChange': {
             const val = e.value ?? 1;
