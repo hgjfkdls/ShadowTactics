@@ -4,22 +4,30 @@
 
 La IA corre completamente del lado del servidor (`src/server/ai/`). Aprovecha que el juego es una máquina de estados pura: `applyAction(state, action)` → nuevo `state`, sin efectos secundarios.
 
-### Flujo de decisión
+### Flujo de decisión (concurrencia segura)
 
 ```
 Turno de la IA
   → GameRoom.refreshTimer()
-    → startTimer(expected)           ← timer arranca (safety net)
-    → setTimeout(handleBotTurn, 500) ← agenda bot
-      → handleBotTurn(info)
-        → decideAI(state, pid, diff)   ← IA decide
-        → handleAction(action, pid)    ← misma ruta que socket
-          → applyAction(state, action) ← estado actualizado
-          → onStateChanged(state)      ← broadcast a cliente
-          → refreshTimer()             ← timer se reinicia
+    → startTimer(expected)              ← timer arranca (safety net)
+    → scheduleBot(expected)             ← agenda bot
+      → async handleBotTurn(info)
+        → botBusy = true                ← protege contra fireAutoAction
+        → await decideAI(mid, clone, pid) ← IA decide (async, yield event loop)
+            ↔ setInterval tick → onTimerTick() ← el timer se actualiza durante yield
+            ↔ otros sockets → eventos → actionQueue ← se encolan, no se pierden
+        → handleAction(action, pid)     ← misma ruta que socket
+          → processingAction = true     ← protege contra reentrada
+          → _processAction(action, pid)
+          → _drainQueue()               ← procesa acciones encoladas
+          → refreshTimer()              ← timer se reinicia
+        → botBusy = false               ← fireAutoAction ya puede ejecutarse
 ```
 
-El timer arranca **antes** de que el bot ejecute su acción. Si la IA falla o el estado no cambia, el timer expira y `fireAutoAction` actúa como fallback (misma lógica que timeout humano).
+**Seguridad por capas:**
+- `botBusy`: evita que `fireAutoAction` se ejecute durante el cómputo de IA
+- `actionQueue` + `processingAction`: evita reentrada en `handleAction`
+- `yieldEventLoop()` en modelos: libera event loop cada ~30-50ms, permitiendo timers y sockets
 
 ## Estructura de archivos
 

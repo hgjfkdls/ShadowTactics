@@ -12,7 +12,7 @@ export class GreedyModel implements AIModel {
     this.config = config;
   }
 
-  decide(state: GameState, playerId: string, timeBudgetMs?: number): GameAction {
+  async decide(state: GameState, playerId: string, timeBudgetMs?: number): Promise<GameAction> {
     const weights = this.config.weights ?? getWeights('medium');
     const budget = timeBudgetMs ?? this.config.timeLimitMs;
     const startTime = Date.now();

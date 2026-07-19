@@ -94,6 +94,10 @@ export class GameRoom {
     isBotGame?: boolean;
     botModelId?: string;
 
+    private botBusy: boolean = false;
+    private actionQueue: { action: GameAction; playerId: 'p1' | 'p2' }[] = [];
+    private processingAction: boolean = false;
+
     private revealHandled: boolean = false;
     private revealDismissedPlayers: Set<string> = new Set();
     private rollResultDismissedPlayers: Set<string> = new Set();
@@ -455,6 +459,7 @@ export class GameRoom {
         } else if (info.phase === 'TURN' && info.playerId) {
             const pid = info.playerId as 'p1' | 'p2';
             if (s.activePlayer !== pid) return;
+            if (this.botBusy) return; // IA est� procesando, no hacer auto-action
 
             // Resolve pending identity choices before ending turn
             if (s.players[pid]?.pendingIdentityTarget) {
@@ -511,6 +516,21 @@ export class GameRoom {
     }
 
     handleAction(action: GameAction, playerId: 'p1' | 'p2') {
+        // Queue if already processing an action (reentrancy guard)
+        if (this.processingAction) {
+            this.actionQueue.push({ action, playerId });
+            return;
+        }
+        this.processingAction = true;
+        try {
+            this._processAction(action, playerId);
+        } finally {
+            this.processingAction = false;
+            this._drainQueue();
+        }
+    }
+
+    private _processAction(action: GameAction, playerId: 'p1' | 'p2') {
         const index = this.actions.length + 1;
 
         const record: ActionRecord = {
@@ -544,16 +564,35 @@ export class GameRoom {
         }
 
         this.refreshTimer();
-
-        return newState;
     }
 
-    private handleBotTurn(info: TimerInfo) {
+    private _drainQueue() {
+        while (this.actionQueue.length > 0) {
+            const { action, playerId } = this.actionQueue.shift()!;
+            this.processingAction = true;
+            try {
+                this._processAction(action, playerId);
+            } finally {
+                this.processingAction = false;
+            }
+        }
+    }
+
+    private async handleBotTurn(info: TimerInfo) {
+        if (this.botBusy) return;
+
+        // Rechazar timers stale (de fases anteriores)
+        const currentExpected = this.evaluateTimer();
+        if (currentExpected && (currentExpected.phase !== info.phase || currentExpected.playerId !== info.playerId)) {
+            return;
+        }
+
+        this.botBusy = true;
+        try {
         console.log(`[BOT_TURN] phase=${info.phase}, pid=${info.playerId}`);
         const s = this.currentState;
         const pid = info.playerId as 'p1' | 'p2' | undefined;
 
-        // Shared phases (no playerId) — determinar el bot una sola vez
         if (!pid) {
             const botP = (['p1', 'p2'] as const).find(p => this.isBotPlayer(p));
             if (!botP) return;
@@ -561,7 +600,7 @@ export class GameRoom {
             if (info.phase === 'IDENTITY_SELECTION') {
                 if (!s.players[botP]?.selectedIdentity) {
                     const modelId = this.botModelId ?? 'cpu_medio';
-                    const action = decideAI(modelId, JSON.parse(JSON.stringify(s)), botP);
+                    const action = await decideAI(modelId, JSON.parse(JSON.stringify(s)), botP);
                     if (action) this.handleAction(action, botP);
                 }
                 return;
@@ -571,26 +610,26 @@ export class GameRoom {
             return;
         }
 
-        // DEPLOYMENT — async con delay entre unidades
         if (info.phase === 'DEPLOYMENT') {
-            this.deployBotUnits(pid);
+            await this.deployBotUnits(pid);
             return;
         }
 
-        // TURN — async con delay entre acciones
         if (info.phase === 'TURN') {
             try {
-                this.runAITurn(pid);
+                await this.runAITurn(pid);
             } catch (e) {
                 console.error('[BOT_ERROR] runAITurn failed:', e);
             }
             return;
         }
 
-        // IDENTITY_SELECTION, ROLL, DISCARD, COUNTER → decisión inmediata
         const mid = this.botModelId ?? 'cpu_medio';
-        const action = decideAI(mid, JSON.parse(JSON.stringify(this.currentState)), pid);
+        const action = await decideAI(mid, JSON.parse(JSON.stringify(this.currentState)), pid);
         if (action) this.handleAction(action, pid);
+        } finally {
+            this.botBusy = false;
+        }
     }
 
     private async deployBotUnits(pid: 'p1' | 'p2') {
@@ -675,10 +714,11 @@ export class GameRoom {
                 const hand = cur.players[pid]?.cardsInHand ?? [];
                 if (hand.length > 3) {
                     this.handleAction({ type: 'DISCARD_CARD', playerId: pid as any, cardId: hand[0] }, pid);
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 20));
                     continue;
                 }
-                break;
+                // Sin cartas que descartar → re-evaluar (el turno podr�a haber cambiado a MAIN)
+                continue;
             }
 
             // MAIN → decidir acción
@@ -709,30 +749,35 @@ export class GameRoom {
                     const targets = Object.values(cur.units).filter(u => u.owner !== pid && u.class !== 'general');
                     if (targets.length > 0) {
                         this.handleAction({ type: 'IDENTITY_ABILITY', playerId: pid, targetId: targets[0].id }, pid);
-                        await new Promise(r => setTimeout(r, 500));
+                        await new Promise(r => setTimeout(r, 20));
                         continue;
                     }
                 }
                 if (cur.players[pid]?.pendingEspartanoChoice) {
                     this.handleAction({ type: 'ESPARTANO_CHOICE', playerId: pid, choice: 'defense' }, pid);
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 20));
                     continue;
                 }
                 if (cur.players[pid]?.pendingPlanBatalla) {
                     this.handleAction({ type: 'COMANDANTE_CHOICE', playerId: pid, choice: 'attack' }, pid);
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 20));
                     continue;
                 }
 
                 console.log(`[RUN_AI] ${pid}, AP=${ap}, phase=MAIN, i=${i}`);
+
+                // Forzar tick del timer antes del cómputo para que el cliente vea el estado actual
+                if (this.activeTimer) {
+                    this.onTimerTick?.({ phase: this.activeTimer.phase as any, remaining: this.activeTimer.remaining, duration: this.activeTimer.duration, isActive: this.activeTimer.alive, playerId: this.activeTimer.playerId }, null);
+                }
+
                 const mid = this.botModelId ?? 'cpu_medio';
-                // Reduce time budget for subsequent actions (MCTS greedy by nature)
                 const budget = i === 0 ? undefined : Math.max(2000, 5000 - i * 1000);
-                const action = decideAI(mid, JSON.parse(JSON.stringify(cur)), pid, budget);
+                const action = await decideAI(mid, JSON.parse(JSON.stringify(cur)), pid, budget);
                 if (!action || action.type === 'END_TURN') break;
 
                 this.handleAction(action, pid);
-                await new Promise(r => setTimeout(r, i === 0 ? 500 : 300));
+                await new Promise(r => setTimeout(r, 20));
                 continue;
             }
 
@@ -746,13 +791,13 @@ export class GameRoom {
 
     private scheduleBot(expected: TimerInfo): void {
         if (expected.playerId && this.isBotPlayer(expected.playerId as 'p1' | 'p2')) {
-            setTimeout(() => this.handleBotTurn(expected), 1000);
+            setTimeout(() => this.handleBotTurn(expected), 20);
         } else if (!expected.playerId && ['IDENTITY_SELECTION', 'ROLL', 'REVEAL', 'ROLL_RESULT'].includes(expected.phase)) {
             if (['p1', 'p2' as const].some(pid => this.isBotPlayer(pid as 'p1' | 'p2'))) {
                 if (expected.phase === 'ROLL') {
                     setTimeout(() => this.fireAutoAction(expected), 20);
                 } else {
-                    setTimeout(() => this.handleBotTurn(expected), 1000);
+                    setTimeout(() => this.handleBotTurn(expected), 20);
                 }
             }
         }

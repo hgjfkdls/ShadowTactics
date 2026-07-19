@@ -12,7 +12,7 @@ function ensurePresets(): void {
   }
 }
 
-export function decideAI(modelId: string, state: GameState, playerId: string, timeBudgetMs?: number): GameAction {
+export async function decideAI(modelId: string, state: GameState, playerId: string, timeBudgetMs?: number): Promise<GameAction> {
   ensurePresets();
 
   if (state.gamePhase === 'PREPARATION') {
@@ -30,9 +30,9 @@ export function decideAI(modelId: string, state: GameState, playerId: string, ti
   if (!model) {
     console.warn(`[AI] Unknown model "${modelId}", falling back to cpu_medio`);
     const fallback = getModel('cpu_medio');
-    if (fallback) return fallback.decide(state, playerId, timeBudgetMs);
+    if (fallback) return await fallback.decide(state, playerId, timeBudgetMs);
     return { type: 'END_TURN', playerId: playerId as any };
   }
 
-  return model.decide(state, playerId, timeBudgetMs);
+  return await model.decide(state, playerId, timeBudgetMs);
 }

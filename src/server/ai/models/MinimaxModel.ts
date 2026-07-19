@@ -5,6 +5,7 @@ import type { AIModel, AIModelConfig } from './types';
 import { getValidActions, cloneState } from '../actions';
 import { evaluate, getWeights } from '../evaluate';
 import type { Weights } from '../types';
+import { yieldEventLoop } from './utils';
 
 // ─── Transposition Table ──────────────────────────────────────────
 
@@ -16,8 +17,6 @@ type TTEntry = {
   flag: TTFlag;
   bestAction: GameAction | null;
 };
-
-let transpositionTable: Map<number, TTEntry>;
 
 function getActionKey(action: GameAction): string {
   if (action.type === 'USE_ABILITY') return `${action.type}_${action.unitId}_${action.abilityId}_${action.targetId ?? ''}_${action.to?.q ?? ''}_${action.to?.r ?? ''}`;
@@ -102,8 +101,8 @@ function actionScore(action: GameAction, state: GameState, playerId: string, ttB
   return score;
 }
 
-function sortActions(actions: GameAction[], state: GameState, playerId: string, hash: number): void {
-  const entry = transpositionTable.get(hash);
+function sortActions(actions: GameAction[], state: GameState, playerId: string, hash: number, tt: Map<number, TTEntry>): void {
+  const entry = tt.get(hash);
   const ttBestKey = entry?.bestAction ? getActionKey(entry.bestAction) : undefined;
   actions.sort((a, b) => actionScore(b, state, playerId, ttBestKey) - actionScore(a, state, playerId, ttBestKey));
 }
@@ -112,7 +111,8 @@ function sortActions(actions: GameAction[], state: GameState, playerId: string, 
 
 function quiescenceSearch(
   state: GameState, alpha: number, beta: number,
-  playerId: string, weights: Weights, qDepth: number
+  playerId: string, weights: Weights, qDepth: number,
+  tt: Map<number, TTEntry>
 ): number {
   const standPat = evaluate(state, playerId, weights);
   if (qDepth <= 0) return standPat;
@@ -125,13 +125,13 @@ function quiescenceSearch(
 
   if (actions.length === 0) return standPat;
 
-  sortActions(actions, state, playerId, zobristHash(state, playerId));
+  sortActions(actions, state, playerId, zobristHash(state, playerId), tt);
 
   for (const action of actions) {
     const sim = cloneState(state);
     const result = applyAction(sim, action);
     const nextPid = result.gamePhase === 'GAME' ? result.activePlayer : playerId;
-    const score = -quiescenceSearch(result, -beta, -alpha, nextPid, weights, qDepth - 1);
+    const score = -quiescenceSearch(result, -beta, -alpha, nextPid, weights, qDepth - 1, tt);
 
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
@@ -141,18 +141,26 @@ function quiescenceSearch(
 
 // ─── Alpha-Beta con TT ─────────────────────────────────────────────
 
-function alphaBeta(
+async function alphaBeta(
   state: GameState, depth: number,
   alpha: number, beta: number,
   playerId: string, isMaximizing: boolean,
-  weights: Weights, startTime: number, timeBudget: number
-): number {
+  weights: Weights, startTime: number, timeBudget: number,
+  yieldCounter: { count: number },
+  tt: Map<number, TTEntry>
+): Promise<number> {
+  // Yield every 20 nodes to let event loop process timers
+  yieldCounter.count++;
+  if (yieldCounter.count % 20 === 0) {
+    await yieldEventLoop();
+  }
+
   // Time check
   if (Date.now() - startTime > timeBudget * 0.95) return evaluate(state, playerId, weights);
 
   // Transposition table lookup
   const hash = zobristHash(state, playerId);
-  const ttEntry = transpositionTable.get(hash);
+  const ttEntry = tt.get(hash);
   if (ttEntry && ttEntry.depth >= depth) {
     if (ttEntry.flag === 'exact') return ttEntry.score;
     if (ttEntry.flag === 'lowerbound' && ttEntry.score > alpha) alpha = ttEntry.score;
@@ -162,19 +170,19 @@ function alphaBeta(
 
   // Terminal or depth limit → quiescence
   if (depth === 0 || state.gamePhase === 'GAME_OVER') {
-    const score = quiescenceSearch(state, alpha, beta, playerId, weights, 3);
-    transpositionTable.set(hash, { depth, score, flag: 'exact', bestAction: null });
+    const score = quiescenceSearch(state, alpha, beta, playerId, weights, 3, tt);
+    tt.set(hash, { depth, score, flag: 'exact', bestAction: null });
     return score;
   }
 
   const actions = getSearchActions(state, playerId);
   if (actions.length === 0) {
     const score = evaluate(state, playerId, weights);
-    transpositionTable.set(hash, { depth, score, flag: 'exact', bestAction: null });
+    tt.set(hash, { depth, score, flag: 'exact', bestAction: null });
     return score;
   }
 
-  sortActions(actions, state, playerId, hash);
+  sortActions(actions, state, playerId, hash, tt);
 
   let bestAction: GameAction | null = null;
   let score: number;
@@ -188,7 +196,7 @@ function alphaBeta(
       const sim = cloneState(state);
       const result = applyAction(sim, action);
       const nextPid = result.gamePhase === 'GAME' ? result.activePlayer : playerId;
-      const val = alphaBeta(result, depth - 1, alpha, beta, nextPid, nextPid === playerId, weights, startTime, timeBudget);
+      const val = await alphaBeta(result, depth - 1, alpha, beta, nextPid, nextPid === playerId, weights, startTime, timeBudget, yieldCounter, tt);
       if (val > score) { score = val; bestAction = action; }
       if (score > alpha) alpha = score;
       if (alpha >= beta) { flag = 'lowerbound'; break; }
@@ -200,7 +208,7 @@ function alphaBeta(
       const sim = cloneState(state);
       const result = applyAction(sim, action);
       const nextPid = result.gamePhase === 'GAME' ? result.activePlayer : playerId;
-      const val = alphaBeta(result, depth - 1, alpha, beta, nextPid, nextPid === playerId, weights, startTime, timeBudget);
+      const val = await alphaBeta(result, depth - 1, alpha, beta, nextPid, nextPid === playerId, weights, startTime, timeBudget, yieldCounter, tt);
       if (val < score) { score = val; bestAction = action; }
       if (score < beta) beta = score;
       if (alpha >= beta) { flag = 'lowerbound'; break; }
@@ -208,25 +216,27 @@ function alphaBeta(
   }
 
   if (alpha > originalAlpha && alpha < beta && flag !== 'lowerbound') flag = 'exact';
-  transpositionTable.set(hash, { depth, score, flag, bestAction });
+  tt.set(hash, { depth, score, flag, bestAction });
 
   return score;
 }
 
 // ─── Iterative Deepening ───────────────────────────────────────────
 
-function iterativeDeepening(
+async function iterativeDeepening(
   state: GameState, playerId: string,
-  maxDepth: number, timeBudgetMs: number, weights: Weights
-): GameAction {
+  maxDepth: number, timeBudgetMs: number, weights: Weights,
+  tt: Map<number, TTEntry>
+): Promise<GameAction> {
   const startTime = Date.now();
   let bestAction: GameAction = { type: 'END_TURN', playerId: playerId as any };
   let nodesSearched = 0;
   let depthCompleted = 0;
 
-  transpositionTable = new Map();
-
   for (let depth = 1; depth <= maxDepth; depth++) {
+    // Yield between depths to allow timer ticks
+    await yieldEventLoop();
+
     if (Date.now() - startTime > timeBudgetMs * 0.8) break;
 
     // Time management: estimate if next depth has time to complete
@@ -243,7 +253,7 @@ function iterativeDeepening(
     const actions = getSearchActions(state, playerId);
     if (actions.length === 0) break;
 
-    sortActions(actions, state, playerId, zobristHash(state, playerId));
+    sortActions(actions, state, playerId, zobristHash(state, playerId), tt);
 
     let currentBest = actions[0];
     let depthNodes = 0;
@@ -254,10 +264,12 @@ function iterativeDeepening(
       const result = applyAction(sim, action);
       const nextPid = result.gamePhase === 'GAME' ? result.activePlayer : playerId;
 
-      const score = alphaBeta(
+      const yieldCounter = { count: 0 };
+      const score = await alphaBeta(
         result, depth - 1, -Infinity, Infinity,
         nextPid, nextPid === playerId,
-        weights, startTime, timeBudgetMs
+        weights, startTime, timeBudgetMs,
+        yieldCounter, tt
       );
 
       depthNodes++;
@@ -279,16 +291,18 @@ function iterativeDeepening(
 
 export class MinimaxModel implements AIModel {
   readonly config: AIModelConfig;
+  private tt: Map<number, TTEntry> = new Map();
 
   constructor(config: AIModelConfig) {
     this.config = config;
   }
 
-  decide(state: GameState, playerId: string, timeBudgetMs?: number): GameAction {
+  async decide(state: GameState, playerId: string, timeBudgetMs?: number): Promise<GameAction> {
     const weights = this.config.weights ?? getWeights('medium');
     const budget = timeBudgetMs ?? this.config.timeLimitMs;
     const maxDepth = this.config.depth;
+    this.tt = new Map(); // fresh for each decision
 
-    return iterativeDeepening(state, playerId, maxDepth, budget, weights);
+    return await iterativeDeepening(state, playerId, maxDepth, budget, weights, this.tt);
   }
 }

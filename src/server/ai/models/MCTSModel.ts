@@ -4,6 +4,7 @@ import type { AIModel, AIModelConfig } from './types';
 import { getValidActions, cloneState } from '../actions';
 import { evaluate, getWeights, PRIORITIES } from '../evaluate';
 import type { Weights } from '../types';
+import { yieldEventLoop } from './utils';
 
 class MCTSNode {
   state: GameState;
@@ -115,37 +116,43 @@ export class MCTSModel implements AIModel {
     this.config = config;
   }
 
-  decide(state: GameState, playerId: string, timeBudgetMs?: number): GameAction {
+  async decide(state: GameState, playerId: string, timeBudgetMs?: number): Promise<GameAction> {
     const weights = this.config.weights ?? getWeights('medium');
     const budget = timeBudgetMs ?? this.config.timeLimitMs;
     const root = new MCTSNode(state, null, null, playerId, weights);
     const startTime = Date.now();
 
-    let iterations = 0;
-    while (Date.now() - startTime < budget * 0.9) {
-      let node = root;
+    const runBatch = async (): Promise<GameAction> => {
+      for (let b = 0; b < 3; b++) {
+        if (Date.now() - startTime >= budget * 0.9) {
+          return root.bestAction() ?? { type: 'END_TURN', playerId: playerId as any };
+        }
 
-      // SELECT
-      while (!node.isTerminal && node.untriedActions.length === 0 && node.children.length > 0) {
-        node = node.selectChild();
+        let node = root;
+
+        // SELECT
+        while (!node.isTerminal && node.untriedActions.length === 0 && node.children.length > 0) {
+          node = node.selectChild();
+        }
+
+        // EXPAND
+        if (!node.isTerminal && node.untriedActions.length > 0) {
+          const expanded = node.expand();
+          if (expanded) node = expanded;
+        }
+
+        // SIMULATE
+        const result = node.simulate();
+
+        // BACKPROPAGATE
+        node.backpropagate(result);
       }
 
-      // EXPAND
-      if (!node.isTerminal && node.untriedActions.length > 0) {
-        const expanded = node.expand();
-        if (expanded) node = expanded;
-      }
+      // Yield after batch of 3
+      await yieldEventLoop();
+      return runBatch();
+    };
 
-      // SIMULATE (returns heuristic result if no GAME_OVER, or -1/0/1)
-      const result = node.simulate();
-
-      // BACKPROPAGATE
-      node.backpropagate(result);
-
-      iterations++;
-    }
-
-    const best = root.bestAction();
-    return best ?? { type: 'END_TURN', playerId: playerId as any };
+    return runBatch();
   }
 }

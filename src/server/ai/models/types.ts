@@ -16,5 +16,5 @@ export type AIModelConfig = {
 
 export interface AIModel {
   readonly config: AIModelConfig;
-  decide(state: GameState, playerId: string, timeBudgetMs?: number): GameAction;
+  decide(state: GameState, playerId: string, timeBudgetMs?: number): Promise<GameAction>;
 }
