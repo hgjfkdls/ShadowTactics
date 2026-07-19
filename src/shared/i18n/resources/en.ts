@@ -67,6 +67,7 @@ export const en = {
     hostigar: { name: 'Harass', desc: 'Cavalry has -1 difficulty when attacking enemies at 50% or less HP' },
     angel_guardian: { name: 'Guardian Angel', desc: 'All allies receive a shield of +2 HP. Also heals 1 HP to the ally (including General) with the most missing HP (random if tied).' },
     proteger: { name: 'Protect', desc: 'An ally at range ≤ 3 receives +1 defense until your next turn. Stacks with other defenses. If unused, the effect goes to the General.' },
+    proteger_auto: { name: 'Protect', desc: 'Auto-version of Protect that applies to the General if you did not use Protect manually.' },
     sacrificar: { name: 'Sacrifice', desc: 'An ally at range 1 loses 2 HP. The General recovers 3 HP. If the ally dies, recovers 5 HP.', restriction: 'Cannot be used if the General is at full HP.' },
     terror: { name: 'Terror', desc: 'When an ally kills an enemy, all enemies receive +2 difficulty on their next attack.' },
     furia_berserker: { name: 'Berserker Fury', desc: 'General and infantry units have +1 attack while at 50% HP or less' },

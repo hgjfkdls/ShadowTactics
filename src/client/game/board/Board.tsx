@@ -43,7 +43,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     const hexes = generateHexMap(state.map);
     const sel = useSelection();
     const { animPositions, enqueue, enqueueMultiple, bubble, activeEffects } = useAnimation();
-    useGameEvents(state);
+    const [actionHighlightHexes, setActionHighlightHexes] = useState<HexCoord[]>([]);
+    useGameEvents(state, setActionHighlightHexes);
     const {
         hoveredHex, selectedHex, selectedUnitId,
         movingUnitId, attackingUnitId, pendingAbility,
@@ -356,33 +357,34 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 if (e.alliesHit) ids.push(...e.alliesHit);
                 if (e.enemiesHit) ids.push(...e.enemiesHit);
             }
-            return Object.values(state.units)
+            return [...Object.values(state.units)
                 .filter(u => ids.includes(u.id))
-                .map(u => u.position);
+                .map(u => u.position), ...actionHighlightHexes];
         }
         if (selectedInfo?.type === 'historyMove') {
             const e = selectedInfo.entry;
             const u = Object.values(state.units).find(u => u.id === e.unitId);
-            if (u) return [u.position, e.from, e.to];
-            return [e.from, e.to];
+            const fromHistory = u ? [u.position, e.from, e.to] : [e.from, e.to];
+            return [...fromHistory, ...actionHighlightHexes];
         }
         if (selectedInfo?.type === 'historyCard') {
             const e = selectedInfo.entry;
+            const cardHexes: HexCoord[] = [];
             if (e.targetId) {
                 const t = Object.values(state.units).find(u => u.id === e.targetId);
-                if (t) return [t.position];
+                if (t) cardHexes.push(t.position);
             }
-            return [];
+            return [...cardHexes, ...actionHighlightHexes];
         }
         if (selectedInfo?.type === 'historyDeploy') {
             const e = selectedInfo.entry;
             if (e.unitId) {
                 const u = Object.values(state.units).find(u => u.id === e.unitId);
-                if (u) return [u.position];
+                if (u) return [u.position, ...actionHighlightHexes];
             }
-            return [];
+            return [...actionHighlightHexes];
         }
-        return [];
+        return [...actionHighlightHexes];
     })();
 
     const angelGuardianHexes = pendingAngelGuardian
@@ -569,6 +571,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         sendAction={sendAction}
                         onHexClick={onHexClick}
                         onSelectUnit={unitId => {
+                            setActionHighlightHexes([]);
                             if (mode === 'DEPLOYMENT') {
                                 if (selectedUnitId === unitId) {
                                     setSelectedUnitId(null);
@@ -626,6 +629,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                         : ef.name === 'arrows' ? <ArrowVolley key={id} from={ef.from} to={ef.to} />
                         : ef.name === 'stab' ? <SpearStab key={id} from={ef.from} to={ef.to} />
                         : ef.name === 'stars' ? <StarsEffect key={id} from={ef.from} to={ef.to} />
+                        : ef.name === 'shield' ? <ShieldEffect key={id} position={ef.from} />
                         : null
                     )}
                     {Object.entries(bubble).map(([id, b]) => {
@@ -639,8 +643,9 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             <HistoryPanel
                 gameHistory={state.gameHistory ?? []}
                 selectedInfo={selectedInfo}
-                onSelectEntry={entry => {
-                    if (!entry) { clearAllSelections(); return; }
+                    onSelectEntry={entry => {
+                        setActionHighlightHexes([]);
+                        if (!entry) { clearAllSelections(); return; }
                     // Deploy entries: highlight without changing selection in right panel
                     if (entry.type === 'move' && entry.turn === 0 && entry.unitId && !entry.attackName) {
                         onInfoSelect?.({ type: 'historyDeploy', entry: entry as any });
@@ -1066,6 +1071,40 @@ function StarsEffect({ from, to }: { from: HexCoord; to: HexCoord }) {
       {all.map((s, i) => (
         <StarIcon key={i} x={s.x} y={s.y} size={7} delay={s.delay} />
       ))}
+    </g>
+  );
+}
+
+function ShieldEffect({ position }: { position: HexCoord }) {
+  const p = axialToPixel(position);
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <style>{`
+        @keyframes shieldFall {
+          0% { opacity: 0; transform: translateY(-60px) scale(0.2); }
+          20% { opacity: 1; transform: translateY(-30px) scale(1.1); }
+          40% { opacity: 1; transform: translateY(0) scale(1); }
+          80% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(4px) scale(0.4); }
+        }
+      `}</style>
+      <g transform={`translate(${p.x}, ${p.y})`}>
+        <g style={{ animation: 'shieldFall 1s ease-out forwards' }}>
+          <path
+            d="M-12,-8 L12,-8 L12,2 Q12,10 0,16 Q-12,10 -12,2 Z"
+            fill="none"
+            stroke="#60a5fa"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+          />
+          <path
+            d="M-8,-5 L8,-5 L8,1 Q8,7 0,12 Q-8,7 -8,1 Z"
+            fill="#60a5fa"
+            fillOpacity={0.3}
+            stroke="none"
+          />
+        </g>
+      </g>
     </g>
   );
 }

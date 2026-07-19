@@ -194,7 +194,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
 
     switch (cfg.type) {
         case 'attack':
-            s = handleAttack(s, action, unit, cfg, baseCost, costMods, voiceKey);
+            s = handleAttack(s, action, unit, cfg, baseCost, costMods, voiceKey, moveFinalCost);
             if (s === sBeforeSwitch) return state;
             // El resolver consume attack, difficulty, attackCost via consumeModifier con abilityId.
             // Consumir adicionalmente el attackCost SET específico de la unidad.
@@ -369,7 +369,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     return s;
 }
 
-function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, voiceKey?: string): GameState {
+function handleAttack(state: GameState, action: GameAction, unit: Unit, cfg: AbilityConfig, baseCost: number, costMods: number, voiceKey?: string, actualPaCost?: number): GameState {
     // Torbellino: AoE attack — no necesita targetId
     if (action.abilityId === 'torbellino') {
         if ((unit.flags ?? []).includes('torbellino') || (unit.flags ?? []).includes('carga')) return state;
@@ -542,7 +542,7 @@ let s = state;
         });
 
         s = result.state;
-        s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged, voiceKey);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, actualPaCost ?? (baseCost + costMods), undefined, preTimesDamaged, voiceKey);
 
         // Ocupar posición si murió
         if (s.graveyard[target.id]) {
@@ -572,7 +572,7 @@ let s = state;
     s = result.state;
 
     // Store game history first (reusing legacy helper)
-    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, baseCost + costMods, undefined, preTimesDamaged, voiceKey);
+    s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, actualPaCost ?? (baseCost + costMods), undefined, preTimesDamaged, voiceKey);
 
     // Avance: ocupar posición del enemigo eliminado si la unidad tiene la pasiva
     if (s.graveyard[target.id] && target.class !== 'general' && (unit.abilities ?? []).includes('avance')) {

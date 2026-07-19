@@ -20,6 +20,10 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
     const combat: string[] = [];
     const paMods: string[] = [];
 
+    // ── Config-driven modifier display (from unit abilities + state) ──
+    // Read from unit abilities and state directly, since activeModifiers may have been consumed
+    const processedDisplayIds = new Set<string>();
+
     // ── COST modifiers (from activeModifiers) ──
     const COST_STATS = ['attackCost', 'actionCost', 'movementCost', 'ap'];
     // isAttackerMod: modifiers from the attacker's perspective (cost increase)
@@ -31,6 +35,7 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
     const atkCostSum = COST_STATS.reduce((sum, stat) => {
         const mods = s.activeModifiers.filter((m: any) => m.stat === stat && (isAttackerMod(m) || isTargetMod(m)));
         let localSum = 0;
+        const seenLabels = new Set<string>();
         for (const m of mods) {
             if (m.consumedBy !== undefined && m.consumedBy !== configId) continue;
             if (m.operator === 'ADD') localSum += m.value;
@@ -38,19 +43,22 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
             else if (m.operator === 'SET') localSum = m.value;
             const cat = stat === 'attackCost' ? 'cost' : stat === 'actionCost' ? 'cost' : stat === 'ap' ? 'pa' : stat;
             const label = `${m.sourceName ?? m.stat}: ${m.value > 0 ? '+' : ''}${m.value} PA`;
+            if (seenLabels.has(label)) continue;
+            seenLabels.add(label);
+            // Marcar como procesado para que el fallback no lo duplique
+            if (m.sourceName && m.stat) {
+                processedDisplayIds.add(`${m.sourceName}-${m.stat}`);
+            }
             // Only add to combat if it's an attacker-side cost modifier
             if (isAttackerMod(m)) {
-                combat.push(`[cost] ${label}`);
+                const idTag = m.sourceName ? `[id:${m.sourceName}] ` : '';
+                combat.push(`[cost] ${idTag}${label}`);
             }
             if (stat === 'attackCost' && isAttackerMod(m)) paMods.push(label);
             if (stat === 'actionCost' && isTargetMod(m)) paMods.push(label);
         }
         return sum + localSum;
     }, 0);
-
-    // ── Config-driven modifier display (from unit abilities + state) ──
-    // Read from unit abilities and state directly, since activeModifiers may have been consumed
-    const processedDisplayIds = new Set<string>();
     function addModDisplay(abilityId: string, stat: string, value: number, targetId?: string): void {
         const key = `${abilityId}-${stat}`;
         if (processedDisplayIds.has(key)) return;
@@ -210,12 +218,7 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
     for (const [, { count, sumValue, m }] of modAccum) {
         if (processedDisplayIds.has(`${m.sourceName}-${m.stat}`)) continue;
         const prefix = sumValue > 0 ? '+' : '';
-        const nameKey = m.source === 'card' ? `card.${m.sourceName}.name` : `ability.${m.sourceName}.name`;
-        let name = l(nameKey);
-        if (name === nameKey && m.source === 'card') {
-            const cardName = l(`card.${m.sourceName}.name`);
-            if (cardName !== `card.${m.sourceName}.name`) name = cardName;
-        }
+        const name = m.sourceName ?? m.stat;
         const label = count > 1 ? `${name}: ${prefix}${sumValue} (x${count})` : `${name}: ${prefix}${sumValue}`;
         const isAtkSource = m.sourcePlayerId === attacker.owner;
         if (m.stat === 'attack') {
@@ -281,6 +284,21 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
     if (rangeBonusCfg && rangeBonusCfg > 0) {
         combat.push(`[range] [id:${configId}] ${l(`ability.${configId}.name`)}: +${rangeBonusCfg} rango`);
     }
+
+    // Deduplicar combat entries por contenido (sin prefijo de categoría ni tags)
+    // Deduplicar combat entries por contenido (sin prefijo de categoría ni tags)
+    // Preferir la que tenga [id:...] (traducción desde i18n)
+    const seenCombat = new Map<string, { entry: string; hasId: boolean }>();
+    for (const c of combat) {
+        const content = c.replace(/^\[\w+\]\s*/, '').replace(/\[(?:id|stat|ignores):[\w,.]+\]\s*/g, '').toLowerCase().trim();
+        const hasId = /\[id:\w+\]/.test(c);
+        const existing = seenCombat.get(content);
+        if (!existing || (hasId && !existing.hasId)) {
+            seenCombat.set(content, { entry: c, hasId });
+        }
+    }
+    combat.length = 0;
+    combat.push(...[...seenCombat.values()].map(v => v.entry));
 
     return { combat, paMods };
 }

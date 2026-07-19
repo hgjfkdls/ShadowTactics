@@ -28,6 +28,7 @@ export const BUFF_CARD_CONFIG: Record<string, CardConfig> = {
     },
     ataque_extra: {
         id: 'ataque_extra', type: 'BUFF', targetType: 'unit_ally',
+        activation: { requireFlags: ['basic_attack'] },
         effects: [
             { type: 'flagPop', target: 'ally', flags: ['basic_attack'] },
             { type: 'modifierPush', target: 'ally', stat: 'attack', value: 1, remainingUses: 1, consumedBy: 'ataque_basico' },

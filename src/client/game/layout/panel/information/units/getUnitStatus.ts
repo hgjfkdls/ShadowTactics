@@ -10,12 +10,12 @@ export function getUnitStatus(unit: Unit, modifiers: ModifierInstance[]): { buff
         if (m.remainingUses !== undefined && m.remainingUses <= 0) continue;
 
         const isUnitSpecific = m.targetId === unit.id;
-        const isPlayerWide = !m.targetId && m.sourcePlayerId === unit.owner;
-        if (!isUnitSpecific && !isPlayerWide) continue;
+        if (!isUnitSpecific) continue;
 
         const stat = m.stat;
         const nameKey = m.source === 'card' ? `card.${m.sourceName}.name` : `ability.${m.sourceName}.name`;
-        const abilityName = m.sourceName ? l(nameKey) || m.sourceName : '';
+        const translated = l(nameKey);
+        const abilityName = m.sourceName ? (translated !== nameKey ? translated : m.sourceName) : '';
 
         if (stat === 'ap') continue;
         if (stat === 'passiveDamage') {

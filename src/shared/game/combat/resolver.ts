@@ -106,7 +106,7 @@ export function resolveAttack(input: AttackInput): AttackResult {
         s = consumeModifier(s, unit.owner, 'damage', 1, undefined, input.configId);
         s = consumeModifier(s, target.owner, 'damage', 1, target.id, input.configId);
         s = consumeModifier(s, target.owner, 'defense', 1, target.id, input.configId);
-        s = consumeModifier(s, unit.owner, 'dotOnHit', 1, undefined, input.configId);
+        s = consumeModifier(s, unit.owner, 'dotOnHit', 1, unit.id, input.configId);
         s = consumeModifier(s, unit.owner, 'attack', 1, unit.id, input.configId);
         s = consumeModifier(s, unit.owner, 'attack', 1, undefined, input.configId);
         s = consumeModifier(s, unit.owner, 'difficulty', 1, unit.id, input.configId);
@@ -164,7 +164,7 @@ export function resolveAttack(input: AttackInput): AttackResult {
 
     // Aplicar DoT si el atacante tenía flechas_fuego (dotOnHit)
     const hadDot = s.activeModifiers.some(m => m.stat === 'dotOnHit' && m.sourcePlayerId === unit.owner && m.remainingUses !== undefined && m.remainingUses > 0);
-    s = consumeModifier(s, unit.owner, 'dotOnHit', 1, undefined, input.configId);
+    s = consumeModifier(s, unit.owner, 'dotOnHit', 1, unit.id, input.configId);
     if (hadDot) {
         s = addModifier(s, unit.owner, target.id, 'passiveDamage', 1, 'ADD', 0, 2);
     }

@@ -33,8 +33,8 @@ export function SpeechBubble({ message, visible, generalPosition }: Props) {
   const boxW = Math.min(260, Math.max(80, textW + padX * 2));
   const boxH = Math.max(24, lines.length * lineHeight + padY * 2);
 
-  const gap = 6;
-  const boxX = x + 18;
+  const gap = 50;
+  const boxX = x - boxW / 2;
   const boxY = y - boxH - gap;
 
   const clampedX = Math.max(-380, Math.min(380 - boxW, boxX));

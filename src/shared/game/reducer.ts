@@ -230,7 +230,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             const s = updateUnit(state, occ.unitId, (u) => ({
                 ...u, position: occ.position, didMovePreviousTurn: false,
             }));
-            const pathStr = `(${unit.position.q},${unit.position.r}) → (${occ.position.q},${occ.position.r})`;
+            const occPath = [unit.position, occ.position];
             return {
                 ...s,
                 pendingOccupation: undefined,
@@ -244,7 +244,8 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
                     unitClass: unit?.class ?? 'general',
                     from: unit.position,
                     to: occ.position,
-                    path: pathStr,
+                    path: occPath,
+                    details: `(${unit.position.q},${unit.position.r}) → (${occ.position.q},${occ.position.r})`,
                     cost: 0,
                     baseCost: 0,
                     modifiers: [(unit?.abilities ?? []).includes('ejecutar') ? 'Ejecutar' : 'Desenvainado veloz'],

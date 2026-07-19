@@ -95,6 +95,10 @@ export function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; un
     const unitClass = unit?.class ?? poolEntry!.unitClass;
     const maxHp = getMaxHp(unitClass);
     const currentHp = unit?.hp ?? maxHp;
+    const hasRoyalShield = unit?.royalShieldSavedHp !== undefined;
+    const displayHp = hasRoyalShield ? unit!.royalShieldSavedHp! : currentHp;
+    const royalShieldAmount = hasRoyalShield ? currentHp - unit!.royalShieldSavedHp! : 0;
+    const totalShield = (liveUnit?.auraShield ?? 0) + royalShieldAmount;
 
     const projected = poolEntry ? getProjectedPoolUnitInfo(
       unitClass,
@@ -127,9 +131,9 @@ export function UnitDetail({ state, unitId, myPlayerId }: { state: GameState; un
             </div>
 
             <StatsGrid
-              hp={currentHp}
+              hp={displayHp}
               maxHp={maxHp}
-              shield={liveUnit?.auraShield ?? 0}
+              shield={totalShield}
               attack={unit?.attack ?? projected?.stats.attack ?? 3}
               difficulty={unit?.difficulty ?? projected?.stats.difficulty ?? 6}
               range={unit?.range ?? projected?.stats.range ?? 1}

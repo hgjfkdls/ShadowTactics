@@ -3,7 +3,9 @@ import { hexDistance, hexNeighbors, isWithinBounds } from '@shared';
 import { isHexOccupied, applyAction } from '@shared/game';
 import type { Unit } from '@shared/game/state';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
+import { CARD_CONFIG } from '@shared/game/data/card-config';
 import { getCardType } from '@shared/game/actions/card';
+import { BASE_STATS } from '@shared/game/units';
 
 function isUnitBlocked(state: GameState, unitId: string): boolean {
   return state.activeModifiers.some(
@@ -21,8 +23,17 @@ function canUnitMove(unit: Unit): boolean {
 
 function getCardTargets(state: GameState, playerId: string, cardId: string): string[] {
   const cardType = getCardType(cardId);
+  const key = cardId.replace(/_\d+$/, '');
+  const config = CARD_CONFIG[key];
   if (cardType === 'BUFF') {
-    return Object.values(state.units).filter(u => u.owner === playerId).map(u => u.id);
+    let targets = Object.values(state.units).filter(u => u.owner === playerId);
+    if (config?.activation?.requireFlags) {
+      targets = targets.filter(u => config.activation.requireFlags.every((f: string) => (u.flags ?? []).includes(f)));
+    }
+    if (config?.activation?.blockFlags) {
+      targets = targets.filter(u => !config.activation.blockFlags.some((f: string) => (u.flags ?? []).includes(f)));
+    }
+    return targets.map(u => u.id);
   }
   if (cardType === 'DEBUFF') {
     const opponent = playerId === 'p1' ? 'p2' : 'p1';
@@ -78,12 +89,17 @@ function getBasicAttackActions(state: GameState, playerId: string, unit: Unit, a
   return result;
 }
 
-function canUseAbility(unit: Unit, abilityId: string): boolean {
+function canUseAbility(unit: Unit, abilityId: string, state?: GameState): boolean {
   const config = ABILITY_CONFIG[abilityId] as any;
   if (!config || config.type === 'passive') return false;
   if (config.activation?.whenAttack || config.activation?.whenAttacked) return false;
   if (config.activation?.blockFlags?.some((f: string) => unit.flags?.includes(f))) return false;
   if (config.activation?.requireFlags?.some((f: string) => !unit.flags?.includes(f))) return false;
+  // No usar meditación si está a full HP (desperdicio de PA)
+  if (abilityId === 'meditacion') {
+    const maxHp = BASE_STATS[unit.class as keyof typeof BASE_STATS]?.hp ?? 24;
+    if (unit.hp >= maxHp) return false;
+  }
   return true;
 }
 

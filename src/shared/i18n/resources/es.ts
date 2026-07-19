@@ -65,6 +65,7 @@ export const es = {
     hostigar: { name: 'Hostigar', desc: 'Caballería tiene -1 dificultad al atacar a enemigos con 50% o menos de HP' },
     angel_guardian: { name: 'Ángel Guardián', desc: 'Todos los aliados reciben un escudo de +2 HP. Además, cura 1 HP al aliado (incluye General) que más HP le falte (aleatorio si hay empate).' },
     proteger: { name: 'Proteger', desc: 'Un aliado a rango ≤ 3 recibe +1 defensa hasta tu siguiente turno. Se acumula con otras defensas. Si no se usa, el efecto va al General.' },
+    proteger_auto: { name: 'Proteger', desc: 'Versión automática de Proteger que se aplica al General si no usaste Proteger manualmente.' },
     sacrificar: { name: 'Sacrificar', desc: 'Un aliado a rango 1 pierde 2 HP. El General recupera 3 HP. Si el aliado muere, recupera 5 HP.', restriction: 'No puede usarse si el General está a full HP.' },
     terror: { name: 'Terror', desc: 'Cuando un aliado elimina a un enemigo, todos los enemigos reciben dificultad +2 en su siguiente ataque.' },
     furia_berserker: { name: 'Furia berserker', desc: 'El General y las unidades de infantería tienen +1 de ataque mientras tengan 50% o menos de HP' },

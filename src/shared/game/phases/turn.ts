@@ -35,9 +35,8 @@ export function handleEndTurn(state: GameState, action: GameAction): GameState {
             units[id] = {
                 ...u,
                 didMovePreviousTurn: (u.flags ?? []).includes('move'),
-                flags: u.flags ?? [],  // No se limpian aquí, solo al inicio del turno vía resetUnitTracking
+                flags: u.flags ?? [],
                 espartanoRangeBonus: false,
-                auraShield: 0,
                 ataqueExtraCharges: 0,
                 precisionCharges: 0,
                 lastHex: undefined,
@@ -101,6 +100,7 @@ function resetUnitTracking(unit: Unit): Unit {
         usedAccionEvasiva: false,
         hasCargaBonus: false,
         lastHex: undefined,
+        auraShield: 0,
     };
 }
 

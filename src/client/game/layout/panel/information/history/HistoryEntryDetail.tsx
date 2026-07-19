@@ -136,8 +136,13 @@ function HistoryEntryDetail({ entry, state }: { entry: any; state: GameState }) 
         }
         const idMatch = rawText.match(/\[id:(\w+)\]/);
         if (idMatch && !i18nMatch) {
-            const translated = l(`ability.${idMatch[1]}.name`);
-            if (translated && translated !== `ability.${idMatch[1]}.name`) {
+            const abKey = `ability.${idMatch[1]}.name`;
+            const cardKey = `card.${idMatch[1]}.name`;
+            let translated = l(abKey);
+            if (translated === abKey) {
+                translated = l(cardKey);
+            }
+            if (translated && translated !== abKey && translated !== cardKey) {
                 const colonIdx = item.text.indexOf(':');
                 if (colonIdx > 0) {
                     const rest = item.text.slice(colonIdx);

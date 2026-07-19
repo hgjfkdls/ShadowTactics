@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { GameState } from '@shared/game/state';
+import type { HexCoord } from '@shared/hex';
 import { l } from '@shared/i18n';
 import { useAnimation } from '../../animation/AnimationContext';
 import { cardImgUrl } from '../../helpers/cards';
@@ -8,7 +9,7 @@ function getCardImg(cardId: string): string {
   return cardImgUrl(cardId);
 }
 
-export function useGameEvents(state: GameState) {
+export function useGameEvents(state: GameState, onActionHighlight?: (hexes: HexCoord[]) => void) {
   const { enqueue } = useAnimation();
   const lastProcessedId = useRef<string>('');
 
@@ -20,6 +21,35 @@ export function useGameEvents(state: GameState) {
     const entryId = (entry as any).id ?? '';
     if (!entryId || entryId === lastProcessedId.current) return;
     lastProcessedId.current = entryId;
+
+    // Auto-highlight hexes for the action
+    if (onActionHighlight) {
+      const e = entry as any;
+      let hexes: HexCoord[] = [];
+      if (entry.type === 'attack') {
+        const atk = Object.values(state.units).find(u => u.id === e.attackerId);
+        const tgt = Object.values(state.units).find(u => u.id === e.targetId) ?? state.graveyard[e.targetId];
+        if (atk) hexes.push(atk.position);
+        if (tgt) hexes.push(tgt.position);
+      } else if (entry.type === 'move') {
+        const path = e.path;
+        if (Array.isArray(path)) {
+          hexes = path;
+        } else {
+          if (e.from) hexes.push(e.from);
+          if (e.to) hexes.push(e.to);
+        }
+      } else if (entry.type === 'support') {
+        const src = e.unitId ? state.units[e.unitId] : undefined;
+        const tgt = e.targetId ? (state.units[e.targetId] ?? state.graveyard[e.targetId]) : undefined;
+        if (src) hexes.push(src.position);
+        if (tgt && tgt !== src) hexes.push(tgt.position);
+      } else if (entry.type === 'card') {
+        const tgt = e.targetId ? (state.units[e.targetId] ?? state.graveyard[e.targetId]) : undefined;
+        if (tgt) hexes.push(tgt.position);
+      }
+      if (hexes.length > 0) onActionHighlight(hexes);
+    }
 
     // Card play → flip animation (only real cards, not support abilities)
     if (entry.type === 'card' && (entry as any).cardType) {
@@ -41,14 +71,15 @@ export function useGameEvents(state: GameState) {
     }
 
     // Move animation — smooth 1s transition (skip abilities with client-side animation)
-    if (entry.type === 'move' && entry.turn > 0 && (entry as any).path?.length >= 2) {
+    const movePath = (entry as any).path;
+    if (entry.type === 'move' && entry.turn > 0 && Array.isArray(movePath) && movePath.length >= 2) {
       const skipCabalgar = (entry as any).configId === 'cabalgar' || (entry as any).configId === 'cabalgar_2';
       if (!skipCabalgar) {
         enqueue({
           id: `move_${entryId}`,
           type: 'move',
           unitId: (entry as any).unitId,
-          path: (entry as any).path,
+          path: movePath,
           duration: 1000,
         }, `fx:${(entry as any).unitId}`);
       }
@@ -101,7 +132,8 @@ export function useGameEvents(state: GameState) {
       const attacker = Object.values(state.units).find(u => u.id === e.attackerId);
       const target = Object.values(state.units).find(u => u.id === e.targetId) ?? state.graveyard[e.targetId];
 
-      if (attacker && target) {
+      if (attacker) {
+        const targetPos = target?.position ?? attacker.position;
         const layer = `fx:${attacker.id}`;
         if (attackerClass === 'cavalry' || attackerClass === 'infantry') {
           enqueue({
@@ -112,7 +144,7 @@ export function useGameEvents(state: GameState) {
             soundKey: 'sword_slash',
             soundLayer: 'sfx',
             fromPosition: attacker.position,
-            position: target.position,
+            position: targetPos,
           }, layer);
         } else if (attackerClass === 'archer') {
           enqueue({
@@ -120,8 +152,10 @@ export function useGameEvents(state: GameState) {
             type: 'wait',
             duration: 800,
             effect: 'arrows',
+            soundKey: 'sword_slash',
+            soundLayer: 'sfx',
             fromPosition: attacker.position,
-            position: target.position,
+            position: targetPos,
           }, layer);
         } else if (attackerClass === 'lancer') {
           enqueue({
@@ -129,9 +163,75 @@ export function useGameEvents(state: GameState) {
             type: 'wait',
             duration: 900,
             effect: 'stab',
+            soundKey: 'sword_slash',
+            soundLayer: 'sfx',
             fromPosition: attacker.position,
-            position: target.position,
+            position: targetPos,
           }, layer);
+        }
+
+        // Miss: escudo en defensor + contraataque en canal del atacante (empieza al 60% del escudo)
+        if (!e.hit && target) {
+          const defLayer = `fx:${target.id}`;
+          const defenderClass = e.targetClass as string | undefined;
+          enqueue({
+            id: `shield_${entryId}`,
+            type: 'wait',
+            duration: 1000,
+            effect: 'shield',
+            fromPosition: targetPos,
+            position: targetPos,
+          }, defLayer);
+          const hasCounter = (e.counterDamage ?? 0) > 0;
+          if (hasCounter && defenderClass) {
+            // Calcular duración del ataque del atacante para sincronizar contraataque
+            const atkDur = attackerClass === 'cavalry' || attackerClass === 'infantry' ? 300
+              : attackerClass === 'archer' ? 800
+              : attackerClass === 'lancer' ? 900 : 0;
+            const delayBeforeCounter = Math.max(0, 600 - atkDur);
+            const atkLayer = `fx:${attacker.id}`;
+            // Delay para que el contraataque empiece al 60% del escudo (600ms)
+            if (delayBeforeCounter > 0) {
+              enqueue({
+                id: `counter_delay_${entryId}`,
+                type: 'wait',
+                duration: delayBeforeCounter,
+              }, atkLayer);
+            }
+            const counterDuration = 800;
+            const effect = defenderClass === 'cavalry' || defenderClass === 'infantry' ? 'slash'
+              : defenderClass === 'archer' ? 'arrows'
+              : defenderClass === 'lancer' ? 'stab' : 'slash';
+            enqueue({
+              id: `counter_${entryId}`,
+              type: 'wait',
+              duration: counterDuration,
+              effect,
+              soundKey: 'sword_slash',
+              soundLayer: 'sfx',
+              fromPosition: target.position,
+              position: attacker.position,
+            }, atkLayer);
+
+            // Speech bubble "Contraataque!!" en el defensor, sincronizado con el contraataque
+            const uiLayer = `ui:${target.id}`;
+            const speechDelay = atkDur + delayBeforeCounter;
+            if (speechDelay > 0) {
+              enqueue({
+                id: `counter_speech_delay_${entryId}`,
+                type: 'wait',
+                duration: speechDelay,
+              }, uiLayer);
+            }
+            enqueue({
+              id: `counter_speech_${entryId}`,
+              type: 'speech',
+              duration: counterDuration,
+              message: `${l('board.counter')}!!`,
+              unitId: target.id,
+              generalPosition: target.position,
+            }, uiLayer);
+          }
         }
       }
     }
@@ -153,6 +253,10 @@ export function useGameEvents(state: GameState) {
 
     if (!actingUnit || entry.type === 'card') return;
 
+    // Saltar speech para movimientos de ocupación (ejecutar, desenvainado_veloz)
+    const isOccupation = (entry as any).modifiers?.some?.((m: string) => m === 'Ejecutar' || m === 'Desenvainado veloz');
+    if (isOccupation) return;
+
     const actingId = (entry as any).attackerId ?? (entry as any).unitId ?? (entry as any).playerId;
 
     const actionName =
@@ -166,10 +270,9 @@ export function useGameEvents(state: GameState) {
             ? l(`ability.${(entry as any).configId}.name`)
             : '';
 
-    const speechDuration = entry.type === 'move' ? 1000
-      : entry.type === 'attack' ? 900
-      : entry.type === 'support' ? 1800
-      : entry.type === 'card' ? 3000
+    const speechDuration = (entry as any).type === 'move' ? 1000
+      : (entry as any).type === 'attack' ? 900
+      : (entry as any).type === 'support' ? 1800
       : 2000;
 
     enqueue({
