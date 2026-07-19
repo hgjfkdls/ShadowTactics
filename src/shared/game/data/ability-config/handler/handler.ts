@@ -90,7 +90,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     }
 
     const costMods = getModifierSum(state, action.playerId, action.unitId, 'actionCost');
-    const attackCostMod = cfg.type === 'attack' ? getModifierSum(state, action.playerId, action.unitId, 'attackCost') : 0;
+    const attackCostMod = cfg.type === 'attack' ? getModifierSum(state, action.playerId, action.unitId, 'attackCost', action.abilityId) : 0;
     let baseCost = cfg.base.paCost === 'unit.movementCost' ? unit.movementCost : (cfg.base.paCost ?? 0);
     // Apply movementCost modifiers (movilidad card, pantano, etc.)
     let hasMovementSet = false;
@@ -121,6 +121,7 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     // Para attacks, attackCost SET define el coste total (ataque_extra → 0 PA)
     const attackSetMod = cfg.type === 'attack' ? state.activeModifiers.find(m =>
         m.stat === 'attackCost' && m.operator === 'SET' && m.targetId === unit.id && (m.remainingUses ?? 1) > 0
+        && (m.consumedBy === undefined || m.consumedBy === action.abilityId)
     ) : undefined;
     const attackCostOverride = attackSetMod ? Math.max(0, attackSetMod.value) : undefined;
     let totalCost = hasMovementSet ? baseCost : (baseCost + costMods);
@@ -146,6 +147,11 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     const hasTargetCfg = typeof cfg.target === 'object' && cfg.target && Object.keys(cfg.target).length > 0;
     if ((hasRangeCfg || hasTargetCfg) && action.targetId) {
         if (!isValidTarget(state, unit.id, action.abilityId, action.targetId)) return state;
+    }
+    // Bloquear uso directo de habilidades pasivas/de reacción que no tienen range/target configurado
+    // (blanco_facil, anti_caballeria, formacion_defensiva, acechar, hostigar, etc.)
+    if (!hasRangeCfg && !hasTargetCfg && action.targetId) {
+        if (cfg.activation?.whenAttack || cfg.activation?.whenAttacked) return state;
     }
     // Para moves, validar destino antes de cualquier efecto o consumo de AP
     if (cfg.type === 'move' && (hasRangeCfg || hasTargetCfg) && action.to) {
@@ -190,6 +196,11 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
         case 'attack':
             s = handleAttack(s, action, unit, cfg, baseCost, costMods, voiceKey);
             if (s === sBeforeSwitch) return state;
+            // El resolver consume attack, difficulty, attackCost via consumeModifier con abilityId.
+            // Consumir adicionalmente el attackCost SET específico de la unidad.
+            if (attackSetMod) {
+                s = consumeModifier(s, unit.owner, 'attackCost', 1, unit.id, action.abilityId);
+            }
             s = consumeAP(s, unit.owner, moveFinalCost);
             break;
         case 'support':

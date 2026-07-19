@@ -98,8 +98,8 @@ export const ABILITIES: Record<string, UnitAbility> = {
     },
     rayo_celestial: {
         id: 'rayo_celestial', name: 'Rayo celestial', type: 'active', cost: 2,
-        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque tiene +3 de ataque',
-        restrictions: 'El objetivo debe estar a rango ≤ 2. El efecto se consume tras el ataque.',
+        description: 'Elige un aliado a rango ≤ 2. Su siguiente ataque tiene +3 de ataque.',
+        restrictions: 'El efecto termina después de ejecutar el ataque.',
         requiresTarget: true,
     },
     ejecutar: {

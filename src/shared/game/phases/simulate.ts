@@ -184,14 +184,24 @@ export function simulatePreparation(state: GameState): GameState {
     }
 
     // Mover cartas específicas al principio del mazo para testeo rápido
-    const TEST_CARD_KEYS = ['espejo', 'mantenimiento', 'pantano'];
-    let deck2 = s.effectDeck;
-    for (const key of TEST_CARD_KEYS) {
-        const testCards = deck2.filter((c: string) => c.startsWith(key + '_'));
-        const rest2 = deck2.filter((c: string) => !c.startsWith(key + '_'));
-        deck2 = [...testCards.slice(0, 2), ...rest2, ...testCards.slice(2)];
+    const grouped: [string[], number][] = [
+        [['ataque_extra', 'movilidad'], 4],
+        [['espejo', 'mantenimiento', 'pantano'], 2],
+    ];
+    const used = new Set<string>();
+    const front: string[] = [];
+    for (const [keys, count] of grouped) {
+        for (const c of s.effectDeck) {
+            if (used.has(c)) continue;
+            if (keys.some(k => c.startsWith(k + '_'))) {
+                front.push(c);
+                used.add(c);
+                if (front.filter(f => keys.some(k => f.startsWith(k + '_'))).length >= count * keys.length) break;
+            }
+        }
     }
-    s = { ...s, effectDeck: deck2 };
+    const rest = s.effectDeck.filter(c => !used.has(c));
+    s = { ...s, effectDeck: [...front, ...rest] };
 
     return s;
 }

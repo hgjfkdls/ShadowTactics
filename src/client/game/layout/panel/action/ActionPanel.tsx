@@ -62,6 +62,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
     const uFlags = unit?.flags ?? [];
     const attackCostSet = unit ? state.activeModifiers.find(m =>
         m.stat === 'attackCost' && m.operator === 'SET' && m.targetId === unit.id && (m.remainingUses ?? 1) > 0
+        && (m.consumedBy === undefined || m.consumedBy === 'ataque_basico')
     ) : undefined;
     const basicAttackCost = attackCostSet !== undefined ? Math.max(0, attackCostSet.value) : (extraCharges > 0 ? 0 : 1);
     const basicAttackDisabled = extraCharges > 0 ? false : !!(unit && isAbilityDisabled(state, 'ataque_basico', unit, playerId, ap));
@@ -106,7 +107,7 @@ export function ActionPanel({ state, unitId, playerId, canAct, onRequestMove, on
             const ec = unit.ataqueExtraCharges ?? 0;
             if (unit.attackedThisTurn && !ec) {
                 addAlert?.(l('alert.alreadyAttacked'), 'warning');
-            } else if (ap < 1 && !ec) {
+            } else if (ap < basicAttackCost) {
                 addAlert?.(l('alert.noPA'), 'warning');
             } else {
                 onRequestAttack?.(unit.id);

@@ -30,9 +30,9 @@ export const BUFF_CARD_CONFIG: Record<string, CardConfig> = {
         id: 'ataque_extra', type: 'BUFF', targetType: 'unit_ally',
         effects: [
             { type: 'flagPop', target: 'ally', flags: ['basic_attack'] },
-            { type: 'modifierPush', target: 'ally', stat: 'attack', value: 1, remainingUses: 1 },
-            { type: 'modifierPush', target: 'ally', stat: 'difficulty', value: 2, remainingUses: 1 },
-            { type: 'modifierPush', target: 'ally', operator: 'SET', stat: 'attackCost', value: 0, remainingUses: 1 },
+            { type: 'modifierPush', target: 'ally', stat: 'attack', value: 1, remainingUses: 1, consumedBy: 'ataque_basico' },
+            { type: 'modifierPush', target: 'ally', stat: 'difficulty', value: 2, remainingUses: 1, consumedBy: 'ataque_basico' },
+            { type: 'modifierPush', target: 'ally', operator: 'SET', stat: 'attackCost', value: 0, remainingUses: 1, consumedBy: 'ataque_basico' },
             { type: 'indicator', target: 'ally', indicatorIcon: 'crosshair', indicatorCategory: 'attack', indicatorTrigger: 'always', indicatorVisibleTo: 'all', modifierStat: 'attack', modifierSourceName: 'ataque_extra', indicatorLabel: 'card.ataque_extra.effectLabel' },
         ],
         allowedModifiers: [],

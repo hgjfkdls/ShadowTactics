@@ -32,6 +32,7 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
         const mods = s.activeModifiers.filter((m: any) => m.stat === stat && (isAttackerMod(m) || isTargetMod(m)));
         let localSum = 0;
         for (const m of mods) {
+            if (m.consumedBy !== undefined && m.consumedBy !== configId) continue;
             if (m.operator === 'ADD') localSum += m.value;
             else if (m.operator === 'MUL') localSum = localSum * m.value;
             else if (m.operator === 'SET') localSum = m.value;
