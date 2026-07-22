@@ -36,8 +36,18 @@ export function buildAttackModifiers(s: GameState, attackerId: string, targetId:
         const mods = s.activeModifiers.filter((m: any) => m.stat === stat && (isAttackerMod(m) || isTargetMod(m)));
         let localSum = 0;
         const seenLabels = new Set<string>();
+        // Solo mostrar modifiers cuyo stat esté permitido por la config de la habilidad (ej: movementCost no aplica a ataques)
+        const allowed = configId ? (ABILITY_CONFIG[configId]?.allowedModifiers ?? []) : [];
         for (const m of mods) {
             if (m.consumedBy !== undefined && m.consumedBy !== configId) continue;
+            if (stat === 'movementCost' && !allowed.includes('movementCost')) {
+                if (m.sourceName && m.stat) processedDisplayIds.add(`${m.sourceName}-${m.stat}`);
+                continue;
+            }
+            if (stat === 'actionCost' && !allowed.includes('actionCost')) {
+                if (m.sourceName && m.stat) processedDisplayIds.add(`${m.sourceName}-${m.stat}`);
+                continue;
+            }
             if (m.operator === 'ADD') localSum += m.value;
             else if (m.operator === 'MUL') localSum = localSum * m.value;
             else if (m.operator === 'SET') localSum = m.value;

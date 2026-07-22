@@ -186,6 +186,13 @@ export function useGameState() {
             }
         }
 
+        // En fase COUNTER, solo se permiten USE_CARD y PASS_COUNTER
+        if (state.turnPhase === 'COUNTER' && action.type !== 'USE_CARD' && action.type !== 'PASS_COUNTER' && action.type !== 'SURRENDER') {
+            setLastBlockedReason(l('ui.notYourTurn'));
+            console.warn(`Acción bloqueada: fase COUNTER (${role.playerId})`);
+            return;
+        }
+
         if (state.turnPhase === 'DRAW' && state.gamePhase === 'GAME') {
             const handSize = state.players[state.activePlayer]?.cardsInHand?.length ?? 0;
             if (handSize > 3 && action.type !== 'DISCARD_CARD' && action.type !== 'SURRENDER') {

@@ -133,6 +133,11 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
         return state;
     }
 
+    // Durante COUNTER, solo USE_CARD y PASS_COUNTER están permitidos
+    if (state.turnPhase === 'COUNTER' && action.type !== 'USE_CARD' && action.type !== 'PASS_COUNTER' && action.type !== 'SURRENDER') {
+        return state;
+    }
+
     switch (action.type) {
         case 'END_TURN':     return handleEndTurn(state, action);
         case 'USE_CARD':     return handleCard(state, action);
