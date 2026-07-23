@@ -107,4 +107,11 @@ export type GameAction =
     | {
         type: 'SURRENDER';
         playerId: PlayerId;
+    }
+
+    // CONFIRMAR MUERTE — después de animación de muerte
+    | {
+        type: 'CONFIRM_DEATH';
+        playerId: PlayerId;
+        unitId: UnitId;
     };

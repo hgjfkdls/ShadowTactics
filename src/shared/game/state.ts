@@ -39,6 +39,8 @@ export type Unit = {
     precisionCharges?: number;               // Precisión: cargas acumulables
     auraShield?: number;                     // Escudo del aura (infantería) — se consume antes que HP
     flags?: string[];                      // Seguimiento unificado de flags de habilidades
+    direction?: HexCoord;  // Hex hacia el que mira la unidad
+    dying?: boolean;       // Marca de muerte: pendiente de animación antes de ir a graveyard
 };
 
 export type GameState = {

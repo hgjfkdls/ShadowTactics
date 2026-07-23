@@ -22,6 +22,10 @@ function unitHasAbility(unit: Unit, abilityId: string): boolean {
     return unit.abilities?.includes(abilityId) ?? false;
 }
 
+function isUnitDeadOrDying(s: GameState, id: string): boolean {
+    return !!s.graveyard[id] || !!s.units[id]?.dying;
+}
+
 function getAbilityRange(unit: Unit, _state: GameState, cfg: AbilityConfig): number {
     const raw = typeof cfg.range === 'object' && cfg.range ? (cfg.range as any).value : cfg.range;
     if (cfg.type === 'move') {
@@ -196,17 +200,32 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
         case 'attack':
             s = handleAttack(s, action, unit, cfg, baseCost, costMods, voiceKey, moveFinalCost);
             if (s === sBeforeSwitch) return state;
-            // El resolver consume attack, difficulty, attackCost via consumeModifier con abilityId.
-            // Consumir adicionalmente el attackCost SET específico de la unidad.
             if (attackSetMod) {
                 s = consumeModifier(s, unit.owner, 'attackCost', 1, unit.id, action.abilityId);
             }
             s = consumeAP(s, unit.owner, moveFinalCost);
+            // Actualizar dirección tras ataque
+            if (action.targetId) {
+                const tgt = s.units[action.targetId] ?? s.graveyard[action.targetId];
+                if (tgt) {
+                    s = updateUnit(s, action.unitId, (u) => ({ ...u, direction: { ...tgt.position } }));
+                    if (tgt.owner !== unit.owner && s.units[action.targetId]) {
+                        s = updateUnit(s, action.targetId, (u) => ({ ...u, direction: { ...unit.position } }));
+                    }
+                }
+            }
             break;
         case 'support':
             s = handleSupport(s, action, unit, cfg, baseCost, costMods, voiceKey);
             if (s === sBeforeSwitch) return state;
             s = consumeAP(s, unit.owner, moveFinalCost);
+            // Actualizar dirección tras soporte (solo el ejecutor)
+            if (action.targetId && action.targetId !== action.unitId) {
+                const tgt = s.units[action.targetId];
+                if (tgt) {
+                    s = updateUnit(s, action.unitId, (u) => ({ ...u, direction: { ...tgt.position } }));
+                }
+            }
             break;
         case 'move':
             s = handleMove(s, action, unit, cfg, baseCost, costMods, undefined, voiceKey);
@@ -224,10 +243,10 @@ export function handleAbility(state: GameState, action: GameAction, cfg: Ability
     if (s !== state) {
         s = updateUnit(s, action.unitId, (u) => ({ ...u, flags: [...new Set([...(u.flags ?? []), 'performed_action'])] }));
         // On-kill effects (desenvainado_veloz reset, etc.)
-        if (cfg.effects && action.targetId && s.graveyard[action.targetId]) {
+        if (cfg.effects && action.targetId && isUnitDeadOrDying(s, action.targetId)) {
             const killCtx: EffectContext = {
                 state: s, unit, timing: 'onKill',
-                target: s.graveyard[action.targetId],
+                target: s.graveyard[action.targetId] ?? s.units[action.targetId],
                 configId: cfg.id,
             };
             s = processEffects(s, cfg.effects, killCtx);
@@ -485,7 +504,7 @@ let s = state;
             flags: [...(u.flags ?? []), 'patada_acrobatica', 'move'],
         }));
         // Build history entry
-        const targetDead = !!s.graveyard[target.id];
+        const targetDead = isUnitDeadOrDying(s, target.id);
         // Build cost modifier strings for display
         const costModStrs: string[] = [];
         const atkCostSrc = state.activeModifiers.find(m => m.stat === 'attackCost' && !m.targetId && m.sourcePlayerId === unit.owner && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0);
@@ -545,7 +564,7 @@ let s = state;
     s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, actualPaCost ?? (baseCost + costMods), undefined, preTimesDamaged, voiceKey);
 
         // Ocupar posición si murió
-        if (s.graveyard[target.id]) {
+        if (isUnitDeadOrDying(s, target.id)) {
             s = { ...s, pendingOccupation: { unitId: unit.id, position: target.position } };
         }
         return s;
@@ -575,14 +594,14 @@ let s = state;
     s = storeAttackResult(result, unit.id, target.id, unit.class, target.class, `ability.${cfg.id}.name`, actualPaCost ?? (baseCost + costMods), undefined, preTimesDamaged, voiceKey);
 
     // Avance: ocupar posición del enemigo eliminado si la unidad tiene la pasiva
-    if (s.graveyard[target.id] && target.class !== 'general' && (unit.abilities ?? []).includes('avance')) {
+    if (isUnitDeadOrDying(s, target.id) && target.class !== 'general' && (unit.abilities ?? []).includes('avance')) {
         s = { ...s, pendingOccupation: { unitId: unit.id, position: target.position } };
     }
 
     // Liderar a las tropas (Capitán de la Guardia): cuando el General ataca
     const capIdentity = state.players[unit.owner]?.selectedIdentity ?? '';
     if (unit.class === 'general' && capIdentity.startsWith('capitan_guardia')) {
-        const targetDead = !!s.graveyard[target.id];
+        const targetDead = isUnitDeadOrDying(s, target.id);
             const bonus = targetDead ? 2 : 1;
             const affectedIds = Object.values(s.units)
                 .filter(u => u.owner === unit.owner && (u.class === 'infantry' || u.class === 'general') && u.id !== unit.id)
@@ -671,7 +690,7 @@ let s = state;
             if (effect.type === 'surcharge') {
                 if (s.activeModifiers.some(m => m.stat === 'actionCost' && m.targetId === target.id && m.source === 'ability' && m.remainingTurns >= 0 && (m.remainingUses ?? 1) > 0)) break;
                 s = addModifier(s, target.owner, target.id, 'actionCost', effect.value ?? 1, 'ADD', effect.remainingTurns ?? 100, effect.remainingUses ?? 1, 'ability', cfg.id);
-            } else if (effect.type === 'inmovil' && !s.graveyard[target.id]) {
+            } else if (effect.type === 'inmovil' && !isUnitDeadOrDying(s, target.id)) {
                 s = addModifier(s, target.owner, target.id, 'inmovil', 1, 'SET', effect.duration ?? 1, undefined, 'ability', cfg.id);
             } else if (effect.type === 'occupation') {
                 const dq = target.position.q - unit.position.q;
@@ -688,7 +707,7 @@ let s = state;
     }
 
     // A la carga: push enemy after hit
-    if (action.abilityId === 'a_la_carga' && action.to && result.hit && !s.graveyard[target.id]) {
+    if (action.abilityId === 'a_la_carga' && action.to && result.hit && !isUnitDeadOrDying(s, target.id)) {
         const dest = action.to;
         if (isWithinBounds(dest, s.map.radius) && (dest.q !== target.position.q || dest.r !== target.position.r)) {
             if (!isHexOccupied(s, dest, target.id)) {
@@ -887,7 +906,7 @@ function handleSupport(state: GameState, action: GameAction, unit: Unit, cfg: Ab
         if (unit.hp >= maxHp) return state;
 
         s = dealDamage(s, ally.id, 2);
-        const allyDied = !!s.graveyard[ally.id];
+        const allyDied = isUnitDeadOrDying(s, ally.id);
         const healAmount = allyDied ? 5 : 3;
         s = updateUnit(s, unit.id, (u) => ({ ...u, hp: Math.min(u.hp + healAmount, maxHp) }));
         s = {
@@ -988,6 +1007,7 @@ function handleMove(state: GameState, action: GameAction, unit: Unit, cfg: Abili
     s = updateUnit(s, unit.id, (u) => ({
         ...u, position: action.to!,
         lastHex,
+        direction: { q: 2 * action.to!.q - unit.position.q, r: 2 * action.to!.r - unit.position.r },
         flags: [...new Set([...(u.flags ?? []), 'move'])],
     }));
 
@@ -1020,6 +1040,7 @@ let s = state;
     s = updateUnit(s, unit.id, (u) => ({
         ...u, position: dest,
         lastHex: originPos,
+        direction: { q: 2 * dest.q - originPos.q, r: 2 * dest.r - originPos.r },
         flags: [...new Set([...(u.flags ?? []), 'move'])],
     }));
 

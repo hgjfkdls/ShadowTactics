@@ -66,8 +66,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         if (!exists) {
             const turnNum = result.turn;
             const countThisTurn = (result.attackResults ?? []).filter(r => r.turn === turnNum).length;
-            const targetKilled = !!result.graveyard[newR.targetId];
-            const attackerKilled = !!result.graveyard[newR.attackerId];
+            const targetKilled = !!result.graveyard[newR.targetId] || !!result.units[newR.targetId]?.dying;
+            const attackerKilled = !!result.graveyard[newR.attackerId] || !!result.units[newR.attackerId]?.dying;
             const elapsed = result.gameStartTime ? Math.floor((Date.now() - result.gameStartTime) / 1000) : 0;
             result = {
                 ...result,
@@ -262,6 +262,17 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             if (state.gamePhase !== 'GAME') return state;
             const winner = action.playerId === 'p1' ? 'p2' : 'p1';
             return setGameOver(state, winner, 'surrender');
+        }
+        case 'CONFIRM_DEATH': {
+            const dyingUnit = state.units[action.unitId];
+            if (!dyingUnit || !dyingUnit.dying) return state;
+            // La unidad ya está en graveyard (killUnit la guardó), solo remover de units
+            const { [action.unitId]: _, ...remainingUnits } = state.units;
+            let s: GameState = { ...state, units: remainingUnits };
+            if (dyingUnit.class === 'general') {
+                s = setGameOver(s, dyingUnit.owner === 'p1' ? 'p2' : 'p1', 'general_killed');
+            }
+            return s;
         }
         default:             return state;
     }

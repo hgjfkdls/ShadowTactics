@@ -1,5 +1,6 @@
 import type { GameState, Unit } from '../state';
 import { hexDistance } from '../../hex';
+import type { HexCoord } from '../../hex';
 import { updateUnit, dealDamage, isWithinBounds } from '../utils';
 import type { AttackResult } from '../combat';
 import { ABILITIES } from '../data/abilities';
@@ -347,6 +348,8 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
     }
     const atkUnit = s.units[attackerId];
     const allPaMods = [...(paModifiers ?? []), ...costModsFromBuild];
+    // Capturar posición de muerte antes de que la unidad desaparezca
+    const deathPos: HexCoord | undefined = s.units[targetId]?.position ?? s.graveyard[targetId]?.position;
     // Compute distance from positions
     const dist = atkUnit && s.units[targetId] ? hexDistance(atkUnit.position, s.units[targetId].position) : 0;
     // Prepend difficulty formula
@@ -399,6 +402,7 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
             paCost,
             paModifiers: allPaMods,
             distance: dist,
+            deathPos,
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };
