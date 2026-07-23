@@ -14,29 +14,6 @@ function getCardImg(cardId: string): string {
 export function useGameEvents(state: GameState, onActionHighlight?: (hexes: HexCoord[]) => void, sendAction?: (action: GameAction) => void) {
   const { enqueue, enqueueMultiple, animAngles, setUnitPosition } = useAnimation();
   const lastProcessedId = useRef<string>('');
-  const processedDyingRef = useRef<Set<string>>(new Set());
-
-  // Detectar unidades recién marcadas como dying y enqueuear animación de muerte
-  useLayoutEffect(() => {
-    for (const [id, unit] of Object.entries(state.units)) {
-      if (unit.dying && !processedDyingRef.current.has(id)) {
-        processedDyingRef.current = new Set([...processedDyingRef.current, id]);
-        const deathPos = state.graveyard[id]?.position ?? unit.position;
-        enqueue({
-          id: `death_${id}`,
-          type: 'death',
-          duration: 3000,
-          unitId: id,
-          position: deathPos,
-        }, 'fx_death');
-        if (sendAction) {
-          setTimeout(() => {
-            sendAction({ type: 'CONFIRM_DEATH', playerId: unit.owner, unitId: id });
-          }, 3000);
-        }
-      }
-    }
-  }, [state.units]);
 
   useLayoutEffect(() => {
     const history = state.gameHistory;
@@ -357,20 +334,31 @@ export function useGameEvents(state: GameState, onActionHighlight?: (hexes: HexC
       }
     }
 
-    // Death animation for any unit that ended up in the graveyard
+    // Death animation: enqueue after attack/support effects on the actor's channel
     const entryTarget = (entry as any).targetId as string | undefined;
     const entryUnit = (entry as any).unitId as string | undefined;
-    const killId = (entryTarget && state.graveyard[entryTarget]) ? entryTarget
-      : (entryUnit && state.graveyard[entryUnit]) ? entryUnit : undefined;
+    const killId = entryTarget || entryUnit;
     if (killId) {
-      const tgt = state.graveyard[killId];
-      enqueue({
-        id: `death_${entryId}`,
-        type: 'death',
-        duration: 1500,
-        unitId: killId,
-        position: tgt.position,
-      }, 'fx_death');
+      const deadTarget = state.units[killId] ?? state.graveyard[killId];
+      if (deadTarget && (deadTarget.dying || state.graveyard[killId])) {
+        const deathChannel = entry.type === 'attack'
+          ? `fx:${(entry as any).attackerId}`
+          : entry.type === 'support'
+            ? `fx:${(entry as any).unitId}`
+            : 'fx_death';
+        enqueue({
+          id: `death_${entryId}`,
+          type: 'death',
+          duration: 3000,
+          unitId: killId,
+          position: deadTarget.position,
+        }, deathChannel);
+        if (sendAction) {
+          setTimeout(() => {
+            sendAction({ type: 'CONFIRM_DEATH', playerId: deadTarget.owner, unitId: killId });
+          }, 3000);
+        }
+      }
     }
 
     // Action speech bubble at the acting unit's position
