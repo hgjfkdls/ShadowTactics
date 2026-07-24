@@ -115,7 +115,9 @@ export class AnimationEngine {
     this.getHandler(layer).onStart?.(anim);
     this.onStart?.(anim);
 
-    if (anim.type === 'move' && anim.path && anim.unitId && anim.path.length >= 2) {
+    if (anim.type === 'rotate' && anim.unitId && anim.direction !== undefined) {
+      this.runRotate(anim, layer);
+    } else if (anim.type === 'move' && anim.path && anim.unitId && anim.path.length >= 2) {
       this.runMove(anim, layer);
     } else if (anim.type === 'damage' && anim.targetId) {
       this.renderer?.showDamageNumber(anim.targetId, anim.amount ?? 0);
@@ -123,7 +125,7 @@ export class AnimationEngine {
     } else if (anim.type === 'heal' && anim.targetId) {
       this.renderer?.showHealNumber(anim.targetId, anim.amount ?? 0);
       this.scheduleFinish(anim, layer, anim.duration);
-    } else if (anim.type === 'wait' || anim.type === 'speech' || anim.type === 'flipCard') {
+    } else if (anim.type === 'wait' || anim.type === 'speech' || anim.type === 'flipCard' || anim.type === 'death') {
       this.scheduleFinish(anim, layer, anim.duration);
     } else {
       this.finish(anim, layer);
@@ -171,6 +173,19 @@ export class AnimationEngine {
     };
 
     this.frameIds.set(layer, requestAnimationFrame(tick));
+  }
+
+  private runRotate(anim: Animation, layer: string): void {
+    const fromAngle = anim.fromDirection ?? anim.direction ?? 0;
+    const toAngle = anim.direction ?? 0;
+
+    this.renderer?.setUnitRotation(anim.unitId!, fromAngle, toAngle, anim.duration);
+
+    this.frameIds.set(layer, window.setTimeout(() => {
+      this.renderer?.updateUnitAngle(anim.unitId!, toAngle);
+      this.renderer?.clearUnitRotation(anim.unitId!);
+      this.finish(anim, layer);
+    }, anim.duration));
   }
 
   private finish(anim: Animation, layer: string): void {

@@ -5,22 +5,14 @@ import { processOnKillPassives } from '../passive';
 function killUnit(state: GameState, unitId: string, killerId?: string): GameState {
     const unit = state.units[unitId];
     if (!unit) return state;
-    const { [unitId]: _, ...remainingUnits } = state.units;
     let newState: GameState = {
         ...state,
-        units: remainingUnits,
-        graveyard: {
-            ...state.graveyard,
-            [unitId]: unit
-        }
+        units: { ...state.units, [unitId]: { ...unit, dying: true } },
+        graveyard: { ...state.graveyard, [unitId]: unit },
     };
-    if (unit.class === 'general') {
-        newState = {
-            ...newState,
-            gamePhase: 'GAME_OVER',
-            winner: unit.owner === 'p1' ? 'p2' : 'p1'
-        };
-    }
+    // No mover a graveyard aún — la animación de muerte debe ocurrir primero.
+    // CONFIRM_DEATH removerá la unidad de units cuando el cliente confirme.
+    // Pero guardamos en graveyard para preservar posición y datos.
     // Karma (Monje Shaolin): la unidad que eliminó a esta recibe 2 de daño
     if (!killerId) {
         const lastAttack = state.lastAttackResult;

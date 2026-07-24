@@ -24,16 +24,24 @@ export type FlipCardState = {
   targetY: number;
 };
 
+export type DyingUnitState = {
+  position: HexCoord;
+};
+
 type AnimationContextType = {
   enqueue: (anim: Animation, layer?: string, replace?: boolean) => void;
   enqueueMultiple: (anims: Animation[], layer?: string, replace?: boolean) => void;
   isAnimating: boolean;
   skipAll: () => void;
   setDamageOverlay: (cb: (targetId: string, amount: number, isHeal?: boolean) => void) => void;
+  setUnitPosition: (unitId: string, position: HexCoord) => void;
+  setUnitAngle: (unitId: string, angleDeg: number) => void;
   animPositions: Record<string, { q: number; r: number }>;
+  animAngles: Record<string, number>;
   bubble: BubbleState;
   activeEffects: Record<string, EffectState>;
   flipCard: FlipCardState;
+  dyingUnits: Record<string, DyingUnitState>;
 };
 
 const AnimationCtx = createContext<AnimationContextType | null>(null);
@@ -41,10 +49,12 @@ const AnimationCtx = createContext<AnimationContextType | null>(null);
 export function AnimationProvider({ children }: { children: React.ReactNode }) {
   const { playKey, playSfx } = useSound();
   const [animPositions, setAnimPositions] = useState<Record<string, { q: number; r: number }>>({});
+  const [animAngles, setAnimAngles] = useState<Record<string, number>>({});
   const [isAnimating, setIsAnimating] = useState(false);
   const [bubble, setBubble] = useState<BubbleState>({});
   const [activeEffects, setActiveEffects] = useState<Record<string, EffectState>>({});
   const [flipCard, setFlipCard] = useState<FlipCardState>({ visible: false, name: '', cardId: '', type: 'BUFF', playerId: '', targetX: 0, targetY: 0 });
+  const [dyingUnits, setDyingUnits] = useState<Record<string, DyingUnitState>>({});
   const engineRef = useRef<AnimationEngine | null>(null);
   const rendererRef = useRef<SvgRenderer | null>(null);
   const playKeyRef = useRef(playKey);
@@ -58,6 +68,10 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
 
     renderer.onPositionsChange((pos) => {
       setAnimPositions(pos);
+    });
+
+    renderer.onAnglesChange((angle) => {
+      setAnimAngles(angle);
     });
 
     engine.setRenderer(renderer);
@@ -85,6 +99,10 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
             targetY: anim.targetY ?? Math.round(window.innerHeight * 0.45),
           });
         }
+        if (anim.type === 'death' && anim.unitId && anim.position) {
+          const deathId: string = anim.unitId;
+          setDyingUnits(prev => ({ ...prev, [deathId]: { position: anim.position as HexCoord } }));
+        }
       },
       onComplete: (anim) => {
         if (anim.effect) {
@@ -96,6 +114,10 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
         }
         if (anim.type === 'flipCard') {
           setFlipCard(prev => ({ ...prev, visible: false }));
+        }
+        if (anim.type === 'death' && anim.unitId) {
+          const deathId: string = anim.unitId;
+          setDyingUnits(prev => { const n = { ...prev }; delete n[deathId]; return n; });
         }
       },
       onQueueEmpty: () => checkIdle(),
@@ -153,10 +175,14 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
     isAnimating,
     skipAll: () => engineRef.current?.skipAll(),
     setDamageOverlay,
+    setUnitPosition: (unitId, position) => rendererRef.current?.updateUnitPosition(unitId, position),
+    setUnitAngle: (unitId, angleDeg) => rendererRef.current?.updateUnitAngle(unitId, angleDeg),
     animPositions,
+    animAngles,
     bubble,
     activeEffects,
     flipCard,
+    dyingUnits,
   };
 
   return (

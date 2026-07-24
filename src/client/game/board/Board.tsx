@@ -6,6 +6,7 @@ import { useSelection } from './useSelection';
 import { isAbilityDisabled } from '../abilityUI';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 import { useViewport } from './useViewport';
+import { computeAngle } from '@shared/hex/directions';
 import { getAbilityHighlights } from '@shared/game/board/selection';
 import { HistoryPanel } from '../layout/panel/history/HistoryPanel';
 import { GameModals } from '../layout/modals/GameModals';
@@ -42,9 +43,9 @@ type Props = {
 export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedDeployUnitId, selectedInfo, onInfoSelect, addAlert, disableInput }: Props) {
     const hexes = generateHexMap(state.map);
     const sel = useSelection();
-    const { animPositions, enqueue, enqueueMultiple, bubble, activeEffects } = useAnimation();
+    const { animPositions, animAngles, enqueue, enqueueMultiple, bubble, activeEffects, setUnitPosition, setUnitAngle } = useAnimation();
     const [actionHighlightHexes, setActionHighlightHexes] = useState<HexCoord[]>([]);
-    useGameEvents(state, setActionHighlightHexes);
+    useGameEvents(state, setActionHighlightHexes, sendAction);
     const {
         hoveredHex, selectedHex, selectedUnitId,
         movingUnitId, attackingUnitId, pendingAbility,
@@ -79,6 +80,20 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
             setPendingTorbellino(false);
         }
     }, [selectedInfo]);
+
+    // Inicializar animAngles para unidades que aun no tienen ángulo visual
+    useEffect(() => {
+        for (const [id, unit] of Object.entries(state.units)) {
+            if (animAngles[id] === undefined) {
+                setUnitAngle(id, computeAngle(unit.position, unit.direction ?? { q: 0, r: 0 }));
+            }
+        }
+        for (const [id, unit] of Object.entries(state.graveyard)) {
+            if (animAngles[id] === undefined) {
+                setUnitAngle(id, computeAngle(unit.position, unit.direction ?? { q: 0, r: 0 }));
+            }
+        }
+    }, [state.units, state.graveyard]);
 
     function clearAllSelections() {
         clearAll();
@@ -505,6 +520,12 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 onMouseMove={e => e.buttons === 1 && pan(e.movementX, e.movementY)}
                 onPointerLeave={() => setHoveredHex(null)}
             >
+                <style>{`
+                    @keyframes deathFade {
+                        0% { opacity: 1; transform: translateY(0px); }
+                        100% { opacity: 0; transform: translateY(-60px); }
+                    }
+                `}</style>
                 <g transform={`translate(${x} ${y}) scale(${scale})`}>
                     {hexes.map(hex => (
                         <HexTile
@@ -571,6 +592,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                             }
                         }}
                         animPositions={animPositions}
+                        animAngles={animAngles}
                         movingUnitId={movingUnitId}
                         onInfoSelect={onInfoSelect}
                         sendAction={sendAction}

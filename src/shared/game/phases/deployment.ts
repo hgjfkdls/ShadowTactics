@@ -112,7 +112,21 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
             gamePhase: 'GAME',
             preparationPhase: 'DONE',
         };
-        return applyTurnStart(postDeploy, newState.activePlayer);
+        // Todas las unidades miran al general enemigo al comenzar la partida
+        const units = { ...postDeploy.units };
+        // Buscar generales: puede que identity effects hayan cambiado stats pero class sigue siendo 'general'
+        const p1Gen = Object.values(units).find(u => u.owner === 'p1' && u.class === 'general');
+        const p2Gen = Object.values(units).find(u => u.owner === 'p2' && u.class === 'general');
+        for (const id of Object.keys(units)) {
+            const u = units[id];
+            const enemyGen = u.owner === 'p1' ? p2Gen : p1Gen;
+            if (enemyGen) {
+                units[id] = { ...u, direction: { ...enemyGen.position } };
+            } else if (!u.direction) {
+                units[id] = { ...u, direction: { q: 0, r: 0 } };
+            }
+        }
+        return applyTurnStart({ ...postDeploy, units }, newState.activePlayer);
     }
 
     const nextPlayer = getDeployerForStep(nextStep, state.deploymentOrder!);

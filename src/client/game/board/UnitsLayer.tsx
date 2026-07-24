@@ -12,6 +12,7 @@ import { getAbilityHighlights } from '@shared/game/board/selection';
 import { ABILITY_CONFIG } from '@shared/game/data/ability-config';
 import { getIndicatorsForUnit, getConditionalIndicatorsForUnit } from './getUnitIndicators';
 import type { UnitIndicator } from './getUnitIndicators';
+import { computeAngle } from '@shared/hex/directions';
 
 type Props = {
     state: GameState;
@@ -30,6 +31,7 @@ type Props = {
     onCardTargetSelect?: (cardId: string, targetId: UnitId) => void;
     onPatadaTargetSelect?: (unitId: UnitId) => void;
     animPositions?: Record<string, HexCoord>;
+    animAngles?: Record<string, number>;
     movingUnitId?: UnitId | null;
     pendingCounterEspejoCard?: string | null;
     setPendingCounterEspejoCard?: (cardId: string | null) => void;
@@ -59,7 +61,7 @@ const CLASS_ICON_MAP: Record<string, string> = {
     general: '/icons/units/general_icon.webp',
 };
 
-export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbilityId, pendingAbilityUnitId, playerId, canAct, identityTargetMode, onIdentityTargetSelect, cardTargetMode, isCardTargetAlly, isCardTargetEnemy, cardTargetCardId, onCardTargetSelect, pendingCounterEspejoCard, setPendingCounterEspejoCard, onPatadaTargetSelect, animPositions, movingUnitId, onSelectUnit, onRequestMove, onRequestAttack, onAttackUnit, onRequestAbilityTarget, onUseAbilityOnUnit, onHexClick, onInfoSelect, sendAction }: Props) {
+export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbilityId, pendingAbilityUnitId, playerId, canAct, identityTargetMode, onIdentityTargetSelect, cardTargetMode, isCardTargetAlly, isCardTargetEnemy, cardTargetCardId, onCardTargetSelect, pendingCounterEspejoCard, setPendingCounterEspejoCard, onPatadaTargetSelect, animPositions, animAngles, movingUnitId, onSelectUnit, onRequestMove, onRequestAttack, onAttackUnit, onRequestAbilityTarget, onUseAbilityOnUnit, onHexClick, onInfoSelect, sendAction }: Props) {
     // ─── Frame-based hover detection ───
     const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
     const hoveredUnitIdRef = useRef<string | null>(null);
@@ -148,11 +150,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
             .map(h => h.hex)
         : [];
 
-    const units = Object.values(state.units);
-
-    // Hovered unit last so its <g> (including tooltip) draws on top
-    // Selected unit second to last so its persistent tooltip isn't covered
-    const sortedUnits = [...units].sort((a, b) => {
+    const allUnits = Object.values(state.units).sort((a, b) => {
         if (a.id === hoveredUnitId) return 1;
         if (b.id === hoveredUnitId) return -1;
         if (a.id === selectedUnitId) return 1;
@@ -171,9 +169,9 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
             }}
             onPointerLeave={() => { clearHoverDelay(); hoveredUnitIdRef.current = null; setHoveredUnitId(null); }}
         >
-            {sortedUnits.map(unit => {
+            {allUnits.map(unit => {
                 const animPos = animPositions?.[unit.id];
-                const renderPos = animPos ?? unit.position;
+                const renderPos = (animPos && !unit.dying) ? animPos : unit.position;
                 const { x, y } = axialToPixel(renderPos);
                 const selected = unit.id === selectedUnitId;
                 const hovered = hoveredUnitId === unit.id;
@@ -368,19 +366,32 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             }
                         }}
                         className="cursor-pointer"
-                        style={{ outline: 'none' }}
+                        style={unit.dying ? { outline: 'none', pointerEvents: 'none' } : { outline: 'none' }}
                     >
-                        {/* Coin with panel color + player ring */}
-                        <circle cx={0} cy={3} r={23} fill="#1f2937" fillOpacity={0.95} />
-                        <circle cx={0} cy={3} r={23} fill="none" stroke={ownerColor} strokeWidth={2} />
-                        <image
-                            href={CLASS_ICON_MAP[unit.class] || '/icons/units/infanteria_icon.webp'}
-                            x={-22}
-                            y={-19}
-                            width={44}
-                            height={44}
-                            opacity={1}
-                        />
+                        <g style={unit.dying ? { animation: 'deathFade 3s ease-out forwards' } : undefined}>
+                        {(() => {
+                            const animAngle = animAngles?.[unit.id];
+                            const dir = unit.direction;
+                            const angle = animAngle !== undefined ? animAngle
+                                : (dir !== undefined ? computeAngle(unit.position, dir) : computeAngle(unit.position, { q: 0, r: 0 }));
+                            return (
+                                <>
+                                    <g style={{ transform: `rotate(${angle}deg)`, transformOrigin: '0px 3px' }}>
+                                        <circle cx={0} cy={3} r={23} fill="none" />
+                                        <circle cx={0} cy={3} r={23} fill="none" stroke={ownerColor} strokeWidth={2} />
+                                        <circle cx={26} cy={3} r={3} fill="white" stroke={ownerColor} strokeWidth={1.5} />
+                                    </g>
+                                    <image
+                                        href={CLASS_ICON_MAP[unit.class] || '/icons/units/infanteria_icon.webp'}
+                                        x={-22}
+                                        y={-19}
+                                        width={44}
+                                        height={44}
+                                        opacity={1}
+                                    />
+                                </>
+                            );
+                        })()}
 
                         {/* HP bar with shield overlay (square) */}
                         <rect x={-17} y={20} width={34} height={6} rx={0} fill="#374151" />
@@ -389,7 +400,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             const baseHp = unit.royalShieldSavedHp ?? unit.hp;
                             const effectiveTotal = (unit.hp + (unit.auraShield ?? 0)) > maxHp ? (unit.hp + (unit.auraShield ?? 0)) : maxHp;
                             const auraShieldVal = unit.auraShield === 1 ? 2 : (unit.auraShield ?? 0);
-                            const hpW = Math.round(34 * (baseHp / effectiveTotal));
+                            const hpW = Math.max(0, Math.round(34 * (baseHp / effectiveTotal)));
                             const royalShieldW = royalShield > 0 ? Math.max(1, Math.round(34 * (royalShield / effectiveTotal))) : 0;
                             const auraShieldW = auraShieldVal > 0 ? Math.max(1, Math.round(34 * (auraShieldVal / effectiveTotal))) : 0;
                             const baseHpPct = baseHp / maxHp;
@@ -426,6 +437,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                         {hovered && (
                             <UnitTooltip unit={unit} maxHp={maxHp} identityName={unit.class === 'general' && identityKey ? l(`identity.${identityKey}.name`) : undefined} ownerColor={ownerColor} buffs={buffs} debuffs={debuffs} attackInfo={attackInfo} indicators={indicators} auraBuffs={auraBuffs} conditionalLabels={conditionalLabels} conditionalIndicators={conditionalIndicators} modifiers={state.activeModifiers} />
                         )}
+                        </g>
                     </g>
                 );
             })}

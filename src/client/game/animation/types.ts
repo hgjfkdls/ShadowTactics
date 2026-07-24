@@ -5,7 +5,7 @@ export type AnimationLayer = string;
 
 export type Animation = {
   id: string;
-  type: 'move' | 'attack' | 'counter' | 'damage' | 'heal' | 'particle' | 'wait' | 'speech' | 'flipCard';
+  type: 'move' | 'attack' | 'counter' | 'damage' | 'heal' | 'particle' | 'wait' | 'speech' | 'flipCard' | 'rotate' | 'death';
   duration: number;
   unitId?: string;
   targetId?: string;
@@ -25,4 +25,6 @@ export type Animation = {
   playerId?: string;
   targetX?: number;
   targetY?: number;
+  direction?: number;      // Ángulo destino en grados
+  fromDirection?: number;  // Ángulo origen en grados
 };
