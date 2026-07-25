@@ -43,22 +43,23 @@
     --color-range-overlay: rgba(59, 130, 246, 0.12);
     --color-available: #10b981;
     --color-available-overlay: rgba(16, 185, 129, 0.35);
-    --color-move-bg: #065f46;
+    --color-move-bg: rgba(6, 95, 70, 0.4);
     --color-attack: #ef4444;
     --color-attack-overlay: rgba(239, 68, 68, 0.3);
-    --color-attack-bg: #7f1d1d;
+    --color-attack-bg: rgba(127, 29, 29, 0.4);
     --color-buff: #10b981;
     --color-buff-overlay: rgba(16, 185, 129, 0.35);
-    --color-buff-bg: #065f46;
+    --color-buff-bg: rgba(6, 95, 70, 0.4);
     --color-history: #facc15;
     --color-history-overlay: rgba(250, 204, 21, 0.2);
     --color-selected: #2563eb;
     --color-identity-target: #a855f7;
     --color-identity-target-overlay: rgba(168, 85, 247, 0.25);
-    --color-identity-target-bg: #5b1280;
-    --color-hover-bg: #374151;
-    --color-default-bg: #1f2937;
+    --color-identity-target-bg: rgba(91, 18, 128, 0.4);
+    --color-hover-bg: rgba(55, 65, 81, 0.4);
+    --color-default-bg: rgba(31, 41, 55, 0.4);
     --color-default-stroke: #4b5563;
+    --color-unit-bg: rgba(31, 41, 55, 0.7);
 }
 
 @import "./themes/bosque-oscuro.css";

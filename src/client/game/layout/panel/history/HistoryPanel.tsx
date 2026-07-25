@@ -105,7 +105,7 @@ export function HistoryPanel({ gameHistory, selectedInfo, onSelectEntry }: {
                 onMouseDown={onMouseDown}
                 className="absolute -top-1 left-0 right-0 h-2 cursor-n-resize z-10 hover:bg-blue-500/20 rounded-t"
             />
-            <div className="bg-zinc-800/95 border border-zinc-600 rounded-lg p-3 shadow-xl w-full h-full flex flex-col overflow-hidden">
+            <div className="bg-zinc-800/80 border border-zinc-600/60 rounded-lg p-3 shadow-xl w-full h-full flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between text-xs text-zinc-500 font-semibold border-b border-zinc-700 pb-1 mb-1 shrink-0">
                     <span>{l('history.title')}</span>
                 </div>

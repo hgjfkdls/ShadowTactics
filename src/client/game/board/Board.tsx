@@ -13,7 +13,7 @@ import { GameModals } from '../layout/modals/GameModals';
 import { useHexClick } from './handlers/useHexClick';
 import { useAnimation } from '../animation/AnimationContext';
 import { PendingOccupationPanel } from '../layout/PendingOccupationPanel';
-import { ActionPanel } from '../layout/panel/action/ActionPanel';
+import { BottomPanel } from '../layout/BottomPanel';
 import { useGameEvents } from './hooks/useGameEvents';
 import { SpeechBubble } from './SpeechBubble';
 import { FlipCardOverlay } from '../animation/FlipCardOverlay';
@@ -45,6 +45,26 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     const sel = useSelection();
     const { animPositions, animAngles, enqueue, enqueueMultiple, bubble, activeEffects, setUnitPosition, setUnitAngle } = useAnimation();
     const [actionHighlightHexes, setActionHighlightHexes] = useState<HexCoord[]>([]);
+    const [pendingCardId, setPendingCardId] = useState<string | null>(null);
+    const [viewBoxWH, setViewBoxWH] = useState({ w: 800, h: 800 });
+
+    useEffect(() => {
+        function update() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const base = 800;
+            const aspect = w / h;
+            if (aspect > 1) {
+                setViewBoxWH({ w: base * aspect, h: base });
+            } else {
+                setViewBoxWH({ w: base, h: base / aspect });
+            }
+        }
+        update();
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+    }, []);
+
     useGameEvents(state, setActionHighlightHexes, sendAction);
     const {
         hoveredHex, selectedHex, selectedUnitId,
@@ -62,7 +82,13 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
     } = sel;
 
 
-    const { scale, x, y, zoom, pan } = useViewport();
+    const { scale, x, y, zoom, pan, setBounds } = useViewport();
+
+    useEffect(() => {
+        const limit = Math.max(0, viewBoxWH.w * (scale * 0.65 - 0.5) - 50 / scale);
+        const limitY = Math.max(0, viewBoxWH.h * (scale * 1 - 0.5) - 110 / scale);
+        setBounds(-limit, limit, -limitY, limitY);
+    }, [scale, viewBoxWH.w, viewBoxWH.h]);
 
     const myPlayerId = playerId ?? 'p1';
     const isMyTurn = mode === 'DEPLOYMENT'
@@ -515,7 +541,7 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
         <>
             <svg
                 className="absolute inset-0 w-full h-full"
-                viewBox="-400 -400 800 800"
+                viewBox={`-${viewBoxWH.w/2} -${viewBoxWH.h/2} ${viewBoxWH.w} ${viewBoxWH.h}`}
                 onWheel={e => zoom(-e.deltaY * 0.001)}
                 onMouseMove={e => e.buttons === 1 && pan(e.movementX, e.movementY)}
                 onPointerLeave={() => setHoveredHex(null)}
@@ -527,6 +553,8 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                     }
                 `}</style>
                 <g transform={`translate(${x} ${y}) scale(${scale})`}>
+                    <rect x={-viewBoxWH.w * 0.65} y={-viewBoxWH.h * 3} width={viewBoxWH.w * 1.3} height={viewBoxWH.h * 6} fill="#111" />
+                    <image href="/board.webp" x={-viewBoxWH.w * 0.65} y={-viewBoxWH.h * 3} width={viewBoxWH.w * 1.3} height={viewBoxWH.h * 6} preserveAspectRatio="xMidYMid meet" />
                     {hexes.map(hex => (
                         <HexTile
                             key={`${hex.q},${hex.r}`}
@@ -666,7 +694,15 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                     })}
                 </g>
             </svg>
-            <FlipCardOverlay />
+            <FlipCardOverlay myPlayerId={myPlayerId} onUseAction={pendingCardId ? {
+                label: l('button.useCard'),
+                onClick: () => {
+                    if (pendingCardId) {
+                        sendAction({ type: 'USE_CARD', playerId: myPlayerId, cardId: pendingCardId });
+                        setPendingCardId(null);
+                    }
+                },
+            } : undefined} />
             <HistoryPanel
                 gameHistory={state.gameHistory ?? []}
                 selectedInfo={selectedInfo}
@@ -687,10 +723,10 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                 }}
             />
             <PendingOccupationPanel pendingOccupation={state.pendingOccupation} playerId={myPlayerId} sendAction={sendAction} state={state} />
-            <ActionPanel
+            <BottomPanel
                 state={state}
-                unitId={selectedUnitId}
                 playerId={myPlayerId}
+                selectedUnitId={selectedUnitId}
                 canAct={mode === 'GAME' && isMyTurn}
                 onAngelGuardian={_unitId => {
                     setPendingAngelGuardian(true);
@@ -703,18 +739,19 @@ export function HexBoard({ state, sendAction, mode = 'GAME', playerId, selectedD
                     if (!isMyTurn || mode === 'DEPLOYMENT') return;
                     dispatch({ type: 'START_ATTACK', unitId });
                 }}
-                        onRequestAbilityTarget={(abilityId, unitId) => {
-                            if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                            dispatch({ type: 'ACTIVATE_ABILITY', abilityId, unitId });
-                            if (abilityId === 'torbellino') setPendingTorbellino(true);
-                        }}
-                        onALaCarga={unitId => {
+                onRequestAbilityTarget={(abilityId, unitId) => {
                     if (!isMyTurn || mode === 'DEPLOYMENT') return;
-                    dispatch({ type: 'ACTIVATE_ABILITY', abilityId: 'cabalgar_2', unitId });
-                    setCabalgarIsLaCarga(true);
+                    dispatch({ type: 'ACTIVATE_ABILITY', abilityId, unitId });
+                    if (abilityId === 'torbellino') setPendingTorbellino(true);
                 }}
                 sendAction={sendAction}
                 addAlert={addAlert}
+                onInfoSelect={onInfoSelect}
+                selectedInfo={selectedInfo}
+                onCardSelect={cardId => {
+                    const isDiscard = state.turnPhase === 'DRAW' && state.activePlayer === myPlayerId && (state.players[myPlayerId]?.cardsInHand?.length ?? 0) > 3;
+                    onInfoSelect?.({ type: 'card', cardId, fromRect: undefined, _ck: Date.now(), discardMode: isDiscard });
+                }}
             />
 
             <GameModals

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAnimation } from './AnimationContext';
 import { getLocale } from '@shared/i18n';
 import { useLightbox } from '../helpers/Lightbox';
+import type { LightboxAction } from '../helpers/Lightbox';
 
 const TYPE_COLORS: Record<string, string> = {
   BUFF: '#059669',
@@ -13,12 +14,7 @@ function getCardKey(cardId: string): string {
   return cardId.replace(/_\d+$/, '');
 }
 
-function cardImgUrl(cardId: string, locale?: string): string {
-  const loc = locale ?? getLocale() ?? 'es';
-  return `/cards/${loc}/${getCardKey(cardId)}.png`;
-}
-
-export function FlipCardOverlay() {
+export function FlipCardOverlay({ myPlayerId, onUseAction }: { myPlayerId?: string; onUseAction?: LightboxAction }) {
   const { flipCard } = useAnimation();
   const [animating, setAnimating] = useState(false);
   const [flipped, setFlipped] = useState(false);
@@ -39,7 +35,6 @@ export function FlipCardOverlay() {
 
       const locale = getLocale() || 'es';
 
-      // Preload back image
       const backLocaleUrl = `/cards/${locale}/reverso.webp`;
       const backEsUrl = '/cards/es/reverso.webp';
       const backImgEl = new Image();
@@ -51,7 +46,6 @@ export function FlipCardOverlay() {
       };
       backImgEl.src = backLocaleUrl;
 
-      // Preload front image
       const key = getCardKey(flipCard.cardId);
       const frontLocaleUrl = `/cards/${locale}/${key}.webp`;
       const frontEsUrl = `/cards/es/${key}.webp`;
@@ -83,8 +77,9 @@ export function FlipCardOverlay() {
 
   if (!flipCard.visible && !lightbox && !consumedRef.current) return null;
 
-  const startX = 240;
-  const startY = flipCard.playerId === 'p1' ? window.innerHeight * 0.15 : window.innerHeight * 0.65;
+  const isOwn = flipCard.playerId === myPlayerId;
+  const startX = isOwn ? window.innerWidth * 0.5 : window.innerWidth * 0.5;
+  const startY = isOwn ? window.innerHeight - 80 : 60;
   const endX = flipCard.targetX;
   const endY = flipCard.targetY;
 
@@ -106,40 +101,34 @@ export function FlipCardOverlay() {
               pointerEvents: flipped ? 'auto' : 'none',
               cursor: flipped ? 'pointer' : undefined,
             }}
-            onClick={(e) => { if (flipped && frontImg) { consumedRef.current = true; setLightbox(frontImg, 'flipcard', (e.currentTarget as HTMLElement).getBoundingClientRect()); } }}
+            onClick={(e) => {
+              if (flipped && frontImg) {
+                consumedRef.current = true;
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setLightbox(frontImg, 'flipcard', rect, rect, onUseAction);
+              }
+            }}
           >
-            {/* Back face */}
             <div
               style={{
-                position: 'absolute',
-                inset: 0,
-                backfaceVisibility: 'hidden',
-                borderRadius: 8,
+                position: 'absolute', inset: 0, backfaceVisibility: 'hidden', borderRadius: 8,
                 background: '#374151',
                 backgroundImage: backImg ? `url(${backImg})` : undefined,
-                backgroundSize: 'cover',
-                border: '2px solid #6b7280',
+                backgroundSize: 'cover', border: '2px solid #6b7280',
               }}
             />
-
-            {/* Front face */}
             <div
               style={{
-                position: 'absolute',
-                inset: 0,
-                backfaceVisibility: 'hidden',
-                borderRadius: 8,
+                position: 'absolute', inset: 0, backfaceVisibility: 'hidden', borderRadius: 8,
                 transform: 'rotateY(180deg)',
                 background: TYPE_COLORS[flipCard.type] ?? '#4b5563',
                 backgroundImage: frontImg ? `url(${frontImg})` : undefined,
-                backgroundSize: 'cover',
-                border: '2px solid rgba(255,255,255,0.3)',
+                backgroundSize: 'cover', border: '2px solid rgba(255,255,255,0.3)',
               }}
             />
           </div>
         </div>
       )}
-
       {lightboxEl}
     </>
   );

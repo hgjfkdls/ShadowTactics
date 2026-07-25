@@ -36,20 +36,21 @@ html.theme-bosque-oscuro {
     --color-range-overlay: rgba(74, 138, 58, 0.12);
     --color-available: #3a8a2a;
     --color-available-overlay: rgba(58, 138, 42, 0.35);
-    --color-move-bg: #2a5a1a;
+    --color-move-bg: rgba(42, 90, 26, 0.4);
     --color-attack: #c44a2a;
     --color-attack-overlay: rgba(196, 74, 42, 0.3);
-    --color-attack-bg: #5a1a0a;
+    --color-attack-bg: rgba(90, 26, 10, 0.4);
     --color-buff: #3a8a2a;
     --color-buff-overlay: rgba(58, 138, 42, 0.35);
-    --color-buff-bg: #1a4a0a;
+    --color-buff-bg: rgba(26, 74, 10, 0.4);
     --color-history: #c4a030;
     --color-history-overlay: rgba(196, 160, 48, 0.2);
     --color-selected: #4a7a2a;
     --color-identity-target: #7a4a3a;
     --color-identity-target-overlay: rgba(122, 74, 58, 0.25);
-    --color-identity-target-bg: #3a1a0a;
-    --color-hover-bg: #2a2218;
-    --color-default-bg: #1a150e;
+    --color-identity-target-bg: rgba(58, 26, 10, 0.4);
+    --color-hover-bg: rgba(42, 34, 24, 0.4);
+    --color-default-bg: rgba(26, 21, 14, 0.4);
     --color-default-stroke: #3a2a1a;
+    --color-unit-bg: rgba(26, 21, 14, 0.7);
 }

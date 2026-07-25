@@ -377,8 +377,7 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
                             return (
                                 <>
                                     <g style={{ transform: `rotate(${angle}deg)`, transformOrigin: '0px 3px' }}>
-                                        <circle cx={0} cy={3} r={23} fill="none" />
-                                        <circle cx={0} cy={3} r={23} fill="none" stroke={ownerColor} strokeWidth={2} />
+                                        <circle cx={0} cy={3} r={23} fill="var(--color-unit-bg)" stroke={ownerColor} strokeWidth={2} />
                                         <circle cx={26} cy={3} r={3} fill="white" stroke={ownerColor} strokeWidth={1.5} />
                                     </g>
                                     <image

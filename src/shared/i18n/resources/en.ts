@@ -25,8 +25,8 @@ export const en = {
   },
 
   ability: {
-    ataque_basico: { name: 'Basic Attack', desc: 'Melee or ranged attack depending on the unit\'s weapon' },
-    movimiento: { name: 'Move', desc: 'Move the unit 1 adjacent hex' },
+    ataque_basico: { name: 'Basic Attack', desc: 'Attack an enemy unit within your range.' },
+    movimiento: { name: 'Move', desc: 'Move to an adjacent hex.' },
     blanco_facil: { name: 'Easy Target', desc: 'If the target did not move last turn, -1 difficulty' },
     patada_acrobatica: { name: 'Acrobatic Kick', desc: 'If the archer is adjacent to an enemy, deals 1 damage and moves to an adjacent unoccupied hex not adjacent to the enemy', restriction: 'Requires adjacent enemy and available escape hex' },
     fuego_cobertura: { name: 'Covering Fire', desc: 'On hit, deals 2 damage and the target has +1 cost on their next turn (max 2 actions)', restriction: 'Once per turn per archer, does not stack',
@@ -159,7 +159,7 @@ export const en = {
     distanceLabel: 'Distance',
     player1: 'Player 1',
     player2: 'Player 2',
-    yourTurn: 'YOUR TURN',
+    yourTurn: 'Playing',
     deploying: 'DEPLOYING',
     turnX: 'Turn {n}',
     time: 'Time',
