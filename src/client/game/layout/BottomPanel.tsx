@@ -222,7 +222,6 @@ export function BottomPanel({ state, playerId, selectedUnitId, canAct, mode = 'G
             </div>
         );
     }
-
     return (
         <div className="absolute bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
             <div className="bg-zinc-800/80 border border-zinc-600/60 border-b-0 rounded-t-lg shadow-xl pointer-events-auto flex flex-col h-[132px] min-h-[132px] w-[800px] max-w-[95vw]">

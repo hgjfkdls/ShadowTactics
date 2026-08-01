@@ -388,57 +388,7 @@ function PlayerHalf({ playerId, isOwner, identityCardId, isActive, isSelected, o
                 </div>
             )}
 
-            {/* Cards in hand (GAME) */}
-            {mode === 'GAME' && (
-            <div className="mx-2 mb-1 bg-zinc-900 border-2 border-white/20 rounded-lg p-1.5">
-                    <div className="text-[10px] text-white/50 font-semibold uppercase tracking-wide mb-1.5">
-                        {l('board.cards')} ({hand.length})
-                    </div>
-                    {hand.length > 0 ? (
-                        <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
-                            {hand.map(cid => (
-                                <div
-                                    key={cid}
-                                    onMouseEnter={() => isOwner && setHoverAndTimer(cid)}
-                                    onMouseLeave={() => { clearHoverTimer(); setHoveredCard(null); startLeaveTimer(); }}
-                                    onClick={(e) => isOwner && onInfoSelect?.({ type: 'card', cardId: cid, fromRect: (e.currentTarget as HTMLElement).getBoundingClientRect(), _ck: Date.now(), isReclick: selectedInfo?.type === 'card' && selectedInfo.cardId === cid })}
-                                            className={[
-                                                'flex items-center gap-2 rounded border px-2.5 py-2 transition min-h-[38px]',
-                                                selectedInfo?.type === 'card' && selectedInfo.cardId === cid
-                                                    ? 'border-yellow-400 bg-zinc-800'
-                                                    : isOwner
-                                                        ? 'cursor-pointer border-white/20 bg-zinc-800 hover:border-white/40'
-                                                        : 'border-white/10 bg-zinc-800/60',
-                                            ].join(' ')}
-                                        >
-                                            <img
-                                                src={isOwner ? cardImgUrl(cid) : CARD_BACK_URL}
-                                                alt=""
-                                                className="w-8 h-[44px] rounded object-cover shrink-0"
-                                            />
-                                            <span className="text-xs font-semibold flex-1 truncate">
-                                                {isOwner ? getCardName(cid) : '?'}
-                                            </span>
-                                            {isOwner && hoveredCard === cid && (() => {
-                                                const label = getCardActionLabel(cid);
-                                                if (!label) return null;
-                                                return (
-                                                    <button
-                                                        onClick={e => { e.stopPropagation(); handleCardAction(cid); }}
-                                                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white cursor-pointer transition whitespace-nowrap shrink-0"
-                                                    >
-                                                        {l(`button.${label}`)}
-                                                    </button>
-                                                );
-                                            })()}
-                                        </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-xs text-zinc-600 italic">{l('board.noCards')}</div>
-                    )}
-                </div>
-            )}
+            {/* Cards in hand moved to BottomPanel */}
         </div>
     );
 }

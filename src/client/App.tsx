@@ -4,7 +4,6 @@ import { createAIGame, createCampaignGame } from './net/socket';
 import { HexBoard } from './game/board/Board';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
-import { PlayerSidebar } from './game/layout/panel/player/PlayerSidebar';
 import { RightPanel } from './game/layout/RightPanel';
 import { AlertPanel, useAlerts } from './game/layout/AlertPanel';
 import { KeyBindingsProvider, useKeyBindings } from './game/KeyBindingsContext';
@@ -22,6 +21,8 @@ import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
 import { DisconnectModal } from './game/layout/DisconnectModal';
 import { ThemeProvider } from './game/theme/ThemeProvider';
+import { OverlayBar } from './game/layout/OverlayBar';
+import type { GameState, GameAction } from '@shared';
 import { l } from '@shared/i18n';
 
 type SelectedInfo = { type: 'identity'; playerId: string } | { type: 'unit'; unitId: string } | { type: 'card'; cardId: string; fromRect?: DOMRect; _ck?: number; isReclick?: boolean } | { type: 'cardTarget'; cardId: string } | { type: 'effect'; stat: string; label: string; description: string; source?: string; sourceName?: string; value?: number } | null;
@@ -63,7 +64,6 @@ export function App() {
     const [campaignProgress, setCampaignProgress] = useState<CampaignProgress>(() => loadCampaignProgress());
     const { alerts, addAlert, removeAlert } = useAlerts();
 
-    // Auto-join desde URL: /game/<id>?userId=...&matchType=...
     useEffect(() => {
         const match = window.location.pathname.match(/^\/game\/([a-zA-Z0-9_-]+)$/);
         if (match && !gameId) {
@@ -74,7 +74,6 @@ export function App() {
         }
     }, []);
 
-    // Auto-start AI game desde URL: ?ai=modelId
     useEffect(() => {
         const url = new URL(window.location.href);
         const aiModel = url.searchParams.get('ai');
@@ -135,13 +134,11 @@ export function App() {
         }
     }, [state?.lastMeditacion]);
 
-    // Pre-cargar todos los sonidos al inicio
     const engineRef = useRef<SoundEngine | null>(null);
     if (!engineRef.current) {
         engineRef.current = new SoundEngine(new WebAudioRenderer());
     }
 
-    // Precargar fondo de pantalla de carga inmediatamente
     const bgImgRef = useRef<HTMLImageElement | null>(null);
     if (!bgImgRef.current) {
         bgImgRef.current = new Image();
@@ -169,74 +166,57 @@ export function App() {
     }, []);
 
     return (
-
         <ThemeProvider>
         <KeyBindingsProvider>
         <SoundProvider engine={engineRef.current}>
         <AnimationProvider>
         {assetsLoading && <LoadingScreen progress={assetProgress} />}
-        <div className="h-screen w-screen bg-zinc-900 text-white grid grid-rows-[auto_1fr] overflow-hidden">
-            <header className="border-b border-zinc-700 px-4 py-2 text-lg font-semibold flex gap-4 items-center">
-                <div>Shadow Tactics</div>
-                {gameId && <>
-                    <div className="font-normal text-sm text-zinc-300">
-                        [{gameId} · {role?.role ?? 'unknown'}
-                        {role?.role === 'player' && ` (${role.playerId})`}]
-                    </div>
-                    <div className="ml-auto">
-                        <HamburgerMenu
-                            onLeaveGame={() => setConfirmLeave(true)}
-                            onSurrender={state && state.gamePhase === 'GAME' && role?.role === 'player' ? () => sendAction({ type: 'SURRENDER', playerId }) : undefined}
-                        />
-                    </div>
-                    {confirmLeave && (
-                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setConfirmLeave(false)}>
-                            <div className="bg-zinc-900 border-2 border-zinc-700 rounded-xl px-8 py-6 shadow-2xl min-w-72 text-center space-y-4" onClick={e => e.stopPropagation()}>
-                                <div className="text-base text-zinc-200 font-semibold">{l('ui.abandonTitle')}</div>
-                                <div className="text-sm text-zinc-400">{l('ui.abandonDesc')}</div>
-                                <div className="flex gap-3 justify-center pt-2">
-                                    <button
-                                        onClick={() => { setConfirmLeave(false); leaveGame(); }}
-                                        className="bg-red-600 hover:bg-red-500 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
-                                    >
-                                        {l('ui.abandon')}
-                                    </button>
-                                    <button
-                                        onClick={() => setConfirmLeave(false)}
-                                        className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
-                                    >
-                                        {l('ui.cancel')}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </>}
-            </header>
+        <div className="h-screen w-screen bg-zinc-900 text-white overflow-hidden relative">
 
             {gameId ? (
+                <>
+                {/* Hamburger menu floating top-right */}
+                {confirmLeave && (
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setConfirmLeave(false)}>
+                        <div className="bg-zinc-900 border-2 border-zinc-700 rounded-xl px-8 py-6 shadow-2xl min-w-72 text-center space-y-4" onClick={e => e.stopPropagation()}>
+                            <div className="text-base text-zinc-200 font-semibold">{l('ui.abandonTitle')}</div>
+                            <div className="text-sm text-zinc-400">{l('ui.abandonDesc')}</div>
+                            <div className="flex gap-3 justify-center pt-2">
+                                <button
+                                    onClick={() => { setConfirmLeave(false); leaveGame(); }}
+                                    className="bg-red-600 hover:bg-red-500 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
+                                >
+                                    {l('ui.abandon')}
+                                </button>
+                                <button
+                                    onClick={() => setConfirmLeave(false)}
+                                    className="bg-zinc-700 hover:bg-zinc-600 transition text-white px-4 py-1.5 rounded-md font-semibold cursor-pointer"
+                                >
+                                    {l('ui.cancel')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-                <div className="relative h-full overflow-hidden">
                 {state && state.gamePhase === 'PREPARATION' && !prepDone ? (
-                    <>
-                    <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
-                    <PreparationScreen
-                        state={state}
-                        sendAction={sendAction}
-                        role={role}
-                        bothPlayersReady={bothPlayersReady}
-                        onDone={() => setPrepDone(true)}
-                        timerInfo={timerInfo}
-                        sendRevealDismiss={sendRevealDismiss}
-                        sendRollResultDismiss={sendRollResultDismiss}
-                    />
-                    </>
-                ) : state && state.preparationPhase === 'DEPLOYMENT' ? (
 
                     <div className="absolute inset-0">
-                        <OverlayBar state={state} playerId={playerId} timerInfo={timerInfo} pausedTimerInfo={pausedTimerInfo} role={role} onSelectIdentity={pid => setSelectedInfo(
-                                selectedInfo?.type === 'identity' && selectedInfo.playerId === pid ? null : { type: 'identity', playerId: pid }
-                            )} />
+                        <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
+                        <PreparationScreen
+                            state={state}
+                            sendAction={sendAction}
+                            role={role}
+                            bothPlayersReady={bothPlayersReady}
+                            onDone={() => setPrepDone(true)}
+                            timerInfo={timerInfo}
+                            sendRevealDismiss={sendRevealDismiss}
+                            sendRollResultDismiss={sendRollResultDismiss}
+                        />
+                    </div>
+                ) : state && state.preparationPhase === 'DEPLOYMENT' ? (
+                    <div className="absolute inset-0">
+                        <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
                         <DeploymentScreen
                             state={state}
                             sendAction={sendAction}
@@ -244,27 +224,16 @@ export function App() {
                             selectedInfo={selectedInfo}
                             onInfoSelect={setSelectedInfo}
                         />
-                        <RightPanel
-                            state={state}
-                            playerId={playerId}
-                            selectedInfo={selectedInfo}
-                            sendAction={sendAction}
-                        />
                     </div>
                 ) : isGameOrOver ? (
-                    <div className="grid grid-cols-[240px_1fr_280px] overflow-hidden h-full">
-                        <PlayerSidebar
-                            state={state}
-                            playerId={playerId}
-                            mode="GAME"
-                            selectedInfo={selectedInfo}
-                            onSelectIdentity={pid => setSelectedInfo(
+                    <div className="absolute inset-0">
+                        {/* Top bar overlay - full opacity */}
+                        <OverlayBar state={state} playerId={playerId} timerInfo={timerInfo} pausedTimerInfo={pausedTimerInfo} role={role} onSelectIdentity={pid => setSelectedInfo(
                                 selectedInfo?.type === 'identity' && selectedInfo.playerId === pid ? null : { type: 'identity', playerId: pid }
-                            )}
-                            onInfoSelect={setSelectedInfo}
-                            sendAction={sendAction}
-                        />
-                        <main className="relative overflow-hidden">
+                            )} />
+
+                        {/* Main game board (full screen) */}
+                        <main className="absolute inset-0">
                             <HexBoard
                                 state={state}
                                 role={role}
@@ -275,27 +244,33 @@ export function App() {
                                 addAlert={addAlert}
                                 disableInput={!!opponentDisconnectedAt}
                             />
-                            {role?.role === 'player' && state.gamePhase === 'GAME' && (
-                                <EndTurnBtn role={role} state={state} sendAction={sendAction} />
-                            )}
-                            <AlertPanel alerts={alerts} removeAlert={removeAlert} />
-                            {state?.gamePhase !== 'GAME_OVER' && opponentDisconnectedAt && (
-                                <DisconnectModal disconnectedAt={opponentDisconnectedAt} />
-                            )}
-                            {state?.gamePhase === 'GAME_OVER' && (
-                                <GameOverModal state={state} playerId={playerId} onLeaveGame={leaveGame} />
-                            )}
-                            <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
                         </main>
+
+                        {/* Overlays */}
+                        {role?.role === 'player' && state.gamePhase === 'GAME' && (
+                            <EndTurnBtn role={role} state={state} sendAction={sendAction} />
+                        )}
+                        <AlertPanel alerts={alerts} removeAlert={removeAlert} />
+                        {state?.gamePhase !== 'GAME_OVER' && opponentDisconnectedAt && (
+                            <DisconnectModal disconnectedAt={opponentDisconnectedAt} />
+                        )}
+                        {state?.gamePhase === 'GAME_OVER' && (
+                            <GameOverModal state={state} playerId={playerId} onLeaveGame={leaveGame} />
+                        )}
+                        {/* Right panel - floating overlay */}
                         <RightPanel
                             state={state}
                             playerId={playerId}
                             selectedInfo={selectedInfo}
                             sendAction={sendAction}
+                            hamburgerMenu={<HamburgerMenu
+                                onLeaveGame={() => setConfirmLeave(true)}
+                                onSurrender={state && state.gamePhase === 'GAME' && role?.role === 'player' ? () => sendAction({ type: 'SURRENDER', playerId }) : undefined}
+                            />}
                         />
                     </div>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-zinc-400">
+                    <div className="absolute inset-0 flex items-center justify-center text-zinc-400">
                         Waiting for game state…
                     </div>
                 )}
@@ -422,7 +397,7 @@ function EndTurnBtn({ role, state, sendAction }: { role: { role: string; playerI
     const keyLabel = bindings.END_TURN === 'escape' ? 'ESC' : bindings.END_TURN.toUpperCase();
     return (
         <button
-            className="absolute top-4 left-4 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
+            className="absolute top-2 left-2 z-30 bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-1 rounded-md disabled:opacity-50 cursor-pointer"
             disabled={state.activePlayer !== role?.playerId}
             onClick={() => sendAction({ type: 'END_TURN', playerId: role!.playerId })}
         >

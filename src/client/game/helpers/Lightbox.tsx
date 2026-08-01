@@ -3,11 +3,14 @@ import { createPortal } from 'react-dom';
 
 export type LightboxSourceType = 'flipcard' | 'panel';
 
+export type LightboxAction = { label: string; onClick: () => void };
+
 export type LightboxState = {
   src: string;
   fromType: LightboxSourceType;
   fromRect: DOMRect;
   toRect?: DOMRect;
+  action?: LightboxAction;
 } | null;
 
 type Phase = 'entering' | 'showing' | 'exiting' | null;
@@ -15,9 +18,11 @@ type Phase = 'entering' | 'showing' | 'exiting' | null;
 export function useLightbox() {
   const [state, setState] = useState<LightboxState>(null);
   const [phase, setPhase] = useState<Phase>(null);
+  const actionRef = useRef<LightboxAction | null>(null);
 
-  const open = useCallback((src: string, fromType: LightboxSourceType, fromRect: DOMRect, toRect?: DOMRect) => {
-    setState({ src, fromType, fromRect, toRect });
+  const open = useCallback((src: string, fromType: LightboxSourceType, fromRect: DOMRect, toRect?: DOMRect, action?: LightboxAction) => {
+    actionRef.current = action ?? null;
+    setState({ src, fromType, fromRect, toRect, action });
     setPhase('entering');
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setPhase('showing'));
@@ -25,6 +30,7 @@ export function useLightbox() {
   }, []);
 
   const close = useCallback(() => {
+    actionRef.current = null;
     if (state?.fromType === 'flipcard') {
       setState(null);
       setPhase(null);
@@ -98,6 +104,24 @@ export function useLightbox() {
             backgroundImage: `url(${state.src})`,
           }}
         />
+
+        {/* Action button */}
+        {phase === 'showing' && state.action && (
+          <button
+            onClick={(e) => { e.stopPropagation(); state.action!.onClick(); close(); }}
+            style={{
+              position: 'absolute', bottom: -48, left: '50%', transform: 'translateX(-50%)',
+              padding: '8px 24px',
+              background: '#2563eb', border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 8,
+              color: 'white', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+            className="hover:bg-blue-500 transition"
+          >
+            {state.action.label}
+          </button>
+        )}
 
         {/* Close button inside card */}
         {phase === 'showing' && (

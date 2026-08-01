@@ -100,8 +100,29 @@ export function shuffleArray<T>(arr: T[], seed: number): { shuffled: T[]; seed: 
 }
 
 export function drawCard(state: GameState, playerId: string): GameState {
-    const deck = state.effectDeck;
-    if (deck.length === 0) return state;
+    let deck = state.effectDeck;
+
+    // Si el mazo está vacío, reciclar descartes que no estén en manos
+    if (deck.length === 0) {
+        const handIds = new Set<CardId>();
+        for (const pid of ['p1' as const, 'p2' as const]) {
+            for (const cid of (state.players[pid]?.cardsInHand ?? [])) {
+                handIds.add(cid);
+            }
+        }
+        const recyclable = state.effectDiscard.filter(cid => !handIds.has(cid));
+        if (recyclable.length === 0) return state;
+
+        const { shuffled, seed: newSeed } = shuffleArray(recyclable, state.rngSeed);
+        const keptInDiscard = state.effectDiscard.filter(cid => handIds.has(cid));
+
+        return drawCard({
+            ...state,
+            effectDeck: shuffled,
+            effectDiscard: keptInDiscard,
+            rngSeed: newSeed,
+        }, playerId);
+    }
 
     const drawn = deck[0];
     const rest = deck.slice(1);

@@ -24,9 +24,10 @@ type Props = {
     selectedInfo: SelectedInfo;
     sendAction?: (action: GameAction) => void;
     children?: React.ReactNode;
+    hamburgerMenu?: React.ReactNode;
 };
 
-export function RightPanel({ state, playerId, selectedInfo, sendAction, children }: Props) {
+export function RightPanel({ state, playerId, selectedInfo, sendAction, children, hamburgerMenu }: Props) {
     function renderContent() {
         if (selectedInfo?.type === 'identity') {
             return <IdentityDetail state={state} targetPlayerId={selectedInfo.playerId} myPlayerId={playerId} />;
@@ -35,7 +36,7 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
             return <UnitDetail state={state} unitId={selectedInfo.unitId} myPlayerId={playerId} />;
         }
         if (selectedInfo?.type === 'card') {
-            return <CardDetail cardId={selectedInfo.cardId} fromRect={selectedInfo.fromRect} isReclick={selectedInfo.isReclick} key={selectedInfo.cardId + '_' + (selectedInfo._ck ?? 0)} />;
+            return <CardDetail cardId={selectedInfo.cardId} fromRect={selectedInfo.fromRect} isReclick={selectedInfo.isReclick} sendAction={sendAction} playerId={playerId} discardMode={selectedInfo.discardMode} key={selectedInfo.cardId + '_' + (selectedInfo._ck ?? 0)} />;
         }
         if (selectedInfo?.type === 'effect') {
             return <EffectDetail stat={selectedInfo.stat} label={selectedInfo.label} description={selectedInfo.description} source={selectedInfo.source} sourceName={selectedInfo.sourceName} value={selectedInfo.value} />;
@@ -76,11 +77,12 @@ export function RightPanel({ state, playerId, selectedInfo, sendAction, children
     }
 
     return (
-        <aside className="h-full border-l border-zinc-700 flex flex-col overflow-hidden bg-zinc-900/80">
-            <div className="border-b border-zinc-700 p-3">
+        <aside className="absolute right-4 top-4 bottom-4 w-[280px] flex flex-col overflow-hidden bg-zinc-900/80 border border-zinc-700/60 rounded-lg shadow-xl z-20">
+            <div className="border-b border-zinc-700 p-3 flex items-center justify-between">
                 <div className="text-[10px] font-semibold text-panel-title uppercase tracking-wide">
                     {selectedInfo ? l('board.info') : l('board.details')}
                 </div>
+                {hamburgerMenu && <div className="-mr-1 -mt-1">{hamburgerMenu}</div>}
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
                 {renderContent()}

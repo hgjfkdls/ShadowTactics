@@ -25,8 +25,8 @@ export const es = {
   },
 
   ability: {
-    ataque_basico: { name: 'Ataque básico', desc: 'Ataque cuerpo a cuerpo o a distancia según el arma de la unidad' },
-    movimiento: { name: 'Movimiento', desc: 'Desplaza a la unidad 1 casilla adyacente' },
+    ataque_basico: { name: 'Ataque básico', desc: 'Realiza un ataque a una unidad enemiga dentro de tu rango.' },
+    movimiento: { name: 'Movimiento', desc: 'Realiza un movimiento hacia un hex adyacente.' },
     blanco_facil: { name: 'Blanco fácil', desc: 'Si el objetivo no se movió el turno anterior, -1 dificultad' },
     patada_acrobatica: { name: 'Patada acrobática', desc: 'Si el arquero está adyacente a un enemigo, hace 1 de daño y se mueve a una casilla adyacente no ocupada que no esté adyacente al enemigo', restriction: 'Requiere enemigo adyacente y casilla de escape disponible' },
     fuego_cobertura: { name: 'Fuego de cobertura', desc: 'Si impacta, inflige 2 de daño y el objetivo tiene coste +1 en su próximo turno (max 2 acciones)', restriction: '1 vez por turno por arquero, no se acumula',
@@ -157,7 +157,7 @@ export const es = {
     distanceLabel: 'Distancia',
     player1: 'Jugador 1',
     player2: 'Jugador 2',
-    yourTurn: 'EN TURNO',
+    yourTurn: 'Jugando',
     deploying: 'DESPLEGANDO',
     turnX: 'Turno {n}',
     time: 'Tiempo',

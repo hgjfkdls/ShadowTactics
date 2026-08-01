@@ -36,20 +36,21 @@ html.theme-dark-water {
     --color-range-overlay: rgba(58, 122, 186, 0.12);
     --color-available: #2a9a7a;
     --color-available-overlay: rgba(42, 154, 122, 0.35);
-    --color-move-bg: #0a3a5a;
+    --color-move-bg: rgba(10, 58, 90, 0.4);
     --color-attack: #da4a5a;
     --color-attack-overlay: rgba(218, 74, 90, 0.3);
-    --color-attack-bg: #5a1a2a;
+    --color-attack-bg: rgba(90, 26, 42, 0.4);
     --color-buff: #2a9a7a;
     --color-buff-overlay: rgba(42, 154, 122, 0.35);
-    --color-buff-bg: #0a4a3a;
+    --color-buff-bg: rgba(10, 74, 58, 0.4);
     --color-history: #4aaa9a;
     --color-history-overlay: rgba(74, 170, 154, 0.2);
     --color-selected: #3a7aba;
     --color-identity-target: #7a3a7a;
     --color-identity-target-overlay: rgba(122, 58, 122, 0.25);
-    --color-identity-target-bg: #2a0a3a;
-    --color-hover-bg: #1a2a3a;
-    --color-default-bg: #0e1a2a;
+    --color-identity-target-bg: rgba(42, 10, 58, 0.4);
+    --color-hover-bg: rgba(26, 42, 58, 0.4);
+    --color-default-bg: rgba(14, 26, 42, 0.4);
     --color-default-stroke: #2a3a4a;
+    --color-unit-bg: rgba(14, 26, 42, 0.7);
 }
