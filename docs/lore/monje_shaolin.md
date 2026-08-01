@@ -15,7 +15,7 @@ Shen Wei fue abandonado en las puertas del templo siendo un bebé. A los 25 año
 
 **Enemigo:** 2 bandidos.
 **Aliados:** Ninguno.
-**Objetivo:** Defender la aldea.
+**Objetivo:** Ahuyentar a los bandidos.
 
 ### Batalla 2: «El templo bajo ataque»
 **Escenario:** Escalinata de piedra que asciende serpenteando entre pinos centenarios hasta la puerta del Templo Shaolin. Una niebla ligera cubre el camino. Los saqueadores avanzan con cautela, sabiendo que los monjes son peligrosos. Shen Wei ha apostado a dos novicios en posiciones elevadas entre los árboles, listos para emboscar.

@@ -109,6 +109,8 @@ export type GameState = {
 
     // Ocupación pendiente tras Avance (pasiva)
     gameStartTime?: number;  // Date.now() cuando la partida entra en fase GAME
+    campaignMaxAP?: number;  // Límite de AP por turno para campañas (opcional)
+    campaignMode?: boolean;  // true = partida de campaña (sin game-over automático)
 
     pendingOccupation?: {
         unitId: UnitId;

@@ -350,6 +350,8 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
     const allPaMods = [...(paModifiers ?? []), ...costModsFromBuild];
     // Capturar posición de muerte antes de que la unidad desaparezca
     const deathPos: HexCoord | undefined = s.units[targetId]?.position ?? s.graveyard[targetId]?.position;
+    const targetKilled = deathPos !== undefined && (!!s.graveyard[targetId] || !!s.units[targetId]?.dying);
+    const attackerKilled = !!s.graveyard[attackerId] || !!s.units[attackerId]?.dying;
     // Compute distance from positions
     const dist = atkUnit && s.units[targetId] ? hexDistance(atkUnit.position, s.units[targetId].position) : 0;
     // Prepend difficulty formula
@@ -403,6 +405,8 @@ export function storeAttackResult(result: AttackResult, attackerId: string, targ
             paModifiers: allPaMods,
             distance: dist,
             deathPos,
+            targetKilled,
+            attackerKilled,
         }],
         nextHistoryId: s.nextHistoryId + 1,
     };

@@ -1,7 +1,6 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './game/useGameState';
-import { createAIGame } from './net/socket';
+import { createAIGame, createCampaignGame } from './net/socket';
 import { HexBoard } from './game/board/Board';
 import { PreparationScreen } from './prep/PreparationScreen';
 import { DeploymentScreen } from './prep/DeploymentScreen';
@@ -15,6 +14,9 @@ import { SoundEngine } from './game/sound/SoundEngine';
 import { WebAudioRenderer } from './game/sound/render/WebAudioRenderer';
 import type { SoundEvent } from './game/sound/types';
 import { LoadingScreen } from './game/assets/LoadingScreen';
+import { CampaignSelection } from './campaign/CampaignSelection';
+import { CampaignMap } from './campaign/CampaignMap';
+import { loadCampaignProgress, saveCampaignProgress, CampaignProgress } from './campaign/campaignConfig';
 import { TurnTimer } from './game/layout/TurnTimer';
 import { HamburgerMenu } from './game/layout/HamburgerMenu';
 import { GameOverModal } from './game/layout/GameOverModal';
@@ -56,6 +58,9 @@ export function App() {
     const [prepDone, setPrepDone] = useState(false);
     const [selectedInfo, setSelectedInfo] = useState<SelectedInfo>(null);
     const [confirmLeave, setConfirmLeave] = useState(false);
+    const [showCampaign, setShowCampaign] = useState(false);
+    const [campaignIdentityKey, setCampaignIdentityKey] = useState<string | null>(null);
+    const [campaignProgress, setCampaignProgress] = useState<CampaignProgress>(() => loadCampaignProgress());
     const { alerts, addAlert, removeAlert } = useAlerts();
 
     // Auto-join desde URL: /game/<id>?userId=...&matchType=...
@@ -227,16 +232,25 @@ export function App() {
                     />
                     </>
                 ) : state && state.preparationPhase === 'DEPLOYMENT' ? (
-                    <>
-                    <TurnTimer info={timerInfo} pausedInfo={pausedTimerInfo} />
-                    <DeploymentScreen
-                        state={state}
-                        sendAction={sendAction}
-                        role={role}
-                        selectedInfo={selectedInfo}
-                        onInfoSelect={setSelectedInfo}
-                    />
-                    </>
+
+                    <div className="absolute inset-0">
+                        <OverlayBar state={state} playerId={playerId} timerInfo={timerInfo} pausedTimerInfo={pausedTimerInfo} role={role} onSelectIdentity={pid => setSelectedInfo(
+                                selectedInfo?.type === 'identity' && selectedInfo.playerId === pid ? null : { type: 'identity', playerId: pid }
+                            )} />
+                        <DeploymentScreen
+                            state={state}
+                            sendAction={sendAction}
+                            role={role}
+                            selectedInfo={selectedInfo}
+                            onInfoSelect={setSelectedInfo}
+                        />
+                        <RightPanel
+                            state={state}
+                            playerId={playerId}
+                            selectedInfo={selectedInfo}
+                            sendAction={sendAction}
+                        />
+                    </div>
                 ) : isGameOrOver ? (
                     <div className="grid grid-cols-[240px_1fr_280px] overflow-hidden h-full">
                         <PlayerSidebar
@@ -285,7 +299,61 @@ export function App() {
                         Waiting for game state…
                     </div>
                 )}
-                </div>
+                </>
+            ) : showCampaign && campaignIdentityKey ? (
+                <CampaignMap
+                    identityKey={campaignIdentityKey}
+                    progress={campaignProgress}
+                    onPlayStage={(stage, campaignStage) => {
+                        setShowCampaign(false);
+                        setCampaignIdentityKey(null);
+                        const cfg = campaignStage.config;
+                        if (cfg.positions) {
+                            const playerUnits: { unitId: string; unitClass: string; position: { q: number; r: number } }[] = [
+                                { unitId: 'u1', unitClass: 'general', position: cfg.positions.playerGeneral },
+                            ];
+                            for (let i = 0; i < cfg.allies.archer; i++) playerUnits.push({ unitId: `u_arch_${i}`, unitClass: 'archer', position: cfg.positions.playerAllies?.[i] ?? { q: 0, r: 0 } });
+                            for (let i = 0; i < cfg.allies.infantry; i++) playerUnits.push({ unitId: `u_inf_${i}`, unitClass: 'infantry', position: cfg.positions.playerAllies?.[cfg.allies.archer + i] ?? { q: 0, r: 0 } });
+                            for (let i = 0; i < cfg.allies.cavalry; i++) playerUnits.push({ unitId: `u_cav_${i}`, unitClass: 'cavalry', position: cfg.positions.playerAllies?.[cfg.allies.archer + cfg.allies.infantry + i] ?? { q: 0, r: 0 } });
+                            for (let i = 0; i < cfg.allies.lancer; i++) playerUnits.push({ unitId: `u_lan_${i}`, unitClass: 'lancer', position: cfg.positions.playerAllies?.[cfg.allies.archer + cfg.allies.infantry + cfg.allies.cavalry + i] ?? { q: 0, r: 0 } });
+
+                            const enemyUnits: { unitId: string; unitClass: string; position: { q: number; r: number } }[] = [];
+                            if (cfg.positions.enemyGeneral) {
+                                enemyUnits.push({ unitId: 'e_gen', unitClass: 'general', position: cfg.positions.enemyGeneral });
+                            }
+                            let enemyIdx = 0;
+                            const addEnemies = (cls: string, count: number) => {
+                                for (let i = 0; i < count; i++) {
+                                    const pos = cfg.positions!.enemies[enemyIdx] ?? { q: 0, r: 0 };
+                                    enemyUnits.push({ unitId: `e_${cls}_${i}`, unitClass: cls, position: pos });
+                                    enemyIdx++;
+                                }
+                            };
+                            addEnemies('archer', cfg.enemies.archer);
+                            addEnemies('infantry', cfg.enemies.infantry);
+                            addEnemies('cavalry', cfg.enemies.cavalry);
+                            addEnemies('lancer', cfg.enemies.lancer);
+
+                            const identityCardId = `${campaignIdentityKey}_1`;
+                            createCampaignGame({
+                                identityKey: campaignIdentityKey,
+                                identityCardId,
+                                playerUnits,
+                                enemyUnits,
+                                mapRadius: cfg.map.radius ?? 3,
+                                maxAP: cfg.maxAP,
+                            });
+                        } else {
+                            createAIGame(cfg.difficulty);
+                        }
+                    }}
+                    onBack={() => setCampaignIdentityKey(null)}
+                />
+            ) : showCampaign ? (
+                <CampaignSelection
+                    onSelectIdentity={(key) => setCampaignIdentityKey(key)}
+                    onBack={() => setShowCampaign(false)}
+                />
             ) : (
                 <main className="flex items-start justify-center h-full">
                     <div className="flex flex-col items-center gap-4 mt-24">
@@ -302,6 +370,12 @@ export function App() {
                             onClick={() => joinGame(gameIdInput)}
                         >
                             Join game
+                        </button>
+                        <button
+                            className="bg-yellow-600 hover:bg-yellow-500 transition text-white px-4 py-1.5 rounded-md cursor-pointer"
+                            onClick={() => setShowCampaign(true)}
+                        >
+                            {l('campaign.title') || 'Campañas'}
                         </button>
                         <div className="w-full border-t border-zinc-800 my-3" />
                         <div className="text-sm font-semibold text-zinc-400">Jugar contra la IA</div>

@@ -67,10 +67,11 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
         }
     };
 
-    // Apply identity effects immediately so the general has its abilities/stats
-    newState = applyIdentityEffects(newState);
-    // Update unit reference in case identity effects modified it
-    unit = newState.units[unit.id];
+    // Apply identity effects only when deploying the general
+    if (unitClass === 'general') {
+        newState = applyIdentityEffects(newState);
+        unit = newState.units[unit.id];
+    }
 
     // Registrar historial de despliegue
     const className = l(`unit.class.${unitClass}`) || unitClass;
@@ -112,9 +113,10 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
             gamePhase: 'GAME',
             preparationPhase: 'DONE',
         };
+        // Apply identity effects one final time for all units before game start
+        const identityState = applyIdentityEffects(postDeploy);
         // Todas las unidades miran al general enemigo al comenzar la partida
-        const units = { ...postDeploy.units };
-        // Buscar generales: puede que identity effects hayan cambiado stats pero class sigue siendo 'general'
+        const units = { ...identityState.units };
         const p1Gen = Object.values(units).find(u => u.owner === 'p1' && u.class === 'general');
         const p2Gen = Object.values(units).find(u => u.owner === 'p2' && u.class === 'general');
         for (const id of Object.keys(units)) {
@@ -126,7 +128,7 @@ export function handleDeployment(state: GameState, action: GameAction): GameStat
                 units[id] = { ...u, direction: { q: 0, r: 0 } };
             }
         }
-        return applyTurnStart({ ...postDeploy, units }, newState.activePlayer);
+        return applyTurnStart({ ...identityState, units }, identityState.activePlayer);
     }
 
     const nextPlayer = getDeployerForStep(nextStep, state.deploymentOrder!);

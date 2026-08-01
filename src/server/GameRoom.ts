@@ -9,6 +9,7 @@ import {
 import type { GameAction, GameState, HexCoord } from '@shared';
 import type { TimerInfo, TimerPhase } from '@shared/game/timer';
 import { createInitialGameState } from '@shared/game/init';
+import { createCampaignInitialState } from '@shared/game/campaign-init';
 import { decideAI } from './ai/AIPlayer';
 import { evaluateDeployPosition } from './ai/evaluate';
 
@@ -92,6 +93,7 @@ export class GameRoom {
     private activeTimer: ActiveTimer | null = null;
     private turnTimerRemaining: number | null = null;
     isBotGame?: boolean;
+    isCampaignGame?: boolean;
     botModelId?: string;
 
     private botBusy: boolean = false;
@@ -138,7 +140,8 @@ export class GameRoom {
     private actions: ActionRecord[] = [];
     private snapshots: StateSnapshot[] = [];
 
-    private SNAPSHOT_EVERY_N_ACTIONS = 1;
+    private SNAPSHOT_EVERY_N_ACTIONS = 20; // cada ~4 turnos (4-5 actions/turno × 4 = 16-20)
+    private MAX_SNAPSHOTS = 10;
 
     constructor(id: string) {
         this.id = id;
@@ -150,6 +153,17 @@ export class GameRoom {
             state: this.currentState,
             time: Date.now(),
         });
+    }
+
+    startCampaign(state: GameState) {
+        this.isCampaignGame = true;
+        this.currentState = state;
+        this.snapshots = [{
+            actionIndex: 0,
+            state: this.currentState,
+            time: Date.now(),
+        }];
+        this.actions = [];
     }
 
     join(socketId: string, userId?: string): JoinResult {
@@ -558,9 +572,12 @@ export class GameRoom {
         if (index % this.SNAPSHOT_EVERY_N_ACTIONS === 0) {
             this.snapshots.push({
                 actionIndex: index,
-                state: newState,
+                state: JSON.parse(JSON.stringify(newState)),
                 time: Date.now(),
             });
+            if (this.snapshots.length > this.MAX_SNAPSHOTS) {
+                this.snapshots = this.snapshots.slice(-this.MAX_SNAPSHOTS);
+            }
         }
 
         this.refreshTimer();

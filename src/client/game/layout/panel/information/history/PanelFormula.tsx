@@ -34,7 +34,10 @@ function PanelFormula({ entry, paModLetters, paBaseCost, diffFormulaRef, diffMod
                     {(dmgFormula || dmgClamped) && entry.hit && (
                         <div className="flex items-center justify-between">
                             <span className="text-zinc-500">{l('board.damageLabel')}</span>
-                            <span className="text-zinc-200 font-semibold">{entry.damage}</span>
+                            <span className="text-zinc-200 font-semibold">
+                                {entry.targetKilled && <span className="text-red-400 mr-1">💀</span>}
+                                {entry.damage}
+                            </span>
                         </div>
                     )}
                 </>
@@ -62,7 +65,7 @@ function PanelFormula({ entry, paModLetters, paBaseCost, diffFormulaRef, diffMod
                     {entry.total > 0 && (
                         <div className="flex items-center justify-between pt-1 border-t border-zinc-700">
                             <span className="text-zinc-500">{l('attackDetail.dice')}</span>
-                            <span className="text-zinc-200 font-semibold">{dieFaces[entry.die1] ?? entry.die1} + {dieFaces[entry.die2] ?? entry.die2} = <span className="text-white">{entry.total}</span>{isCritical && <span className="text-effect-diff ml-1">💥</span>} {entry.hit ? <span className="text-hit-text ml-1">{l('attackDetail.hit')}</span> : <span className="text-miss-text ml-1">{l('attackDetail.miss')}</span>}</span>
+                            <span className="text-zinc-200 font-semibold">{dieFaces[entry.die1] ?? entry.die1} + {dieFaces[entry.die2] ?? entry.die2} = <span className="text-white">{entry.total}</span>{isCritical && <span className="text-effect-diff ml-1">💥</span>} {entry.hit ? <span className="text-hit-text ml-1">{l('attackDetail.hit')}</span> : <span className="text-miss-text ml-1">{l('attackDetail.miss')}</span>}{entry.targetKilled && <span className="text-red-400 ml-1">💀</span>}</span>
                         </div>
                     )}
                 </>
@@ -83,7 +86,7 @@ function PanelFormula({ entry, paModLetters, paBaseCost, diffFormulaRef, diffMod
                     {entry.total > 0 && (
                         <div className="flex items-center justify-between pt-1 border-t border-zinc-700">
                             <span className="text-zinc-500">{l('attackDetail.dice')}</span>
-                            <span className="text-zinc-200 font-semibold">{dieFaces[entry.die1] ?? entry.die1} + {dieFaces[entry.die2] ?? entry.die2} = <span className="text-white">{entry.total}</span>{isCritical && <span className="text-effect-diff ml-1">💥</span>} {entry.hit ? <span className="text-hit-text ml-1">{l('attackDetail.hit')}</span> : <span className="text-miss-text ml-1">{l('attackDetail.miss')}</span>}</span>
+                            <span className="text-zinc-200 font-semibold">{dieFaces[entry.die1] ?? entry.die1} + {dieFaces[entry.die2] ?? entry.die2} = <span className="text-white">{entry.total}</span>{isCritical && <span className="text-effect-diff ml-1">💥</span>} {entry.hit ? <span className="text-hit-text ml-1">{l('attackDetail.hit')}</span> : <span className="text-miss-text ml-1">{l('attackDetail.miss')}</span>}{entry.targetKilled && <span className="text-red-400 ml-1">💀</span>}</span>
                         </div>
                     )}
                 </>

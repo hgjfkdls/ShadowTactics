@@ -8,3 +8,4 @@ export { createUnit, BASE_STATS } from './units';
 export { resolveAttack, getDifficulty, canCounterattack, getCounterDamage } from './combat';
 export { handleCard } from './actions';
 export { handleIdentity, handleRoll, handleDeployment, handleEndTurn } from './phases';
+export { createCampaignInitialState } from './campaign-init';

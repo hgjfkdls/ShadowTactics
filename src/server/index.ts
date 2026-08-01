@@ -3,8 +3,9 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join } from 'path';
 import { Server } from 'socket.io';
-import { getRoom, removeRoomIfEmpty } from './rooms';
+import { getRoom, removeRoomIfEmpty, createRoom } from './rooms';
 import { submitReport } from './report';
+import { createCampaignInitialState } from '@shared/game/campaign-init';
 
 const isOnline = process.env.MODE === 'online';
 const SERVER_PORT = parseInt(process.env.SERVER_PORT || '3000');
@@ -230,6 +231,46 @@ io.on('connection', socket => {
         }
 
         console.log(`AI Game ${gameId} created, model: ${modelId}`);
+    });
+
+    socket.on('CREATE_CAMPAIGN_GAME', ({ identityKey, identityCardId, playerUnits, enemyUnits, mapRadius, maxAP }) => {
+        const gameId = `camp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const room = createRoom(gameId);
+
+        const campaignState = createCampaignInitialState({
+            identityKey,
+            identityCardId,
+            playerUnits,
+            enemyUnits,
+            mapRadius: mapRadius ?? 3,
+            maxAP,
+        });
+        room.startCampaign(campaignState);
+
+        socket.join(gameId);
+        socket.data.gameId = gameId;
+
+        room.isCampaignGame = true;
+        room.botModelId = 'cpu_facil';
+
+        room.onTimerTick = (info, pausedInfo) => {
+            io.to(gameId).emit('TIMER', { active: info, paused: pausedInfo ?? null });
+        };
+        room.onStateChanged = (state) => {
+            io.to(gameId).emit('STATE', state);
+        };
+
+        const joinResult = room.join(socket.id);
+        if (joinResult.role === 'player') {
+            socket.emit('ROLE', { role: 'player', playerId: joinResult.playerId });
+        }
+
+        room.addBotPlayer('p2');
+
+        socket.emit('STATE', room.getCurrentState());
+        socket.emit('AI_GAME_CREATED', { gameId });
+
+        console.log(`Campaign game ${gameId} created for ${identityKey}`);
     });
 
     socket.on('LEAVE_GAME', ({ gameId }) => {

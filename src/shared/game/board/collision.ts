@@ -3,6 +3,7 @@ import type { GameState, HexCoord } from '../state';
 export function isHexOccupied(state: GameState, position: HexCoord, excludeUnitId?: string): boolean {
     return Object.values(state.units).some(
         (u) =>
+            !u.dying &&
             u.id !== excludeUnitId &&
             u.position.q === position.q &&
             u.position.r === position.r

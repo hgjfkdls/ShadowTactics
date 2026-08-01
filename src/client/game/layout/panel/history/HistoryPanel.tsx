@@ -231,8 +231,11 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
                             ) : (
                                 <span className="text-red-400 font-semibold">❌ {l('board.miss')}{entry.counterDamage > 0 ? ` (${l('board.counter')} -${entry.counterDamage} HP)` : ''}</span>
                             )}
-                            {(entry.targetKilled || entry.attackerKilled) && (
-                                <span className="text-yellow-400 ml-1">⚫</span>
+                            {entry.targetKilled && (
+                                <span className="text-red-400 ml-1 font-semibold">💀 {l('history.unitKilled')}</span>
+                            )}
+                            {entry.attackerKilled && (
+                                <span className="text-yellow-400 ml-1 font-semibold">💀 {l('history.unitKilled')}</span>
                             )}
                         </div>
                         {pShowCost && <div className="text-[9px] font-bold text-effect-pa">{entry.paCost ?? 1} PA</div>}
@@ -305,8 +308,9 @@ function HistoryCard({ entry, selected }: { entry: HistoryEntry; selected?: bool
     }
 
     if (entry.type === 'support') {
-        const effLines: { text: string; color: string }[] = [];
         const cls = (c: string) => l(`unit.class.${c}`) ?? c;
+
+        const effLines: { text: string; color: string }[] = [];
         if (entry.details) {
             const detailsText = entry.details.startsWith('ability.') || entry.details.startsWith('passive.') ? l(entry.details) : entry.details;
             const lines = detailsText.split('\n');

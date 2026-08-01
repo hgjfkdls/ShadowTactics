@@ -13,6 +13,12 @@ export function getRoom(gameId: string): GameRoom {
     return room;
 }
 
+export function createRoom(gameId: string): GameRoom {
+    const room = new GameRoom(gameId);
+    rooms.set(gameId, room);
+    return room;
+}
+
 export function removeRoomIfEmpty(gameId: string) {
     const room = rooms.get(gameId);
     if (!room) return;

@@ -105,7 +105,7 @@ function resetUnitTracking(unit: Unit): Unit {
 }
 
 export function applyTurnStart(state: GameState, playerId: string): GameState {
-    const baseAP = 5;
+    const baseAP = state.campaignMaxAP ?? 5;
     const player = state.players[playerId];
     const totalAP = Math.min(baseAP + player.carryOver, 8);
 

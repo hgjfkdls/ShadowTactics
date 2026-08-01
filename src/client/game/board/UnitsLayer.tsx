@@ -151,6 +151,8 @@ export function UnitsLayer({ state, selectedUnitId, attackingUnitId, pendingAbil
         : [];
 
     const allUnits = Object.values(state.units).sort((a, b) => {
+        if (a.dying) return 1;
+        if (b.dying) return -1;
         if (a.id === hoveredUnitId) return 1;
         if (b.id === hoveredUnitId) return -1;
         if (a.id === selectedUnitId) return 1;

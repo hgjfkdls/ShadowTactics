@@ -79,7 +79,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         }
     }
 
-    if (result.gamePhase === 'GAME' && hadAttack) {
+    if (result.gamePhase === 'GAME' && hadAttack && !result.campaignMode) {
         result = checkGeneralKilled(result);
     }
 
@@ -269,7 +269,7 @@ function applyActionInner(state: GameState, action: GameAction): GameState {
             // La unidad ya está en graveyard (killUnit la guardó), solo remover de units
             const { [action.unitId]: _, ...remainingUnits } = state.units;
             let s: GameState = { ...state, units: remainingUnits };
-            if (dyingUnit.class === 'general') {
+            if (dyingUnit.class === 'general' && !s.campaignMode) {
                 s = setGameOver(s, dyingUnit.owner === 'p1' ? 'p2' : 'p1', 'general_killed');
             }
             return s;
